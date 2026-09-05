@@ -1,29 +1,21 @@
 [
   {
-    "id": "prj-mto8y5jm",
-    "name": "Crypto Vault Wallet",
-    "description": "QA security audit and regression for multi-sig wallet",
-    "status": "Testing",
+    "id": "prj-ko",
+    "name": "ko",
+    "description": "QA project ko created from Vercel platform",
+    "status": "Active",
     "memberIds": [
       "usr-347835367",
-      "usr-hana"
+      "usr-sarah"
     ],
     "resources": {
-      "prdUrl": "https://docs.crypto.internal/prd",
-      "repoUrl": "https://github.com/crypto/vault",
-      "figmaUrl": "https://www.figma.com/file/crypto-vault/spec",
-      "prdTitle": "Crypto Vault Wallet PRD v1.2",
-      "apiDocUrl": "https://api.crypto.internal/docs",
-      "prdContent": "# Crypto Vault Acceptance Criteria\n- 100% test pass rate on signature verifications",
-      "testEnvUrl": "https://staging-wallet.internal",
-      "releaseInfo": "Audited release candidate",
-      "requirements": [
-        "REQ-01: Multi-sig auth",
-        "REQ-02: Biometric unlock"
-      ],
-      "importantNotes": "Verify secure enclave simulation",
-      "testCredentials": [],
-      "figmaPreviewTitle": "Crypto Vault UI Specs"
+      "prdUrl": "",
+      "figmaUrl": "",
+      "prdTitle": "ko Functional Specifications",
+      "figmaName": "ko Prototype",
+      "prdContent": "# Project ko Acceptance Criteria\n- Complete verification",
+      "requirements": [],
+      "figmaPreviewTitle": "ko UI Specifications"
     }
   },
   {
