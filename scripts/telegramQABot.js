@@ -293,7 +293,24 @@ async function findOrLinkProfile(chatId, user) {
 // In-memory conversation state for wizards (onboarding, checkin, switch_project)
 const userSessions = new Map();
 
-// Helper to send Telegram message with retry resilience
+// Helper to escape HTML characters in dynamic user inputs
+function escapeHtml(text) {
+  if (text === null || text === undefined) return '';
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+// Strip HTML tags for fallback
+function stripHtml(html) {
+  if (!html) return '';
+  return String(html).replace(/<[^>]*>/g, '');
+}
+
+// Helper to send Telegram message with retry resilience and entity parse error fallback
 async function sendMessage(chatId, text, extra = {}, retries = 3) {
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
@@ -307,10 +324,36 @@ async function sendMessage(chatId, text, extra = {}, retries = 3) {
           ...extra,
         }),
       });
-      return await res.json();
+      const data = await res.json();
+      if (data.ok) {
+        return data;
+      }
+
+      console.warn(`[Telegram API Warning] sendMessage HTML rejected for ${chatId}:`, data.description);
+
+      // If Telegram rejects HTML entities (e.g. unsupported start tag or unescaped characters), immediately fallback to plain text!
+      if (data.description && (data.description.includes('parse entities') || data.description.includes('tag'))) {
+        console.log(`[Telegram Fallback] Retrying plain-text delivery to ${chatId}...`);
+        const fallbackRes = await fetch(`${TELEGRAM_API}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: chatId,
+            text: stripHtml(text),
+            ...extra,
+          }),
+        });
+        const fallbackData = await fallbackRes.json();
+        if (fallbackData.ok) {
+          console.log(`[Telegram Fallback] Successfully delivered plain-text message to ${chatId}`);
+          return fallbackData;
+        } else {
+          console.error(`[Telegram Fallback Error]`, fallbackData.description);
+        }
+      }
     } catch (err) {
       if (attempt === retries) {
-        console.error(`[Telegram] Failed to send message to ${chatId}:`, err.message);
+        console.error(`[Telegram] Network failed to send message to ${chatId}:`, err.message);
       } else {
         await new Promise((r) => setTimeout(r, 600));
       }
@@ -549,14 +592,15 @@ async function handleOnboardingStep(chatId, user, text) {
       await sendMessage(
         chatId,
         `🎉 <b>QA Profile Configured Successfully!</b>\n\n` +
-        `👤 <b>Name:</b> ${profile.fullName}\n` +
-        `🏷 <b>Role:</b> ${profile.role}\n` +
-        `🚀 <b>Active Project:</b> ${profile.projectName}\n` +
+        `👤 <b>Name:</b> ${escapeHtml(profile.fullName)}\n` +
+        `🏷 <b>Role:</b> ${escapeHtml(profile.role)}\n` +
+        `🚀 <b>Active Project:</b> ${escapeHtml(profile.projectName)}\n` +
         `💬 <b>Chat ID:</b> <code>${chatId}</code>\n\n` +
         `<b>Helpful Commands:</b>\n` +
         `• /checkin — Submit your daily standup\n` +
         `• /project — Switch your active project\n` +
-        `• /blocker <issue> — Immediately report an urgent blocker\n` +
+        `• /blocker &lt;issue&gt; — Immediately report an urgent blocker\n` +
+        `• /resolve — Resolve active blockers\n` +
         `• /profile — View or update your profile\n` +
         `• /status — View overall QA metrics`
       );
@@ -943,27 +987,59 @@ async function handleProjectSwitch(chatId, text) {
 
 async function handleMessage(message) {
   const chatId = message.chat.id;
-  const text = message.text?.trim() || '';
+  const rawText = message.text?.trim() || '';
+  const text = rawText.toLowerCase();
   const user = message.from || {};
+  console.log(`[Telegram IN] Chat ${chatId} (@${user.username || user.first_name || 'unknown'}): "${rawText}"`);
+
   const profile = await findOrLinkProfile(chatId, user);
 
+  // Handle /start, start, /help, help, /menu, menu
+  if (text === '/start' || text === 'start' || text === '/help' || text === 'help' || text === '/menu' || text === 'menu') {
+    // Clear any stuck/previous wizard session so /start always provides a fresh welcome!
+    userSessions.delete(chatId);
+
+    if (!profile) {
+      console.log(`[Bot] Member ${chatId} has no active profile in Supabase. Prompting onboarding wizard.`);
+      await startOnboarding(chatId, user, false);
+      return;
+    }
+
+    await sendMessage(
+      chatId,
+      `🛡️ <b>Welcome to AegisQA, ${escapeHtml(profile.fullName)}!</b>\n\n` +
+      `👤 <b>Role:</b> ${escapeHtml(profile.role)}\n` +
+      `🚀 <b>Active Project:</b> ${escapeHtml(profile.projectName)}\n` +
+      `💬 <b>Chat ID:</b> <code>${chatId}</code>\n\n` +
+      `<b>Available Commands:</b>\n` +
+      `• /checkin — Start your daily QA standup for ${escapeHtml(profile.projectName)}\n` +
+      `• /project — Switch your active QA project\n` +
+      `• /blocker &lt;reason&gt; — Immediately report an urgent blocker\n` +
+      `• /resolve — Resolve active blockers and remove from blocked tasks\n` +
+      `• /profile — View or update your profile\n` +
+      `• /status — View platform release readiness & regression metrics\n` +
+      `• /cancel — Cancel an active operation`
+    );
+    return;
+  }
+
   // Active Session handling
-  if (userSessions.has(chatId) && !text.startsWith('/')) {
+  if (userSessions.has(chatId) && !rawText.startsWith('/')) {
     const session = userSessions.get(chatId);
     if (session.type === 'onboarding') {
-      const handled = await handleOnboardingStep(chatId, user, text);
+      const handled = await handleOnboardingStep(chatId, user, rawText);
       if (handled) return;
     } else if (session.type === 'checkin') {
-      const handled = await handleCheckinStep(chatId, user, text);
+      const handled = await handleCheckinStep(chatId, user, rawText);
       if (handled) return;
     } else if (session.type === 'switch_project') {
-      const handled = await handleProjectSwitch(chatId, text);
+      const handled = await handleProjectSwitch(chatId, rawText);
       if (handled) return;
     }
   }
 
   // Active Session cancellation
-  if (text === '/cancel') {
+  if (text === '/cancel' || text === 'cancel') {
     if (userSessions.has(chatId)) {
       userSessions.delete(chatId);
       await sendMessage(chatId, '❌ Active operation cancelled. Type /checkin when ready.');
@@ -987,26 +1063,6 @@ async function handleMessage(message) {
     return;
   }
 
-  // Commands for registered members
-  if (text === '/start' || text === '/help') {
-    await sendMessage(
-      chatId,
-      `🛡️ <b>Welcome to AegisQA, ${profile.fullName}!</b>\n\n` +
-      `👤 <b>Role:</b> ${profile.role}\n` +
-      `🚀 <b>Active Project:</b> ${profile.projectName}\n` +
-      `💬 <b>Chat ID:</b> <code>${chatId}</code>\n\n` +
-      `<b>Available Commands:</b>\n` +
-      `• /checkin — Start your daily QA standup for ${profile.projectName}\n` +
-      `• /project — Switch your active QA project\n` +
-      `• /blocker <reason> — Immediately report an urgent blocker\n` +
-      `• /resolve — Resolve active blockers and remove from blocked tasks\n` +
-      `• /profile — View or update your profile\n` +
-      `• /status — View platform release readiness & regression metrics\n` +
-      `• /cancel — Cancel an active operation`
-    );
-    return;
-  }
-
   if (text === '/profile') {
     if (!profile) {
       await startOnboarding(chatId, user, false);
@@ -1016,10 +1072,10 @@ async function handleMessage(message) {
     await sendMessage(
       chatId,
       `👤 <b>AegisQA Profile</b>\n\n` +
-      `• <b>Full Name:</b> ${profile.fullName}\n` +
-      `• <b>QA Role:</b> ${profile.role}\n` +
-      `• <b>Active Project:</b> ${profile.projectName}\n` +
-      `• <b>Telegram:</b> @${user.username || 'n/a'}\n` +
+      `• <b>Full Name:</b> ${escapeHtml(profile.fullName)}\n` +
+      `• <b>QA Role:</b> ${escapeHtml(profile.role)}\n` +
+      `• <b>Active Project:</b> ${escapeHtml(profile.projectName)}\n` +
+      `• <b>Telegram:</b> @${escapeHtml(user.username || 'n/a')}\n` +
       `• <b>Chat ID:</b> <code>${chatId}</code>\n\n` +
       `<b>Quick Commands:</b>\n` +
       `• /project — Switch active project\n` +
@@ -1040,7 +1096,7 @@ async function handleMessage(message) {
   }
 
   if (text.startsWith('/blocker')) {
-    const reason = text.replace('/blocker', '').trim();
+    const reason = rawText.replace(/^\/blocker/i, '').trim();
     if (!reason) {
       await sendMessage(
         chatId,
@@ -1071,9 +1127,9 @@ async function handleMessage(message) {
     await sendMessage(
       chatId,
       `🚨 <b>CRITICAL BLOCKER LOGGED</b>\n\n` +
-      `📁 <b>Project:</b> ${projectName}\n` +
-      `👤 <b>Reported by:</b> ${memberName} (@${user.username || user.first_name})\n` +
-      `⚠️ <b>Issue:</b> ${reason}\n` +
+      `📁 <b>Project:</b> ${escapeHtml(projectName)}\n` +
+      `👤 <b>Reported by:</b> ${escapeHtml(memberName)} (@${escapeHtml(user.username || user.first_name)})\n` +
+      `⚠️ <b>Issue:</b> ${escapeHtml(reason)}\n` +
       `🕒 <b>Time:</b> ${new Date().toLocaleTimeString()}\n\n` +
       `<i>The QA Lead Command Center has been alerted.</i>`
     );
@@ -1099,7 +1155,7 @@ async function handleMessage(message) {
       chatId,
       `✅ <b>Blocker(s) Resolved!</b>\n\n` +
       `The following blocker(s) have been marked as <b>Resolved</b>:\n` +
-      openBlockers.map((b) => `• <b>${b.title}</b> (${b.description})`).join('\n') +
+      openBlockers.map((b) => `• <b>${escapeHtml(b.title)}</b> (${escapeHtml(b.description)})`).join('\n') +
       `\n\nThey have been removed from the blocked tasks on the QA Command Center Dashboard!`
     );
     return;
@@ -1113,7 +1169,7 @@ async function handleMessage(message) {
       `• <b>Banking SuperApp:</b> 78% QA Progress | 82% Regression (Ready with risks)\n` +
       `• <b>Mobile Banking:</b> 65% QA Progress | 60% Regression (Testing)\n` +
       `• <b>Merchant Portal:</b> 90% QA Progress | 95% Regression (Ready)\n\n` +
-      `Active Project for you: <b>${currentProject}</b>\n` +
+      `Active Project for you: <b>${escapeHtml(currentProject)}</b>\n` +
       `QA Team: 3 engineers active | Zero critical outages.`
     );
     return;
@@ -1142,7 +1198,11 @@ async function pollUpdates() {
       for (const update of data.result) {
         lastUpdateId = update.update_id;
         if (update.message) {
-          await handleMessage(update.message);
+          try {
+            await handleMessage(update.message);
+          } catch (handlerErr) {
+            console.error('[Message Handler Error]', handlerErr);
+          }
         }
       }
     } else if (!data.ok) {

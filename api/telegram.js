@@ -22,10 +22,15 @@ const supabase = (SUPABASE_URL && SUPABASE_ANON_KEY)
 const TELEGRAM_API = `https://api.telegram.org/bot${BOT_TOKEN}`;
 const NUMBER_EMOJIS = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟', '1️⃣1️⃣', '1️⃣2️⃣'];
 
+function stripHtml(html) {
+  if (!html) return '';
+  return String(html).replace(/<[^>]*>/g, '');
+}
+
 async function sendTelegramMessage(chatId, text) {
   if (!BOT_TOKEN) return;
   try {
-    await fetch(`${TELEGRAM_API}/sendMessage`, {
+    const res = await fetch(`${TELEGRAM_API}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -34,6 +39,20 @@ async function sendTelegramMessage(chatId, text) {
         parse_mode: 'HTML',
       }),
     });
+    const data = await res.json();
+    if (!data.ok) {
+      console.warn('Telegram sendMessage HTML rejected:', data.description);
+      if (data.description && (data.description.includes('parse entities') || data.description.includes('tag'))) {
+        await fetch(`${TELEGRAM_API}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: chatId,
+            text: stripHtml(text),
+          }),
+        });
+      }
+    }
   } catch (err) {
     console.error('Error sending Telegram message:', err);
   }
@@ -56,7 +75,8 @@ export default async function handler(req, res) {
 
   const message = update.message;
   const chatId = message.chat?.id;
-  const text = message.text?.trim() || '';
+  const rawText = message.text?.trim() || '';
+  const text = rawText.toLowerCase();
   const fromUser = message.from || {};
 
   if (!chatId) {
@@ -76,19 +96,21 @@ export default async function handler(req, res) {
     }
 
     // 2. Commands Routing
-    if (text === '/start' || text === '/help') {
+    if (text === '/start' || text === 'start' || text === '/help' || text === 'help') {
       const welcome = profile
         ? `🛡️ <b>Welcome to AegisQA, ${profile.full_name}!</b>\n\n` +
           `👤 <b>Role:</b> ${profile.role}\n` +
           `🚀 <b>Active Project:</b> ${profile.project_name}\n\n` +
           `<b>Available Commands:</b>\n` +
           `• /project — View and switch your active QA project\n` +
-          `• /status — Check platform regression status\n` +
-          `• /blocker &lt;reason&gt; — Alert QA Leads of an urgent blocker`
+          `• /blocker &lt;reason&gt; — Alert QA Leads of an urgent blocker\n` +
+          `• /resolve — Resolve active blockers and remove from dashboard\n` +
+          `• /status — Check platform regression status`
         : `🛡️ <b>Welcome to AegisQA Telegram Bot!</b>\n\n` +
           `You are connected to the cloud QA command center.\n` +
           `Your Chat ID is: <code>${chatId}</code>\n\n` +
           `• Type /project to view or select projects\n` +
+          `• Type /blocker &lt;reason&gt; to alert QA Leads of an issue\n` +
           `• Type /status for platform metrics`;
 
       await sendTelegramMessage(chatId, welcome);
