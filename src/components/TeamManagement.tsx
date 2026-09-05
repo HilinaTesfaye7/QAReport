@@ -18,6 +18,7 @@ import {
   Copy,
   Check,
   Trash2,
+  RefreshCw,
 } from 'lucide-react';
 import { User, Project, MemberWorkload, DailyReport } from '../types';
 import { StorageService } from '../services/storage';
@@ -119,8 +120,10 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
     }
   };
 
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
   const loadData = async () => {
-    const deletedIds = new Set(JSON.parse(localStorage.getItem('aegis_deleted_member_ids') || '[]'));
+    let deletedIds = new Set<string>(JSON.parse(localStorage.getItem('aegis_deleted_member_ids') || '[]'));
     const initialUsers = StorageService.getUsers().filter(
       (u) =>
         !deletedIds.has(u.id) &&
@@ -133,14 +136,40 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
     const synced = await DailyReportService.syncTelegramReports();
     setReports(synced);
 
-    // 1. Sync Telegram profiles from Supabase Cloud Database
+    // 1. Sync Telegram profiles from Supabase Cloud Database (Single Source of Truth)
     if (isSupabaseConfigured() && supabase) {
       try {
         const { data: cloudProfiles, error } = await supabase
           .from('telegram_profiles')
           .select('*');
 
-        if (!error && cloudProfiles && cloudProfiles.length > 0) {
+        if (!error && cloudProfiles) {
+          // If any member who was previously deleted rejoined (exists in Supabase cloudProfiles),
+          // clear their tombstone immediately so they appear back in the active roster!
+          let tombstoneChanged = false;
+          cloudProfiles.forEach((p) => {
+            const keysToRemove = [
+              p.chat_id,
+              `usr-${p.chat_id}`,
+              (p.full_name || '').trim().toLowerCase(),
+              p.telegram_username ? p.telegram_username.replace(/^@/, '').toLowerCase() : '',
+            ].filter(Boolean);
+
+            keysToRemove.forEach((k) => {
+              if (deletedIds.has(k)) {
+                deletedIds.delete(k);
+                tombstoneChanged = true;
+              }
+            });
+          });
+
+          if (tombstoneChanged) {
+            localStorage.setItem(
+              'aegis_deleted_member_ids',
+              JSON.stringify(Array.from(deletedIds))
+            );
+          }
+
           const currentUsers = StorageService.getUsers().filter(
             (u) =>
               !deletedIds.has(u.id) &&
@@ -152,18 +181,11 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
           for (const p of cloudProfiles) {
             const normalizedName = (p.full_name || '').trim();
             if (!normalizedName) continue;
-            if (
-              deletedIds.has(p.chat_id) ||
-              deletedIds.has(`usr-${p.chat_id}`) ||
-              deletedIds.has(normalizedName.toLowerCase()) ||
-              (p.telegram_username && deletedIds.has(p.telegram_username.toLowerCase()))
-            ) {
-              continue;
-            }
 
             const existingIdx = currentUsers.findIndex(
               (u) =>
                 u.id === `usr-${p.chat_id}` ||
+                (p.chat_id && u.telegramChatId === p.chat_id) ||
                 u.name.toLowerCase() === normalizedName.toLowerCase() ||
                 (p.telegram_username && u.telegramUsername?.toLowerCase().includes(p.telegram_username.toLowerCase()))
             );
@@ -175,12 +197,24 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
             if (existingIdx !== -1) {
               const u = currentUsers[existingIdx];
               let userUpdated = false;
-              if (p.telegram_username && !u.telegramUsername) {
+              if (u.name !== normalizedName) {
+                u.name = normalizedName;
+                userUpdated = true;
+              }
+              if (u.role !== roleVal) {
+                u.role = roleVal;
+                userUpdated = true;
+              }
+              if (p.chat_id && u.telegramChatId !== p.chat_id) {
+                u.telegramChatId = p.chat_id;
+                userUpdated = true;
+              }
+              if (p.telegram_username && u.telegramUsername !== `@${p.telegram_username.replace(/^@/, '')}`) {
                 u.telegramUsername = `@${p.telegram_username.replace(/^@/, '')}`;
                 userUpdated = true;
               }
-              if (p.chat_id && !u.telegramChatId) {
-                u.telegramChatId = p.chat_id;
+              if (p.project_id && (!u.projectAllocations || u.projectAllocations.length === 0 || u.projectAllocations[0].projectId !== p.project_id)) {
+                u.projectAllocations = [{ projectId: p.project_id, percentage: 100 }];
                 userUpdated = true;
               }
               if (userUpdated) changed = true;
@@ -206,70 +240,97 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
             StorageService.saveUsers(currentUsers);
             setUsers(currentUsers);
           }
+
+          // Ensure projects include the active member
+          const allProjects = StorageService.getProjects();
+          let projChanged = false;
+          cloudProfiles.forEach((p) => {
+            if (p.project_id && p.chat_id) {
+              const proj = allProjects.find((prj) => prj.id === p.project_id);
+              if (proj) {
+                if (!proj.memberIds) proj.memberIds = [];
+                const memberKey = `usr-${p.chat_id}`;
+                if (!proj.memberIds.includes(memberKey)) {
+                  proj.memberIds.push(memberKey);
+                  projChanged = true;
+                }
+              }
+            }
+          });
+          if (projChanged) {
+            StorageService.saveProjects(allProjects);
+            setProjects(allProjects);
+          }
         }
       } catch (err) {
         console.warn('Supabase telegram_profiles load error:', err);
       }
-    }
-
-    // 2. Fallback to local telegram_profiles.json
-    try {
-      const res = await fetch('/telegram_profiles.json', { cache: 'no-cache' });
-      if (res.ok) {
-        const tgProfiles = await res.json();
-        const existingUsers = StorageService.getUsers().filter(
-          (u) =>
-            !deletedIds.has(u.id) &&
-            !deletedIds.has(u.name.trim().toLowerCase()) &&
-            !(u.telegramChatId && deletedIds.has(u.telegramChatId))
-        );
-        let addedAny = false;
-
-        for (const [chatId, p] of Object.entries(tgProfiles as Record<string, any>)) {
-          const pName = (p.fullName || '').trim().toLowerCase();
-          if (
-            deletedIds.has(chatId) ||
-            deletedIds.has(`usr-${chatId}`) ||
-            deletedIds.has(pName) ||
-            (p.telegramUsername && deletedIds.has(p.telegramUsername.toLowerCase()))
-          ) {
-            continue;
-          }
-
-          const exists = existingUsers.some(
-            (u) => u.id === `usr-${chatId}` || u.name.toLowerCase() === pName
+    } else {
+      // 2. Fallback to local telegram_profiles.json ONLY when Supabase is not configured
+      try {
+        const res = await fetch('/telegram_profiles.json', { cache: 'no-cache' });
+        if (res.ok) {
+          const tgProfiles = await res.json();
+          const existingUsers = StorageService.getUsers().filter(
+            (u) =>
+              !deletedIds.has(u.id) &&
+              !deletedIds.has(u.name.trim().toLowerCase()) &&
+              !(u.telegramChatId && deletedIds.has(u.telegramChatId))
           );
-          if (!exists && p.fullName) {
-            existingUsers.push({
-              id: `usr-${chatId}`,
-              name: p.fullName,
-              email: `${p.fullName.toLowerCase().replace(/[^a-z0-9]/g, '.')}@qa-aegis.com`,
-              role: p.role?.toLowerCase().includes('lead') ? 'qa_lead' : 'qa_engineer',
-              avatar: `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80`,
-              experienceYears: 2,
-              skills: ['Manual Testing', 'Telegram Standup', 'Functional QA'],
-              projectAllocations: [{ projectId: p.projectId || 'prj-banking', percentage: 100 }],
-              onboardingCompleted: true,
-              telegramUsername: p.telegramUsername ? `@${p.telegramUsername.replace(/^@/, '')}` : undefined,
-              telegramChatId: chatId,
-            });
-            addedAny = true;
+          let addedAny = false;
+
+          for (const [chatId, p] of Object.entries(tgProfiles as Record<string, any>)) {
+            const pName = (p.fullName || '').trim().toLowerCase();
+            if (
+              deletedIds.has(chatId) ||
+              deletedIds.has(`usr-${chatId}`) ||
+              deletedIds.has(pName) ||
+              (p.telegramUsername && deletedIds.has(p.telegramUsername.toLowerCase()))
+            ) {
+              continue;
+            }
+
+            const exists = existingUsers.some(
+              (u) => u.id === `usr-${chatId}` || u.name.toLowerCase() === pName
+            );
+            if (!exists && p.fullName) {
+              existingUsers.push({
+                id: `usr-${chatId}`,
+                name: p.fullName,
+                email: `${p.fullName.toLowerCase().replace(/[^a-z0-9]/g, '.')}@qa-aegis.com`,
+                role: p.role?.toLowerCase().includes('lead') ? 'qa_lead' : 'qa_engineer',
+                avatar: `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80`,
+                experienceYears: 2,
+                skills: ['Manual Testing', 'Telegram Standup', 'Functional QA'],
+                projectAllocations: [{ projectId: p.projectId || 'prj-banking', percentage: 100 }],
+                onboardingCompleted: true,
+                telegramUsername: p.telegramUsername ? `@${p.telegramUsername.replace(/^@/, '')}` : undefined,
+                telegramChatId: chatId,
+              });
+              addedAny = true;
+            }
+          }
+
+          if (addedAny) {
+            StorageService.saveUsers(existingUsers);
+            setUsers(existingUsers);
           }
         }
-
-        if (addedAny) {
-          StorageService.saveUsers(existingUsers);
-          setUsers(existingUsers);
-        }
-      }
-    } catch {}
+      } catch {}
+    }
   };
 
   useEffect(() => {
     loadData();
     const handleStorage = () => loadData();
     window.addEventListener('aegis_storage_change', handleStorage);
-    return () => window.removeEventListener('aegis_storage_change', handleStorage);
+    const interval = setInterval(() => {
+      loadData();
+    }, 4000);
+    return () => {
+      window.removeEventListener('aegis_storage_change', handleStorage);
+      clearInterval(interval);
+    };
   }, []);
 
   const handleAddMember = (e: React.FormEvent) => {
@@ -358,24 +419,59 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
           </p>
         </div>
 
-        <button
-          onClick={() => setIsAddModalOpen(true)}
-          className="btn-primary"
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '6px',
-            padding: '9px 18px',
-            fontSize: '0.84rem',
-            fontWeight: 700,
-            borderRadius: '8px',
-            background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
-            boxShadow: '0 4px 14px rgba(37, 99, 235, 0.3)',
-          }}
-        >
-          <Plus size={16} />
-          <span>Add QA Member</span>
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <button
+            onClick={async () => {
+              setIsRefreshing(true);
+              await loadData();
+              setTimeout(() => setIsRefreshing(false), 500);
+            }}
+            className="btn-secondary"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '9px 15px',
+              fontSize: '0.84rem',
+              fontWeight: 600,
+              borderRadius: '8px',
+              background: 'rgba(255,255,255,0.05)',
+              border: '1px solid rgba(255,255,255,0.12)',
+              color: 'var(--text-primary)',
+              cursor: 'pointer',
+            }}
+            title="Refresh team roster from Cloud"
+          >
+            <RefreshCw
+              size={15}
+              color="#10b981"
+              style={{
+                transition: 'transform 0.5s ease',
+                transform: isRefreshing ? 'rotate(180deg)' : 'none',
+              }}
+            />
+            <span>{isRefreshing ? 'Syncing...' : 'Sync Cloud'}</span>
+          </button>
+
+          <button
+            onClick={() => setIsAddModalOpen(true)}
+            className="btn-primary"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '9px 18px',
+              fontSize: '0.84rem',
+              fontWeight: 700,
+              borderRadius: '8px',
+              background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
+              boxShadow: '0 4px 14px rgba(37, 99, 235, 0.3)',
+            }}
+          >
+            <Plus size={16} />
+            <span>Add QA Member</span>
+          </button>
+        </div>
       </div>
 
       {/* Overview Stats Cards */}

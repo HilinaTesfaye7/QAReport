@@ -92,6 +92,7 @@ const DEFAULT_ROLES = [
 
 // Persistent Profiles Store (telegram_profiles.json)
 const PROFILES_FILE = path.resolve(process.cwd(), 'telegram_profiles.json');
+const PUBLIC_PROFILES_FILE = path.resolve(process.cwd(), 'public', 'telegram_profiles.json');
 const REPORTS_FILE = path.resolve(process.cwd(), 'telegram_daily_reports.json');
 const BLOCKERS_FILE = path.resolve(process.cwd(), 'telegram_blockers.json');
 const PROJECTS_FILE = path.resolve(process.cwd(), 'projects.json');
@@ -166,32 +167,33 @@ function getProfile(chatId) {
 }
 
 function saveProfile(chatId, data) {
+  const strChatId = String(chatId);
   const profiles = loadProfiles();
-  profiles[String(chatId)] = {
-    ...profiles[String(chatId)],
+  profiles[strChatId] = {
+    ...(profiles[strChatId] || {}),
     ...data,
-    chatId: String(chatId),
+    chatId: strChatId,
     updatedAt: new Date().toISOString(),
   };
   fs.writeFileSync(PROFILES_FILE, JSON.stringify(profiles, null, 2), 'utf8');
   try {
-    fs.writeFileSync(path.resolve(process.cwd(), 'public', 'telegram_profiles.json'), JSON.stringify(profiles, null, 2), 'utf8');
+    fs.writeFileSync(PUBLIC_PROFILES_FILE, JSON.stringify(profiles, null, 2), 'utf8');
   } catch {}
   
-  const saved = profiles[String(chatId)];
-  console.log(`[Profile] Saved profile for chat ${chatId}: ${saved.fullName || 'QA Member'} (${saved.projectName || 'General'})`);
+  const saved = profiles[strChatId];
+  console.log(`[Profile] Saved profile for chat ${strChatId}: ${saved.fullName || 'QA Member'} (${saved.projectName || 'General'})`);
 
   // Cloud sync to Supabase
   if (supabase) {
     supabase.from('telegram_profiles').upsert({
-      chat_id: String(chatId),
-      full_name: saved.fullName || 'Coco',
-      role: saved.role || 'tester',
+      chat_id: strChatId,
+      full_name: saved.fullName || 'QA Tester',
+      role: saved.role || 'QA Engineer / Tester',
       project_id: saved.projectId || 'prj-banking',
       project_name: saved.projectName || 'Banking SuperApp',
-      assigned_project_ids: saved.assignedProjectIds || [],
-      assigned_projects: saved.assignedProjects || [],
-      telegram_username: saved.telegramUsername || '',
+      assigned_project_ids: saved.assignedProjectIds || (saved.projectId ? [saved.projectId] : ['prj-banking']),
+      assigned_projects: saved.assignedProjects || (saved.projectName ? [saved.projectName] : ['Banking SuperApp']),
+      telegram_username: saved.telegramUsername ? saved.telegramUsername.replace(/^@/, '') : '',
       updated_at: new Date().toISOString(),
     }).then(({ error }) => {
       if (error) console.error('[Supabase] Profile sync error:', error.message);
@@ -203,39 +205,20 @@ function saveProfile(chatId, data) {
 }
 
 async function findOrLinkProfile(chatId, user) {
-  let profile = getProfile(chatId);
-  if (profile) return profile;
+  const strChatId = String(chatId);
+  const username = user && user.username ? user.username.replace(/^@/, '').toLowerCase() : null;
 
-  const username = user.username ? user.username.replace(/^@/, '').toLowerCase() : null;
-
-  // 1. Check local profiles for username match
-  const profiles = loadProfiles();
-  for (const [key, p] of Object.entries(profiles)) {
-    const pUser = (p.telegramUsername || '').replace(/^@/, '').toLowerCase();
-    if (username && pUser === username) {
-      p.chatId = String(chatId);
-      p.telegramUsername = user.username;
-      profiles[String(chatId)] = p;
-      if (key !== String(chatId)) delete profiles[key];
-      fs.writeFileSync(PROFILES_FILE, JSON.stringify(profiles, null, 2), 'utf8');
-      saveProfile(chatId, p);
-      return p;
-    }
-  }
-
-  // 2. Check Supabase cloud database
+  // 1. Check Supabase as single source of truth for active membership
   if (supabase) {
     try {
-      let query = supabase.from('telegram_profiles').select('*');
-      if (username) {
-        query = query.or(`chat_id.eq.${chatId},telegram_username.ilike.${username},chat_id.eq.pending_${username}`);
-      } else {
-        query = query.eq('chat_id', String(chatId));
-      }
+      // Direct lookup by Telegram chat_id
+      const { data: directMatch, error: directErr } = await supabase
+        .from('telegram_profiles')
+        .select('*')
+        .eq('chat_id', strChatId);
 
-      const { data, error } = await query;
-      if (!error && data && data.length > 0) {
-        const row = data[0];
+      if (!directErr && directMatch && directMatch.length > 0) {
+        const row = directMatch[0];
         const linked = {
           fullName: row.full_name,
           role: row.role,
@@ -244,21 +227,67 @@ async function findOrLinkProfile(chatId, user) {
           assignedProjectIds: row.assigned_project_ids || [],
           assignedProjects: row.assigned_projects || [],
           telegramUsername: user.username || row.telegram_username || '',
-          chatId: String(chatId),
+          chatId: strChatId,
+          updatedAt: row.updated_at || new Date().toISOString(),
         };
-        saveProfile(chatId, linked);
-
-        if (row.chat_id && row.chat_id.startsWith('pending_') && row.chat_id !== String(chatId)) {
-          supabase.from('telegram_profiles').delete().eq('chat_id', row.chat_id).then(() => {});
-        }
+        // Update local cache so it matches Supabase
+        const profiles = loadProfiles();
+        profiles[strChatId] = linked;
+        fs.writeFileSync(PROFILES_FILE, JSON.stringify(profiles, null, 2), 'utf8');
+        try {
+          fs.writeFileSync(PUBLIC_PROFILES_FILE, JSON.stringify(profiles, null, 2), 'utf8');
+        } catch {}
         return linked;
       }
+
+      // Check for pre-registered invite by telegram_username
+      if (username) {
+        const { data: userMatch, error: userErr } = await supabase
+          .from('telegram_profiles')
+          .select('*')
+          .or(`telegram_username.ilike.${username},chat_id.eq.pending_${username}`);
+
+        if (!userErr && userMatch && userMatch.length > 0) {
+          const row = userMatch[0];
+          const linked = {
+            fullName: row.full_name,
+            role: row.role,
+            projectId: row.project_id || 'prj-banking',
+            projectName: row.project_name || 'Banking SuperApp',
+            assignedProjectIds: row.assigned_project_ids || [],
+            assignedProjects: row.assigned_projects || [],
+            telegramUsername: user.username || row.telegram_username || '',
+            chatId: strChatId,
+            updatedAt: new Date().toISOString(),
+          };
+          saveProfile(strChatId, linked);
+          if (row.chat_id && row.chat_id.startsWith('pending_') && row.chat_id !== strChatId) {
+            await supabase.from('telegram_profiles').delete().eq('chat_id', row.chat_id);
+          }
+          return linked;
+        }
+      }
+
+      // User does NOT exist in Supabase (deleted by QA Lead or brand new)!
+      // Purge any stale local profile so the member is required to re-onboard
+      const profiles = loadProfiles();
+      if (profiles[strChatId]) {
+        console.log(`[Profile] Member ${strChatId} was deleted in Supabase. Purging local cached profile.`);
+        delete profiles[strChatId];
+        fs.writeFileSync(PROFILES_FILE, JSON.stringify(profiles, null, 2), 'utf8');
+        try {
+          fs.writeFileSync(PUBLIC_PROFILES_FILE, JSON.stringify(profiles, null, 2), 'utf8');
+        } catch {}
+      }
+
+      return null;
     } catch (e) {
-      console.error('[Supabase] Error finding profile:', e.message);
+      console.error('[Supabase] Error verifying profile:', e.message);
     }
   }
 
-  return null;
+  // 2. Offline fallback (only when Supabase client is not available)
+  return getProfile(strChatId);
 }
 
 // In-memory conversation state for wizards (onboarding, checkin, switch_project)
@@ -428,7 +457,7 @@ async function handleOnboardingStep(chatId, user, text) {
       session.answers.role = role;
       session.step = 3;
 
-      const projects = getProjects();
+      const projects = await refreshProjectsFromCloud();
       let listText = '';
       projects.forEach((p, idx) => {
         const emoji = NUMBER_EMOJIS[idx] || `[${idx + 1}]`;
@@ -446,7 +475,7 @@ async function handleOnboardingStep(chatId, user, text) {
     }
 
     case 3: {
-      const projects = getProjects();
+      const projects = await refreshProjectsFromCloud();
       let projectName = text.trim();
       let projectId = 'prj-custom';
 
@@ -464,14 +493,24 @@ async function handleOnboardingStep(chatId, user, text) {
           projectName = found.name;
         } else {
           projectId = `prj-${Date.now().toString(36)}`;
-          projects.push({
+          const newProj = {
             id: projectId,
             name: projectName,
             description: `QA scope for ${projectName}`,
             status: 'Testing',
             memberIds: [`usr-${chatId}`],
-          });
+          };
+          projects.push(newProj);
           saveProjects(projects);
+          if (supabase) {
+            supabase.from('projects').upsert({
+              id: projectId,
+              name: projectName,
+              description: `QA scope for ${projectName}`,
+              status: 'Testing',
+              member_ids: [`usr-${chatId}`],
+            }).then(() => {});
+          }
         }
       }
 
@@ -483,8 +522,26 @@ async function handleOnboardingStep(chatId, user, text) {
         role: session.answers.role,
         projectId: session.answers.projectId,
         projectName: session.answers.projectName,
-        telegramUsername: user.username || '',
+        assignedProjectIds: [session.answers.projectId],
+        assignedProjects: [session.answers.projectName],
+        telegramUsername: user.username ? user.username.replace(/^@/, '') : '',
       });
+
+      // Ensure the project includes this user in memberIds
+      const targetProj = projects.find((p) => p.id === projectId);
+      if (targetProj) {
+        if (!targetProj.memberIds) targetProj.memberIds = [];
+        const memberKey = `usr-${chatId}`;
+        if (!targetProj.memberIds.includes(memberKey)) {
+          targetProj.memberIds.push(memberKey);
+          saveProjects(projects);
+          if (supabase) {
+            supabase.from('projects').update({
+              member_ids: targetProj.memberIds,
+            }).eq('id', targetProj.id).then(() => {});
+          }
+        }
+      }
 
       const shouldCheckin = session.proceedToCheckinAfter;
       userSessions.delete(chatId);
@@ -499,7 +556,7 @@ async function handleOnboardingStep(chatId, user, text) {
         `<b>Helpful Commands:</b>\n` +
         `• /checkin — Submit your daily standup\n` +
         `• /project — Switch your active project\n` +
-        `• /blocker &lt;issue&gt; — Immediately report an urgent blocker\n` +
+        `• /blocker <issue> — Immediately report an urgent blocker\n` +
         `• /profile — View or update your profile\n` +
         `• /status — View overall QA metrics`
       );
@@ -791,30 +848,7 @@ async function handleMessage(message) {
     }
   }
 
-  // Commands
-  if (text === '/start' || text === '/help') {
-    if (!profile) {
-      await startOnboarding(chatId, user, false);
-      return;
-    }
-
-    await sendMessage(
-      chatId,
-      `🛡️ <b>Welcome to AegisQA, ${profile.fullName}!</b>\n\n` +
-      `👤 <b>Role:</b> ${profile.role}\n` +
-      `🚀 <b>Active Project:</b> ${profile.projectName}\n` +
-      `💬 <b>Chat ID:</b> <code>${chatId}</code>\n\n` +
-      `<b>Available Commands:</b>\n` +
-      `• /checkin — Start your daily QA standup for ${profile.projectName}\n` +
-      `• /project — Switch your active QA project\n` +
-      `• /blocker &lt;reason&gt; — Immediately report an urgent blocker\n` +
-      `• /profile — View or update your profile\n` +
-      `• /status — View platform release readiness & regression metrics\n` +
-      `• /cancel — Cancel an active operation`
-    );
-    return;
-  }
-
+  // Active Session cancellation
   if (text === '/cancel') {
     if (userSessions.has(chatId)) {
       userSessions.delete(chatId);
@@ -825,8 +859,36 @@ async function handleMessage(message) {
     return;
   }
 
+  // Explicit re-registration / profile update
   if (text === '/register' || text === '/profile edit') {
     await startOnboarding(chatId, user, false);
+    return;
+  }
+
+  // If user does not have an active profile in Supabase (new member, or previously deleted member joining again):
+  // ALWAYS trigger onboarding wizard to ask Name, Role, and Project!
+  if (!profile) {
+    console.log(`[Bot] Member ${chatId} (${user.username || user.first_name || 'unknown'}) has no active profile in Supabase. Prompting onboarding wizard.`);
+    await startOnboarding(chatId, user, text === '/checkin');
+    return;
+  }
+
+  // Commands for registered members
+  if (text === '/start' || text === '/help') {
+    await sendMessage(
+      chatId,
+      `🛡️ <b>Welcome to AegisQA, ${profile.fullName}!</b>\n\n` +
+      `👤 <b>Role:</b> ${profile.role}\n` +
+      `🚀 <b>Active Project:</b> ${profile.projectName}\n` +
+      `💬 <b>Chat ID:</b> <code>${chatId}</code>\n\n` +
+      `<b>Available Commands:</b>\n` +
+      `• /checkin — Start your daily QA standup for ${profile.projectName}\n` +
+      `• /project — Switch your active QA project\n` +
+      `• /blocker <reason> — Immediately report an urgent blocker\n` +
+      `• /profile — View or update your profile\n` +
+      `• /status — View platform release readiness & regression metrics\n` +
+      `• /cancel — Cancel an active operation`
+    );
     return;
   }
 
