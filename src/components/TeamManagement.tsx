@@ -15,11 +15,14 @@ import {
   Shield,
   Clock,
   Filter,
+  Copy,
+  Check,
 } from 'lucide-react';
 import { User, Project, MemberWorkload, DailyReport } from '../types';
 import { StorageService } from '../services/storage';
 import { WorkloadService } from '../services/workloadService';
 import { DailyReportService } from '../services/dailyReportService';
+import { supabase, isSupabaseConfigured } from '../services/supabaseClient';
 
 interface TeamManagementProps {
   currentUser: User;
@@ -41,10 +44,12 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
   // New member form
   const [newName, setNewName] = useState('');
   const [newEmail, setNewEmail] = useState('');
+  const [newTelegram, setNewTelegram] = useState('');
   const [newRole, setNewRole] = useState<'qa_engineer' | 'qa_lead'>('qa_engineer');
   const [newSkills, setNewSkills] = useState('Manual Testing, API Testing');
   const [newExp, setNewExp] = useState(3);
   const [selectedProjectId, setSelectedProjectId] = useState('prj-banking');
+  const [copiedLink, setCopiedLink] = useState(false);
 
   const loadData = async () => {
     setUsers(StorageService.getUsers());
@@ -53,7 +58,73 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
     const synced = await DailyReportService.syncTelegramReports();
     setReports(synced);
 
-    // Also check if any Telegram users exist in telegram_profiles.json
+    // 1. Sync Telegram profiles from Supabase Cloud Database
+    if (isSupabaseConfigured() && supabase) {
+      try {
+        const { data: cloudProfiles, error } = await supabase
+          .from('telegram_profiles')
+          .select('*');
+
+        if (!error && cloudProfiles && cloudProfiles.length > 0) {
+          const currentUsers = StorageService.getUsers();
+          let changed = false;
+
+          for (const p of cloudProfiles) {
+            const normalizedName = (p.full_name || '').trim();
+            if (!normalizedName) continue;
+
+            const existingIdx = currentUsers.findIndex(
+              (u) =>
+                u.id === `usr-${p.chat_id}` ||
+                u.name.toLowerCase() === normalizedName.toLowerCase() ||
+                (p.telegram_username && u.telegramUsername?.toLowerCase().includes(p.telegram_username.toLowerCase()))
+            );
+
+            const roleVal: 'qa_lead' | 'qa_engineer' = (p.role || '').toLowerCase().includes('lead')
+              ? 'qa_lead'
+              : 'qa_engineer';
+
+            if (existingIdx !== -1) {
+              const u = currentUsers[existingIdx];
+              let userUpdated = false;
+              if (p.telegram_username && !u.telegramUsername) {
+                u.telegramUsername = `@${p.telegram_username.replace(/^@/, '')}`;
+                userUpdated = true;
+              }
+              if (p.chat_id && !u.telegramChatId) {
+                u.telegramChatId = p.chat_id;
+                userUpdated = true;
+              }
+              if (userUpdated) changed = true;
+            } else {
+              currentUsers.push({
+                id: `usr-${p.chat_id || Date.now().toString(36)}`,
+                name: normalizedName,
+                email: `${normalizedName.toLowerCase().replace(/[^a-z0-9]/g, '.')}@qa-aegis.com`,
+                role: roleVal,
+                avatar: `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80`,
+                experienceYears: 2,
+                skills: ['Manual Testing', 'Telegram Standup', 'Functional QA'],
+                projectAllocations: [{ projectId: p.project_id || 'prj-banking', percentage: 100 }],
+                onboardingCompleted: true,
+                telegramUsername: p.telegram_username ? `@${p.telegram_username.replace(/^@/, '')}` : undefined,
+                telegramChatId: p.chat_id,
+              });
+              changed = true;
+            }
+          }
+
+          if (changed) {
+            StorageService.saveUsers(currentUsers);
+            setUsers(currentUsers);
+          }
+        }
+      } catch (err) {
+        console.warn('Supabase telegram_profiles load error:', err);
+      }
+    }
+
+    // 2. Fallback to local telegram_profiles.json
     try {
       const res = await fetch('/telegram_profiles.json', { cache: 'no-cache' });
       if (res.ok) {
@@ -62,18 +133,22 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
         let addedAny = false;
 
         for (const [chatId, p] of Object.entries(tgProfiles as Record<string, any>)) {
-          const exists = existingUsers.some((u) => u.id === `usr-${chatId}` || u.name.toLowerCase() === p.fullName.toLowerCase());
+          const exists = existingUsers.some(
+            (u) => u.id === `usr-${chatId}` || u.name.toLowerCase() === p.fullName?.toLowerCase()
+          );
           if (!exists && p.fullName) {
             existingUsers.push({
               id: `usr-${chatId}`,
               name: p.fullName,
-              email: `${p.fullName.toLowerCase().replace(/\s+/g, '.')}@qa-aegis.com`,
+              email: `${p.fullName.toLowerCase().replace(/[^a-z0-9]/g, '.')}@qa-aegis.com`,
               role: p.role?.toLowerCase().includes('lead') ? 'qa_lead' : 'qa_engineer',
               avatar: `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80`,
               experienceYears: 2,
               skills: ['Manual Testing', 'Telegram Standup', 'Functional QA'],
               projectAllocations: [{ projectId: p.projectId || 'prj-banking', percentage: 100 }],
               onboardingCompleted: true,
+              telegramUsername: p.telegramUsername ? `@${p.telegramUsername.replace(/^@/, '')}` : undefined,
+              telegramChatId: chatId,
             });
             addedAny = true;
           }
@@ -96,6 +171,7 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
 
   const handleAddMember = (e: React.FormEvent) => {
     e.preventDefault();
+    const cleanTg = newTelegram.trim().replace(/^@/, '');
     const newMember: User = {
       id: `usr-${Date.now().toString(36)}`,
       name: newName,
@@ -106,6 +182,7 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
       skills: newSkills.split(',').map((s) => s.trim()).filter(Boolean) as any,
       projectAllocations: [{ projectId: selectedProjectId, percentage: 100 }],
       onboardingCompleted: true,
+      telegramUsername: cleanTg ? `@${cleanTg}` : undefined,
     };
 
     const updated = [...users, newMember];
@@ -114,6 +191,27 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
     setIsAddModalOpen(false);
     setNewName('');
     setNewEmail('');
+    setNewTelegram('');
+
+    // Pre-register in Supabase so the Telegram bot recognizes them when they tap Start
+    if (cleanTg && isSupabaseConfigured() && supabase) {
+      const selectedProj = projects.find((p) => p.id === selectedProjectId);
+      supabase
+        .from('telegram_profiles')
+        .upsert({
+          chat_id: `pending_${cleanTg.toLowerCase()}`,
+          full_name: newName,
+          role: newRole === 'qa_lead' ? 'QA Lead' : 'QA Engineer / Tester',
+          project_id: selectedProjectId,
+          project_name: selectedProj ? selectedProj.name : 'Banking SuperApp',
+          telegram_username: cleanTg,
+          updated_at: new Date().toISOString(),
+        })
+        .then(({ error }) => {
+          if (error) console.error('Supabase pre-register member error:', error.message);
+          else console.log(`✓ Pre-registered @${cleanTg} in Supabase for ${selectedProj?.name}`);
+        });
+    }
   };
 
   // Filter members
@@ -350,6 +448,26 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
                       <Mail size={12} />
                       <span>{member.email}</span>
                     </div>
+                    {member.telegramUsername && (
+                      <a
+                        href={`https://t.me/${member.telegramUsername.replace(/^@/, '')}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{
+                          fontSize: '0.73rem',
+                          color: '#38bdf8',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          textDecoration: 'none',
+                          marginTop: '2px',
+                          fontWeight: 600,
+                        }}
+                      >
+                        <Send size={11} />
+                        <span>{member.telegramUsername}</span>
+                      </a>
+                    )}
                   </div>
                 </div>
 
@@ -505,6 +623,22 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
                   />
                 </div>
 
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, marginBottom: '4px' }}>
+                    Telegram Username (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={newTelegram}
+                    onChange={(e) => setNewTelegram(e.target.value)}
+                    placeholder="@username (e.g. @alex_qa)"
+                    style={{ width: '100%' }}
+                  />
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', marginTop: '2px' }}>
+                    The bot will automatically recognize them when they tap Start.
+                  </span>
+                </div>
+
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                   <div>
                     <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, marginBottom: '4px' }}>
@@ -561,6 +695,54 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
                     placeholder="Manual Testing, Playwright, API Testing"
                     style={{ width: '100%' }}
                   />
+                </div>
+
+                {/* Instant Telegram Bot Invite Link Box */}
+                <div
+                  style={{
+                    background: 'linear-gradient(135deg, rgba(56, 189, 248, 0.08), rgba(37, 99, 235, 0.08))',
+                    border: '1px solid rgba(56, 189, 248, 0.25)',
+                    borderRadius: '8px',
+                    padding: '12px 14px',
+                    marginTop: '4px',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Send size={15} color="#38bdf8" />
+                      <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#38bdf8' }}>
+                        Telegram Bot Invite Link
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText('https://t.me/QAEaglebot');
+                        setCopiedLink(true);
+                        setTimeout(() => setCopiedLink(false), 2000);
+                      }}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        padding: '4px 10px',
+                        fontSize: '0.74rem',
+                        fontWeight: 700,
+                        borderRadius: '6px',
+                        background: copiedLink ? '#10b981' : '#1e293b',
+                        color: '#ffffff',
+                        border: '1px solid rgba(56, 189, 248, 0.3)',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s',
+                      }}
+                    >
+                      {copiedLink ? <Check size={12} /> : <Copy size={12} />}
+                      <span>{copiedLink ? 'Copied!' : 'Copy Link'}</span>
+                    </button>
+                  </div>
+                  <div style={{ fontSize: '0.73rem', color: 'var(--text-secondary)', marginTop: '6px', lineHeight: 1.4 }}>
+                    Share <code>https://t.me/QAEaglebot</code> with your team. When they tap <b>Start</b>, the bot automatically captures their profile and links them here without needing their numeric Chat ID!
+                  </div>
                 </div>
               </div>
 

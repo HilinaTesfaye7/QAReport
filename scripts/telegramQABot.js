@@ -177,27 +177,88 @@ function saveProfile(chatId, data) {
   try {
     fs.writeFileSync(path.resolve(process.cwd(), 'public', 'telegram_profiles.json'), JSON.stringify(profiles, null, 2), 'utf8');
   } catch {}
-  console.log(`[Profile] Saved profile for chat ${chatId}: ${data.fullName} (${data.projectName})`);
+  
+  const saved = profiles[String(chatId)];
+  console.log(`[Profile] Saved profile for chat ${chatId}: ${saved.fullName || 'QA Member'} (${saved.projectName || 'General'})`);
 
   // Cloud sync to Supabase
   if (supabase) {
     supabase.from('telegram_profiles').upsert({
       chat_id: String(chatId),
-      full_name: data.fullName || profiles[String(chatId)]?.fullName || 'Coco',
-      role: data.role || profiles[String(chatId)]?.role || 'tester',
-      project_id: data.projectId || profiles[String(chatId)]?.projectId || 'prj-banking',
-      project_name: data.projectName || profiles[String(chatId)]?.projectName || 'Banking SuperApp',
-      assigned_project_ids: data.assignedProjectIds || profiles[String(chatId)]?.assignedProjectIds || [],
-      assigned_projects: data.assignedProjects || profiles[String(chatId)]?.assignedProjects || [],
-      telegram_username: data.telegramUsername || profiles[String(chatId)]?.telegramUsername || '',
+      full_name: saved.fullName || 'Coco',
+      role: saved.role || 'tester',
+      project_id: saved.projectId || 'prj-banking',
+      project_name: saved.projectName || 'Banking SuperApp',
+      assigned_project_ids: saved.assignedProjectIds || [],
+      assigned_projects: saved.assignedProjects || [],
+      telegram_username: saved.telegramUsername || '',
       updated_at: new Date().toISOString(),
     }).then(({ error }) => {
       if (error) console.error('[Supabase] Profile sync error:', error.message);
-      else console.log(`[Supabase] Synced profile for ${data.fullName} to cloud`);
+      else console.log(`[Supabase] Synced profile for ${saved.fullName} to cloud`);
     });
   }
 
-  return profiles[String(chatId)];
+  return saved;
+}
+
+async function findOrLinkProfile(chatId, user) {
+  let profile = getProfile(chatId);
+  if (profile) return profile;
+
+  const username = user.username ? user.username.replace(/^@/, '').toLowerCase() : null;
+
+  // 1. Check local profiles for username match
+  const profiles = loadProfiles();
+  for (const [key, p] of Object.entries(profiles)) {
+    const pUser = (p.telegramUsername || '').replace(/^@/, '').toLowerCase();
+    if (username && pUser === username) {
+      p.chatId = String(chatId);
+      p.telegramUsername = user.username;
+      profiles[String(chatId)] = p;
+      if (key !== String(chatId)) delete profiles[key];
+      fs.writeFileSync(PROFILES_FILE, JSON.stringify(profiles, null, 2), 'utf8');
+      saveProfile(chatId, p);
+      return p;
+    }
+  }
+
+  // 2. Check Supabase cloud database
+  if (supabase) {
+    try {
+      let query = supabase.from('telegram_profiles').select('*');
+      if (username) {
+        query = query.or(`chat_id.eq.${chatId},telegram_username.ilike.${username},chat_id.eq.pending_${username}`);
+      } else {
+        query = query.eq('chat_id', String(chatId));
+      }
+
+      const { data, error } = await query;
+      if (!error && data && data.length > 0) {
+        const row = data[0];
+        const linked = {
+          fullName: row.full_name,
+          role: row.role,
+          projectId: row.project_id || 'prj-banking',
+          projectName: row.project_name || 'Banking SuperApp',
+          assignedProjectIds: row.assigned_project_ids || [],
+          assignedProjects: row.assigned_projects || [],
+          telegramUsername: user.username || row.telegram_username || '',
+          chatId: String(chatId),
+        };
+        saveProfile(chatId, linked);
+
+        if (row.chat_id && row.chat_id.startsWith('pending_') && row.chat_id !== String(chatId)) {
+          supabase.from('telegram_profiles').delete().eq('chat_id', row.chat_id).then(() => {});
+        }
+        return linked;
+      }
+    } catch (e) {
+      console.error('[Supabase] Error finding profile:', e.message);
+    }
+  }
+
+  return null;
 }
 
 // In-memory conversation state for wizards (onboarding, checkin, switch_project)
@@ -713,7 +774,7 @@ async function handleMessage(message) {
   const chatId = message.chat.id;
   const text = message.text?.trim() || '';
   const user = message.from || {};
-  const profile = getProfile(chatId);
+  const profile = await findOrLinkProfile(chatId, user);
 
   // Active Session handling
   if (userSessions.has(chatId) && !text.startsWith('/')) {

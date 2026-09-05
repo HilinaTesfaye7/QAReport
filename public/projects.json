@@ -1,5 +1,107 @@
 [
   {
+    "id": "prj-mto97e35",
+    "name": "ko",
+    "description": "cxcx",
+    "status": "Testing",
+    "memberIds": [
+      "usr-sara",
+      "usr-347835367"
+    ],
+    "resources": {
+      "prdUrl": "https://docs.bank.internal/prd/spec-v1",
+      "repoUrl": "https://github.com/company/ko",
+      "figmaUrl": "https://www.figma.com/file/aegis-design-system/prototype",
+      "prdTitle": "ko Functional Specifications",
+      "apiDocUrl": "https://staging-app.internal/swagger-ui",
+      "figmaName": "ko UI Prototype",
+      "prdContent": "# Functional Requirements & Acceptance Criteria\n\n## 1. Overview\nComprehensive QA validation of all feature modules and API services.\n\n## 2. Acceptance Criteria\n- Pass 100% of P0 smoke test cases before release.\n- 0 critical or blocker severity defects open in regression cycle.\n- API response time < 250ms for 95th percentile.\n- Figma layout tokens and responsive breakpoints verified.",
+      "testEnvUrl": "https://staging-app.internal",
+      "releaseInfo": "Sprint candidate validation window closes prior to release deployment.",
+      "buildVersion": "v1.0.0-rc1",
+      "figmaVersion": "v2.4",
+      "prdDocuments": [
+        {
+          "id": "doc-1788604947473",
+          "name": "ko PRD Specification",
+          "version": "v1.0-RC",
+          "fileName": "ko-prd.pdf",
+          "fileSize": "2.4 MB",
+          "uploadedAt": "2026-09-05",
+          "uploadedBy": "Sarah Jenkins",
+          "downloadUrl": "https://docs.bank.internal/prd/spec-v1"
+        }
+      ],
+      "requirements": [
+        "REQ-01: Authentication & Token Lifecycle",
+        "REQ-02: Core Feature Flow and Business Logic Validation",
+        "REQ-03: Responsive Design Breakpoints Verification"
+      ],
+      "importantNotes": "Review all Figma auto-layout padding specs before marking UI tickets complete.",
+      "testCredentials": [
+        {
+          "pass": "AegisPass#2026",
+          "role": "QA Automation Engineer",
+          "user": "qa.test@company.internal",
+          "notes": "Staging environment pre-loaded test data profile"
+        }
+      ],
+      "figmaDescription": "Includes all responsive viewports, state machines, and micro-interaction tokens.",
+      "figmaPreviewTitle": "Mobile & Web UI Design Specs"
+    }
+  },
+  {
+    "id": "prj-mto9eukb",
+    "name": "sor",
+    "description": "nmdsn",
+    "status": "Testing",
+    "memberIds": [
+      "usr-sara",
+      "usr-347835367"
+    ],
+    "resources": {
+      "prdUrl": "https://docs.bank.internal/prd/spec-v1",
+      "repoUrl": "https://github.com/company/sor",
+      "figmaUrl": "https://www.figma.com/file/aegis-design-system/prototype",
+      "prdTitle": "df",
+      "apiDocUrl": "https://staging-app.internal/swagger-ui",
+      "figmaName": "sor UI Prototype",
+      "prdContent": "# Functional Requirements & Acceptance Criteria\n\n## 1. Overview\nComprehensive QA validation of all feature modules and API services.\n\n## 2. Acceptance Criteria\n- Pass 100% of P0 smoke test cases before release.\n- 0 critical or blocker severity defects open in regression cycle.\n- API response time < 250ms for 95th percentile.\n- Figma layout tokens and responsive breakpoints verified.",
+      "testEnvUrl": "https://staging-app.internal",
+      "releaseInfo": "Sprint candidate validation window closes prior to release deployment.",
+      "buildVersion": "v1.0.0-rc1",
+      "figmaVersion": "v2.4",
+      "prdDocuments": [
+        {
+          "id": "doc-1788605295419",
+          "name": "df",
+          "version": "v1.0-RC",
+          "fileName": "sor-prd.pdf",
+          "fileSize": "2.4 MB",
+          "uploadedAt": "2026-09-05",
+          "uploadedBy": "Sarah Jenkins",
+          "downloadUrl": "https://docs.bank.internal/prd/spec-v1"
+        }
+      ],
+      "requirements": [
+        "REQ-01: Authentication & Token Lifecycle",
+        "REQ-02: Core Feature Flow and Business Logic Validation",
+        "REQ-03: Responsive Design Breakpoints Verification"
+      ],
+      "importantNotes": "Review all Figma auto-layout padding specs before marking UI tickets complete.",
+      "testCredentials": [
+        {
+          "pass": "AegisPass#2026",
+          "role": "QA Automation Engineer",
+          "user": "qa.test@company.internal",
+          "notes": "Staging environment pre-loaded test data profile"
+        }
+      ],
+      "figmaDescription": "Includes all responsive viewports, state machines, and micro-interaction tokens.",
+      "figmaPreviewTitle": "Mobile & Web UI Design Specs"
+    }
+  },
+  {
     "id": "prj-ko",
     "name": "ko",
     "description": "QA project ko created from Vercel platform",
@@ -46,28 +148,41 @@
     }
   },
   {
-    "id": "prj-nextgen",
-    "name": "NextGen Mobile Banking",
-    "description": "Next-generation mobile retail banking app with biometric authentication and card controls.",
-    "status": "Testing",
+    "id": "prj-merchant",
+    "name": "Merchant Portal NextGen",
+    "description": "B2B web dashboard for e-commerce and retail merchants to manage settlements, chargebacks, and API webhook integrations.",
+    "status": "Planning",
     "memberIds": [
-      "usr-347835367",
-      "usr-sarah",
-      "usr-hana"
+      "usr-sara",
+      "usr-ahmed"
     ],
     "resources": {
-      "prdUrl": "https://docs.bank.internal/prd/nextgen",
-      "repoUrl": "https://github.com/bankcorp/nextgen",
-      "figmaUrl": "https://www.figma.com/file/nextgen/spec",
-      "prdTitle": "NextGen Mobile Banking Functional Specifications",
-      "figmaName": "NextGen UI Prototype",
-      "prdContent": "# NextGen Mobile Banking Acceptance Criteria\nComprehensive QA validation of all feature modules.",
-      "testEnvUrl": "https://staging-nextgen.internal",
+      "prdUrl": "https://docs.bankcorp.internal/prd/merchant-portal-v1",
+      "repoUrl": "https://github.com/bankcorp/merchant-web",
+      "figmaUrl": "https://www.figma.com/file/aegis-merchant-v1/design",
+      "prdTitle": "PRD Merchant Portal v1.0: Real-time Analytics & Dispute Center",
+      "apiDocUrl": "https://api-docs.bankcorp.internal/merchant/v1",
+      "figmaName": "Merchant Portal v1.0 Web App",
+      "prdContent": "# Merchant Portal v1.0 PRD\nUnified settlement report download in CSV/XLSX. Automated webhook delivery with retry backoff.",
+      "testEnvUrl": "https://staging-merchant.bankingsuperapp.internal",
+      "releaseInfo": "Alpha testing phase. Architecture and test plan sign-off.",
+      "buildVersion": "v1.0.0-alpha2",
+      "figmaVersion": "1.0.0",
       "requirements": [
-        "REQ-01: Biometrics",
-        "REQ-02: Instant wire"
+        "REQ-B01: Dispute evidence upload supporting up to 25MB PDF/PNG",
+        "REQ-B02: Webhook signature verification tool for merchants"
       ],
-      "figmaPreviewTitle": "NextGen UI/UX Specifications"
+      "importantNotes": "Backend services still in active deployment.",
+      "testCredentials": [
+        {
+          "pass": "CoffeeB2B@99!",
+          "role": "Merchant Admin",
+          "user": "admin@coffeehaven.com",
+          "notes": "Connected to mock Stripe & Adyen test rails"
+        }
+      ],
+      "figmaDescription": "Full B2B desktop dashboard and dispute evidence modal.",
+      "figmaPreviewTitle": "Merchant B2B Dashboard Layout & Dispute Flow"
     }
   },
   {
@@ -78,7 +193,8 @@
     "memberIds": [
       "usr-hana",
       "usr-ahmed",
-      "usr-daniel"
+      "usr-daniel",
+      "usr-347835367"
     ],
     "resources": {
       "prdUrl": "https://docs.bankcorp.internal/prd/superapp-v2.4",
@@ -153,7 +269,8 @@
     "status": "UAT",
     "memberIds": [
       "usr-hana",
-      "usr-sara"
+      "usr-sara",
+      "usr-347835367"
     ],
     "resources": {
       "prdUrl": "https://docs.bankcorp.internal/prd/mobile-v3.1",
@@ -186,41 +303,28 @@
     }
   },
   {
-    "id": "prj-merchant",
-    "name": "Merchant Portal NextGen",
-    "description": "B2B web dashboard for e-commerce and retail merchants to manage settlements, chargebacks, and API webhook integrations.",
-    "status": "Planning",
+    "id": "prj-nextgen",
+    "name": "NextGen Mobile Banking",
+    "description": "Next-generation mobile retail banking app with biometric authentication and card controls.",
+    "status": "Testing",
     "memberIds": [
-      "usr-sara",
-      "usr-ahmed"
+      "usr-347835367",
+      "usr-sarah",
+      "usr-hana"
     ],
     "resources": {
-      "prdUrl": "https://docs.bankcorp.internal/prd/merchant-portal-v1",
-      "repoUrl": "https://github.com/bankcorp/merchant-web",
-      "figmaUrl": "https://www.figma.com/file/aegis-merchant-v1/design",
-      "prdTitle": "PRD Merchant Portal v1.0: Real-time Analytics & Dispute Center",
-      "apiDocUrl": "https://api-docs.bankcorp.internal/merchant/v1",
-      "figmaName": "Merchant Portal v1.0 Web App",
-      "prdContent": "# Merchant Portal v1.0 PRD\nUnified settlement report download in CSV/XLSX. Automated webhook delivery with retry backoff.",
-      "testEnvUrl": "https://staging-merchant.bankingsuperapp.internal",
-      "releaseInfo": "Alpha testing phase. Architecture and test plan sign-off.",
-      "buildVersion": "v1.0.0-alpha2",
-      "figmaVersion": "1.0.0",
+      "prdUrl": "https://docs.bank.internal/prd/nextgen",
+      "repoUrl": "https://github.com/bankcorp/nextgen",
+      "figmaUrl": "https://www.figma.com/file/nextgen/spec",
+      "prdTitle": "NextGen Mobile Banking Functional Specifications",
+      "figmaName": "NextGen UI Prototype",
+      "prdContent": "# NextGen Mobile Banking Acceptance Criteria\nComprehensive QA validation of all feature modules.",
+      "testEnvUrl": "https://staging-nextgen.internal",
       "requirements": [
-        "REQ-B01: Dispute evidence upload supporting up to 25MB PDF/PNG",
-        "REQ-B02: Webhook signature verification tool for merchants"
+        "REQ-01: Biometrics",
+        "REQ-02: Instant wire"
       ],
-      "importantNotes": "Backend services still in active deployment.",
-      "testCredentials": [
-        {
-          "pass": "CoffeeB2B@99!",
-          "role": "Merchant Admin",
-          "user": "admin@coffeehaven.com",
-          "notes": "Connected to mock Stripe & Adyen test rails"
-        }
-      ],
-      "figmaDescription": "Full B2B desktop dashboard and dispute evidence modal.",
-      "figmaPreviewTitle": "Merchant B2B Dashboard Layout & Dispute Flow"
+      "figmaPreviewTitle": "NextGen UI/UX Specifications"
     }
   }
 ]

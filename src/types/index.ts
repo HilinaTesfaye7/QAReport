@@ -50,6 +50,8 @@ export interface User {
   projectAllocations: ProjectAllocation[];
   onboardingCompleted: boolean;
   baselineContext?: BaselineContext;
+  telegramUsername?: string;
+  telegramChatId?: string;
 }
 
 export type ProjectStatus =
