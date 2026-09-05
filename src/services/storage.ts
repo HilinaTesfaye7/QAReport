@@ -142,20 +142,36 @@ export const StorageService = {
 
           const records = (finalRes.data && finalRes.data.length > 0) ? finalRes.data : data;
 
-          const cloudProjects: Project[] = records.map((p: any) => ({
-            id: p.id,
-            name: p.name,
-            description: p.description || '',
-            status: p.status,
-            startDate: p.start_date || '',
-            targetReleaseDate: p.target_release_date || '',
-            projectOwner: p.project_owner || '',
-            qaLeadId: p.qa_lead_id || 'usr-sarah',
-            memberIds: Array.isArray(p.member_ids) ? p.member_ids : [],
-            resources: p.resources || {},
-            qaProgress: Number(p.qa_progress || 0),
-            regressionProgress: Number(p.regression_progress || 0),
-          }));
+          const nameMap = new Map<string, Project>();
+          for (const raw of records) {
+            const p: Project = {
+              id: raw.id,
+              name: raw.name,
+              description: raw.description || '',
+              status: raw.status,
+              startDate: raw.start_date || '',
+              targetReleaseDate: raw.target_release_date || '',
+              projectOwner: raw.project_owner || '',
+              qaLeadId: raw.qa_lead_id || 'usr-sarah',
+              memberIds: Array.isArray(raw.member_ids) ? raw.member_ids : [],
+              resources: raw.resources || {},
+              qaProgress: Number(raw.qa_progress || 0),
+              regressionProgress: Number(raw.regression_progress || 0),
+            };
+            const key = p.name.trim().toLowerCase();
+            if (!nameMap.has(key)) {
+              nameMap.set(key, p);
+            } else {
+              const existing = nameMap.get(key)!;
+              const pCount = Object.keys(p.resources || {}).length;
+              const existCount = Object.keys(existing.resources || {}).length;
+              if (pCount > existCount || (pCount === existCount && p.id > existing.id)) {
+                nameMap.set(key, p);
+              }
+            }
+          }
+
+          const cloudProjects: Project[] = Array.from(nameMap.values());
 
           localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(cloudProjects));
           emitChange(STORAGE_KEYS.PROJECTS);
@@ -389,6 +405,7 @@ export const StorageService = {
             notes: r.notes || '',
             status: 'submitted' as const,
             submittedAt: r.submitted_at || new Date().toISOString(),
+            source: 'telegram' as const,
           }));
 
           localStorage.setItem(STORAGE_KEYS.DAILY_REPORTS, JSON.stringify(mapped));

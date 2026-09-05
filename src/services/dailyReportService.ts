@@ -4,6 +4,7 @@ import { WorkloadService } from './workloadService';
 import { TestCaseService } from './testCaseService';
 import { AuditService } from './auditService';
 import { NotificationService } from './notificationService';
+import { supabase, isSupabaseConfigured } from './supabaseClient';
 
 export const DailyReportService = {
   getDailyReports: (): DailyReport[] => {
@@ -25,6 +26,45 @@ export const DailyReportService = {
   },
 
   syncTelegramReports: async (): Promise<DailyReport[]> => {
+    // 1. Fetch live daily reports from Supabase Cloud Database (written by Telegram Bot)
+    if (isSupabaseConfigured() && supabase) {
+      try {
+        const { data, error } = await supabase
+          .from('daily_reports')
+          .select('*')
+          .order('submitted_at', { ascending: false });
+
+        if (!error && data && data.length > 0) {
+          const mapped: DailyReport[] = data.map((r: any) => ({
+            id: r.id,
+            date: r.date,
+            chatId: r.chat_id,
+            memberId: r.member_id || `usr-${r.chat_id || 'unknown'}`,
+            memberName: r.member_name,
+            role: r.role || 'QA Tester',
+            projectId: r.project_id,
+            projectName: r.project_name,
+            yesterdayCompleted: r.yesterday_completed || '',
+            todayWorkingOn: r.today_working_on || '',
+            blockers: r.blockers || '',
+            isBlocked: Boolean(r.is_blocked),
+            progressPercentage: Number(r.progress_percentage || 50),
+            expectedCompletion: (r.expected_completion as any) || 'Today',
+            notes: r.notes || '',
+            status: 'submitted' as const,
+            submittedAt: r.submitted_at || new Date().toISOString(),
+            source: 'telegram' as const,
+          }));
+
+          StorageService.saveDailyReports(mapped);
+          return mapped;
+        }
+      } catch (err) {
+        console.warn('Supabase daily_reports sync error:', err);
+      }
+    }
+
+    // 2. Fallback to local static JSON if cloud not reachable
     try {
       const res = await fetch('/telegram_daily_reports.json', { cache: 'no-cache' });
       if (!res.ok) return StorageService.getDailyReports();

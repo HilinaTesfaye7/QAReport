@@ -1,5 +1,22 @@
 [
   {
+    "id": "tg-mtocgf3c",
+    "date": "2026-09-05",
+    "chatId": 7527336375,
+    "memberId": "usr-7527336375",
+    "memberName": "Lyla kebde",
+    "role": "QA Engineer / Tester",
+    "projectId": "prj-mto97e35",
+    "projectName": "ko",
+    "yesterdayCompleted": "Gfhh, hjj, yhf",
+    "todayWorkingOn": "Fgf, ggfg, hhgff",
+    "blockers": "",
+    "isBlocked": false,
+    "expectedCompletion": "Today",
+    "notes": "",
+    "submittedAt": "2026-09-05T12:13:27.528Z"
+  },
+  {
     "id": "tg-mtobtcbb",
     "date": "2026-09-05",
     "chatId": 347835367,

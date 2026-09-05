@@ -1,5 +1,32 @@
 [
   {
+    "id": "prj-mtoc9qs0",
+    "name": "Crypto Vault Wallet",
+    "description": "QA security audit and regression for multi-sig wallet",
+    "status": "Testing",
+    "memberIds": [
+      "usr-347835367",
+      "usr-hana"
+    ],
+    "resources": {
+      "prdUrl": "https://docs.crypto.internal/prd",
+      "repoUrl": "https://github.com/crypto/vault",
+      "figmaUrl": "https://www.figma.com/file/crypto-vault/spec",
+      "prdTitle": "Crypto Vault Wallet PRD v1.2",
+      "apiDocUrl": "https://api.crypto.internal/docs",
+      "prdContent": "# Crypto Vault Acceptance Criteria\n- 100% test pass rate on signature verifications",
+      "testEnvUrl": "https://staging-wallet.internal",
+      "releaseInfo": "Audited release candidate",
+      "requirements": [
+        "REQ-01: Multi-sig auth",
+        "REQ-02: Biometric unlock"
+      ],
+      "importantNotes": "Verify secure enclave simulation",
+      "testCredentials": [],
+      "figmaPreviewTitle": "Crypto Vault UI Specs"
+    }
+  },
+  {
     "id": "prj-mto97e35",
     "name": "ko",
     "description": "cxcx",
@@ -148,6 +175,70 @@
     }
   },
   {
+    "id": "prj-nextgen",
+    "name": "NextGen Mobile Banking",
+    "description": "Next-generation mobile retail banking app with biometric authentication and card controls.",
+    "status": "Testing",
+    "memberIds": [
+      "usr-347835367",
+      "usr-sarah",
+      "usr-hana"
+    ],
+    "resources": {
+      "prdUrl": "https://docs.bank.internal/prd/nextgen",
+      "repoUrl": "https://github.com/bankcorp/nextgen",
+      "figmaUrl": "https://www.figma.com/file/nextgen/spec",
+      "prdTitle": "NextGen Mobile Banking Functional Specifications",
+      "figmaName": "NextGen UI Prototype",
+      "prdContent": "# NextGen Mobile Banking Acceptance Criteria\nComprehensive QA validation of all feature modules.",
+      "testEnvUrl": "https://staging-nextgen.internal",
+      "requirements": [
+        "REQ-01: Biometrics",
+        "REQ-02: Instant wire"
+      ],
+      "figmaPreviewTitle": "NextGen UI/UX Specifications"
+    }
+  },
+  {
+    "id": "prj-mobile",
+    "name": "Mobile Banking iOS & Android",
+    "description": "Cross-platform native mobile client focusing on card management, contactless NFC payments, and push security tokens.",
+    "status": "UAT",
+    "memberIds": [
+      "usr-hana",
+      "usr-sara"
+    ],
+    "resources": {
+      "prdUrl": "https://docs.bankcorp.internal/prd/mobile-v3.1",
+      "repoUrl": "https://github.com/bankcorp/mobile-native",
+      "figmaUrl": "https://www.figma.com/file/aegis-mobile-cards/v3.1",
+      "prdTitle": "PRD Mobile v3.1: Virtual Card Issuance & NFC",
+      "apiDocUrl": "https://api-docs.bankcorp.internal/mobile/v3",
+      "figmaName": "Mobile Cards & Wallet Flow v3.1",
+      "prdContent": "# Mobile Banking v3.1 Specifications\nSupport Apple Pay and Google Wallet instant push provisioning. Card freeze/unfreeze toggle with sub-second feedback.",
+      "testEnvUrl": "https://mobile-stage.bankingsuperapp.internal",
+      "releaseInfo": "TestFlight build #412 / Internal App Distribution #208.",
+      "buildVersion": "build-412",
+      "figmaVersion": "3.1.0",
+      "requirements": [
+        "REQ-M01: Virtual card generation within 2 seconds",
+        "REQ-M02: Apple Wallet / Google Wallet provisioning",
+        "REQ-M03: Instant card locking and geo-fencing controls"
+      ],
+      "importantNotes": "Test specifically on iOS 18.0 and Android 15 developer previews.",
+      "testCredentials": [
+        {
+          "pass": "Mob@2026Safe",
+          "role": "Mobile Beta User",
+          "user": "qa.mobile.tester@bank.internal",
+          "notes": "Enrolled in NFC pilot sandbox"
+        }
+      ],
+      "figmaDescription": "Native iOS & Android card views with encrypted CVV reveal.",
+      "figmaPreviewTitle": "Mobile Native Components & Virtual Card Flow"
+    }
+  },
+  {
     "id": "prj-merchant",
     "name": "Merchant Portal NextGen",
     "description": "B2B web dashboard for e-commerce and retail merchants to manage settlements, chargebacks, and API webhook integrations.",
@@ -193,8 +284,7 @@
     "memberIds": [
       "usr-hana",
       "usr-ahmed",
-      "usr-daniel",
-      "usr-347835367"
+      "usr-daniel"
     ],
     "resources": {
       "prdUrl": "https://docs.bankcorp.internal/prd/superapp-v2.4",
@@ -260,71 +350,6 @@
       ],
       "figmaDescription": "Full mobile and responsive web frames with auto-layout padding tokens.",
       "figmaPreviewTitle": "SuperApp UI Kit & Interactive Transfer Flows (Figma v2.4)"
-    }
-  },
-  {
-    "id": "prj-mobile",
-    "name": "Mobile Banking iOS & Android",
-    "description": "Cross-platform native mobile client focusing on card management, contactless NFC payments, and push security tokens.",
-    "status": "UAT",
-    "memberIds": [
-      "usr-hana",
-      "usr-sara",
-      "usr-347835367"
-    ],
-    "resources": {
-      "prdUrl": "https://docs.bankcorp.internal/prd/mobile-v3.1",
-      "repoUrl": "https://github.com/bankcorp/mobile-native",
-      "figmaUrl": "https://www.figma.com/file/aegis-mobile-cards/v3.1",
-      "prdTitle": "PRD Mobile v3.1: Virtual Card Issuance & NFC",
-      "apiDocUrl": "https://api-docs.bankcorp.internal/mobile/v3",
-      "figmaName": "Mobile Cards & Wallet Flow v3.1",
-      "prdContent": "# Mobile Banking v3.1 Specifications\nSupport Apple Pay and Google Wallet instant push provisioning. Card freeze/unfreeze toggle with sub-second feedback.",
-      "testEnvUrl": "https://mobile-stage.bankingsuperapp.internal",
-      "releaseInfo": "TestFlight build #412 / Internal App Distribution #208.",
-      "buildVersion": "build-412",
-      "figmaVersion": "3.1.0",
-      "requirements": [
-        "REQ-M01: Virtual card generation within 2 seconds",
-        "REQ-M02: Apple Wallet / Google Wallet provisioning",
-        "REQ-M03: Instant card locking and geo-fencing controls"
-      ],
-      "importantNotes": "Test specifically on iOS 18.0 and Android 15 developer previews.",
-      "testCredentials": [
-        {
-          "pass": "Mob@2026Safe",
-          "role": "Mobile Beta User",
-          "user": "qa.mobile.tester@bank.internal",
-          "notes": "Enrolled in NFC pilot sandbox"
-        }
-      ],
-      "figmaDescription": "Native iOS & Android card views with encrypted CVV reveal.",
-      "figmaPreviewTitle": "Mobile Native Components & Virtual Card Flow"
-    }
-  },
-  {
-    "id": "prj-nextgen",
-    "name": "NextGen Mobile Banking",
-    "description": "Next-generation mobile retail banking app with biometric authentication and card controls.",
-    "status": "Testing",
-    "memberIds": [
-      "usr-347835367",
-      "usr-sarah",
-      "usr-hana"
-    ],
-    "resources": {
-      "prdUrl": "https://docs.bank.internal/prd/nextgen",
-      "repoUrl": "https://github.com/bankcorp/nextgen",
-      "figmaUrl": "https://www.figma.com/file/nextgen/spec",
-      "prdTitle": "NextGen Mobile Banking Functional Specifications",
-      "figmaName": "NextGen UI Prototype",
-      "prdContent": "# NextGen Mobile Banking Acceptance Criteria\nComprehensive QA validation of all feature modules.",
-      "testEnvUrl": "https://staging-nextgen.internal",
-      "requirements": [
-        "REQ-01: Biometrics",
-        "REQ-02: Instant wire"
-      ],
-      "figmaPreviewTitle": "NextGen UI/UX Specifications"
     }
   }
 ]
