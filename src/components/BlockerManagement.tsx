@@ -154,6 +154,48 @@ export const BlockerManagement: React.FC<BlockerManagementProps> = ({ currentUse
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  {!isResolved ? (
+                    <button
+                      onClick={() => handleStatusChange(b.id, 'Resolved')}
+                      style={{
+                        padding: '5px 12px',
+                        borderRadius: '6px',
+                        background: '#10b981',
+                        border: 'none',
+                        color: '#fff',
+                        fontSize: '0.76rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                        boxShadow: '0 2px 4px rgba(16, 185, 129, 0.2)',
+                      }}
+                      title="Mark as Resolved and remove from active blockers"
+                    >
+                      <Check size={13} />
+                      <span>Mark as Resolved</span>
+                    </button>
+                  ) : (
+                    <span
+                      style={{
+                        padding: '4px 10px',
+                        borderRadius: '6px',
+                        background: 'rgba(16, 185, 129, 0.15)',
+                        border: '1px solid rgba(16, 185, 129, 0.3)',
+                        color: '#10b981',
+                        fontSize: '0.75rem',
+                        fontWeight: 700,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                      }}
+                    >
+                      <CheckCircle2 size={13} />
+                      <span>Resolved</span>
+                    </span>
+                  )}
+
                   <select
                     value={b.status}
                     onChange={(e) => handleStatusChange(b.id, e.target.value as BlockerStatus)}

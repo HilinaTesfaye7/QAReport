@@ -573,6 +573,66 @@ async function handleOnboardingStep(chatId, user, text) {
   }
 }
 
+// Helper to get open blockers for user
+async function getOpenBlockersForUser(chatId, fullName) {
+  let openBlockers = [];
+  if (fs.existsSync(BLOCKERS_FILE)) {
+    try {
+      const allB = JSON.parse(fs.readFileSync(BLOCKERS_FILE, 'utf8'));
+      openBlockers = allB.filter((b) => 
+        (String(b.chatId) === String(chatId) || (fullName && (b.reportedBy || '').toLowerCase().includes(fullName.toLowerCase()))) &&
+        b.status !== 'Resolved'
+      );
+    } catch {}
+  }
+
+  if (openBlockers.length === 0 && supabase) {
+    try {
+      const { data } = await supabase
+        .from('blockers')
+        .select('*')
+        .or(`chat_id.eq.${chatId},reported_by.ilike.%${fullName}%`)
+        .neq('status', 'Resolved')
+        .order('created_at', { ascending: false });
+      if (data && data.length > 0) {
+        openBlockers = data.map((d) => ({
+          id: d.id,
+          title: d.title,
+          description: d.description,
+          projectId: d.project_id,
+          projectName: d.project_name,
+          severity: d.severity,
+          status: d.status,
+          reportedBy: d.reported_by,
+          chatId: d.chat_id,
+          createdAt: d.created_at,
+        }));
+      }
+    } catch {}
+  }
+  return openBlockers;
+}
+
+// Helper to mark blocker resolved in storage and cloud
+async function markBlockerResolved(blockerId) {
+  if (fs.existsSync(BLOCKERS_FILE)) {
+    try {
+      let allB = JSON.parse(fs.readFileSync(BLOCKERS_FILE, 'utf8'));
+      allB = allB.map((b) => (b.id === blockerId ? { ...b, status: 'Resolved', resolvedAt: new Date().toISOString() } : b));
+      fs.writeFileSync(BLOCKERS_FILE, JSON.stringify(allB, null, 2), 'utf8');
+      try {
+        fs.writeFileSync(path.resolve(process.cwd(), 'public', 'telegram_blockers.json'), JSON.stringify(allB, null, 2), 'utf8');
+      } catch {}
+    } catch {}
+  }
+
+  if (supabase && blockerId) {
+    await supabase.from('blockers').update({
+      status: 'Resolved',
+    }).eq('id', blockerId);
+  }
+}
+
 // ==========================================
 // 2. DAILY STANDUP CHECK-IN WIZARD
 // ==========================================
@@ -583,6 +643,33 @@ async function startCheckin(chatId, user) {
   // If user has not configured their profile, guide through onboarding first!
   if (!profile) {
     await startOnboarding(chatId, user, true);
+    return;
+  }
+
+  // Check if member previously reported an active blocker from yesterday/earlier
+  const openBlockers = await getOpenBlockersForUser(chatId, profile.fullName);
+
+  if (openBlockers.length > 0) {
+    const b = openBlockers[0];
+    userSessions.set(chatId, {
+      type: 'checkin',
+      step: 'resolve_previous_blocker',
+      pendingBlocker: b,
+      profile,
+      answers: {},
+    });
+
+    await sendMessage(
+      chatId,
+      `👋 <b>Good morning, ${profile.fullName}!</b>\n\n` +
+      `⚠️ <b>Reminder from Yesterday:</b>\n` +
+      `You previously reported an active blocker on <b>${b.projectName || profile.projectName}</b>:\n` +
+      `<i>"${b.title || 'Blocker'}: ${b.description}"</i>\n\n` +
+      `<b>Is this blocker now resolved?</b>\n\n` +
+      `1️⃣ <b>Yes, it is resolved</b> (Mark resolved & remove from blocked tasks)\n` +
+      `2️⃣ <b>No, still blocked</b>\n\n` +
+      `<i>Reply 1 (or 'yes') to remove it, or 2 (or 'no') to keep it active:</i>`
+    );
     return;
   }
 
@@ -609,6 +696,33 @@ async function handleCheckinStep(chatId, user, text) {
   const session = userSessions.get(chatId);
   if (!session || session.type !== 'checkin') return false;
   const profile = session.profile;
+
+  if (session.step === 'resolve_previous_blocker') {
+    const isYes = text === '1' || text.toLowerCase().includes('yes') || text.toLowerCase().includes('resolved') || text.toLowerCase() === 'y';
+    if (isYes && session.pendingBlocker) {
+      await markBlockerResolved(session.pendingBlocker.id);
+      await sendMessage(
+        chatId,
+        `✅ <b>Blocker Marked as Resolved!</b>\n` +
+        `It has been removed from the blocked tasks on the QA Command Center Dashboard.\n\n` +
+        `Now let's proceed with your daily standup.\n\n` +
+        `<b>Question 1 of 5:</b>\n` +
+        `<i>What did you complete yesterday on ${profile.projectName}?</i>\n` +
+        `(Test cases executed, bugs verified, PRDs reviewed)`
+      );
+    } else {
+      await sendMessage(
+        chatId,
+        `Understood, keeping the blocker active on the dashboard.\n\n` +
+        `Now let's proceed with your daily standup.\n\n` +
+        `<b>Question 1 of 5:</b>\n` +
+        `<i>What did you complete yesterday on ${profile.projectName}?</i>\n` +
+        `(Test cases executed, bugs verified, PRDs reviewed)`
+      );
+    }
+    session.step = 1;
+    return true;
+  }
 
   switch (session.step) {
     case 1:
@@ -885,6 +999,7 @@ async function handleMessage(message) {
       `• /checkin — Start your daily QA standup for ${profile.projectName}\n` +
       `• /project — Switch your active QA project\n` +
       `• /blocker <reason> — Immediately report an urgent blocker\n` +
+      `• /resolve — Resolve active blockers and remove from blocked tasks\n` +
       `• /profile — View or update your profile\n` +
       `• /status — View platform release readiness & regression metrics\n` +
       `• /cancel — Cancel an active operation`
@@ -961,6 +1076,31 @@ async function handleMessage(message) {
       `⚠️ <b>Issue:</b> ${reason}\n` +
       `🕒 <b>Time:</b> ${new Date().toLocaleTimeString()}\n\n` +
       `<i>The QA Lead Command Center has been alerted.</i>`
+    );
+    return;
+  }
+
+  if (text === '/resolve' || text === '/unblock' || text.startsWith('/resolve ') || text.startsWith('/unblock ')) {
+    const openBlockers = await getOpenBlockersForUser(chatId, profile ? profile.fullName : '');
+
+    if (openBlockers.length === 0) {
+      await sendMessage(
+        chatId,
+        `🎉 <b>No Active Blockers Found!</b>\n\nYou currently have no open blockers in the system.`
+      );
+      return;
+    }
+
+    for (const b of openBlockers) {
+      await markBlockerResolved(b.id);
+    }
+
+    await sendMessage(
+      chatId,
+      `✅ <b>Blocker(s) Resolved!</b>\n\n` +
+      `The following blocker(s) have been marked as <b>Resolved</b>:\n` +
+      openBlockers.map((b) => `• <b>${b.title}</b> (${b.description})`).join('\n') +
+      `\n\nThey have been removed from the blocked tasks on the QA Command Center Dashboard!`
     );
     return;
   }

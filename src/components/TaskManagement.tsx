@@ -13,6 +13,7 @@ import {
   ChevronRight,
   Filter,
   UserCheck,
+  Check,
 } from 'lucide-react';
 import { QATask, TaskStatus, TaskPriority, User as UserType } from '../types';
 import { StorageService } from '../services/storage';
@@ -301,6 +302,34 @@ export const TaskManagement: React.FC<TaskManagementProps> = ({ currentUser }) =
                           </div>
                         )}
 
+                        {t.status === 'Blocked' && (
+                          <div style={{ marginBottom: '8px' }}>
+                            <button
+                              type="button"
+                              onClick={() => handleStatusChange(t.id, 'In Progress')}
+                              style={{
+                                width: '100%',
+                                padding: '4px 8px',
+                                borderRadius: '4px',
+                                background: '#10b981',
+                                border: 'none',
+                                color: '#fff',
+                                fontSize: '0.72rem',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '4px',
+                              }}
+                              title="Resolve blocker and move task to In Progress"
+                            >
+                              <Check size={12} />
+                              <span>Resolve Blocker</span>
+                            </button>
+                          </div>
+                        )}
+
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border-subtle)', paddingTop: '8px' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                             {assignee && (
@@ -365,17 +394,43 @@ export const TaskManagement: React.FC<TaskManagementProps> = ({ currentUser }) =
                     <td style={{ padding: '12px 10px' }}>{t.estimatedEffortHours} hrs</td>
                     <td style={{ padding: '12px 10px', color: 'var(--text-muted)' }}>{t.dueDate}</td>
                     <td style={{ padding: '12px 10px' }}>
-                      <select
-                        value={t.status}
-                        onChange={(e) => handleStatusChange(t.id, e.target.value as TaskStatus)}
-                        style={{ fontSize: '0.75rem' }}
-                      >
-                        {ALL_STATUSES.map((s) => (
-                          <option key={s} value={s}>
-                            {s}
-                          </option>
-                        ))}
-                      </select>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <select
+                          value={t.status}
+                          onChange={(e) => handleStatusChange(t.id, e.target.value as TaskStatus)}
+                          style={{ fontSize: '0.75rem' }}
+                        >
+                          {ALL_STATUSES.map((s) => (
+                            <option key={s} value={s}>
+                              {s}
+                            </option>
+                          ))}
+                        </select>
+                        {t.status === 'Blocked' && (
+                          <button
+                            type="button"
+                            onClick={() => handleStatusChange(t.id, 'In Progress')}
+                            style={{
+                              padding: '3px 8px',
+                              borderRadius: '4px',
+                              background: '#10b981',
+                              border: 'none',
+                              color: '#fff',
+                              fontSize: '0.72rem',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '3px',
+                              whiteSpace: 'nowrap',
+                            }}
+                            title="Resolve blocker and mark In Progress"
+                          >
+                            <Check size={11} />
+                            <span>Resolve</span>
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );

@@ -221,6 +221,39 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true });
     }
 
+    // 6. /resolve or /unblock
+    if (text === '/resolve' || text === '/unblock' || text.startsWith('/resolve ') || text.startsWith('/unblock ')) {
+      if (supabase) {
+        const { data: openBlockers } = await supabase
+          .from('blockers')
+          .select('*')
+          .eq('chat_id', String(chatId))
+          .neq('status', 'Resolved');
+
+        if (!openBlockers || openBlockers.length === 0) {
+          await sendTelegramMessage(chatId, `🎉 <b>No Active Blockers Found!</b>\n\nYou currently have no open blockers in the system.`);
+          return res.status(200).json({ ok: true });
+        }
+
+        await supabase
+          .from('blockers')
+          .update({
+            status: 'Resolved',
+          })
+          .eq('chat_id', String(chatId))
+          .neq('status', 'Resolved');
+
+        await sendTelegramMessage(
+          chatId,
+          `✅ <b>Blocker(s) Resolved!</b>\n\n` +
+          `The following blocker(s) have been marked as <b>Resolved</b>:\n` +
+          openBlockers.map(b => `• <b>${b.title}</b> (${b.description})`).join('\n') +
+          `\n\nThey have been removed from the blocked tasks on the QA Command Center Dashboard!`
+        );
+        return res.status(200).json({ ok: true });
+      }
+    }
+
     // Default response
     await sendTelegramMessage(
       chatId,

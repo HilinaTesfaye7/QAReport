@@ -11,6 +11,7 @@ import {
   Plus,
   Filter,
   CheckCircle2,
+  Check,
   AlertOctagon,
   Clock,
   ShieldAlert,
@@ -19,6 +20,7 @@ import {
 import { User, Project, MemberWorkload, QATask, QABug, TestCase, Blocker, DailyReport } from '../types';
 import { StorageService } from '../services/storage';
 import { WorkloadService } from '../services/workloadService';
+import { TaskService } from '../services/taskService';
 import { TestCaseService } from '../services/testCaseService';
 import { DailyReportService } from '../services/dailyReportService';
 import { BlockerService } from '../services/blockerService';
@@ -208,7 +210,7 @@ export const QALeadDashboard: React.FC<QALeadDashboardProps> = ({
     .sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime())
     .slice(0, 5);
 
-  // Critical Issues combining live Open Blockers and High/Critical Open Bugs
+  // Critical Issues combining live Open Blockers, Blocked Tasks, and High/Critical Open Bugs
   const criticalItems = [
     ...openBlockers.map((b) => ({
       id: b.id,
@@ -219,8 +221,23 @@ export const QALeadDashboard: React.FC<QALeadDashboardProps> = ({
       assignee: b.reportedBy || 'QA Member',
       color: '#f43f5e',
       isBlocker: true,
+      isTask: false,
       onClick: onNavigateToBlockers || onNavigateToBugs,
     })),
+    ...filteredTasks
+      .filter((t) => t.status === 'Blocked')
+      .map((t) => ({
+        id: t.id,
+        severity: t.priority === 'Critical' ? 'Critical' : 'High',
+        code: `TSK-${t.id.slice(-4).toUpperCase()}`,
+        title: `${t.title}${t.blockerReason ? ` • Blocked: ${t.blockerReason}` : ''}`,
+        project: projects.find((p) => p.id === t.projectId)?.name || 'Active Project',
+        assignee: users.find((u) => u.id === t.assigneeId)?.name || 'Unassigned',
+        color: '#f43f5e',
+        isBlocker: false,
+        isTask: true,
+        onClick: onNavigateToTasks,
+      })),
     ...bugs
       .filter((b) => (b.severity === 'Critical' || b.severity === 'High') && b.status !== 'Closed')
       .map((b) => ({
@@ -232,9 +249,23 @@ export const QALeadDashboard: React.FC<QALeadDashboardProps> = ({
         assignee: users.find((u) => u.id === b.assigneeId)?.name || 'Unassigned',
         color: b.severity === 'Critical' ? '#f43f5e' : '#f59e0b',
         isBlocker: false,
+        isTask: false,
         onClick: onNavigateToBugs,
       })),
-  ].slice(0, 5);
+  ].slice(0, 6);
+
+  const handleResolveItem = async (
+    issue: { id: string; isBlocker?: boolean; isTask?: boolean },
+    e: React.MouseEvent
+  ) => {
+    e.stopPropagation();
+    if (issue.isBlocker) {
+      BlockerService.updateBlockerStatus(issue.id, 'Resolved', currentUser.id);
+    } else if (issue.isTask) {
+      TaskService.updateTaskStatus(issue.id, 'In Progress', currentUser.id);
+    }
+    await reloadData();
+  };
 
   return (
     <div style={{ maxWidth: '1440px', margin: '0 auto', padding: '24px 32px' }}>
@@ -1082,6 +1113,38 @@ export const QALeadDashboard: React.FC<QALeadDashboardProps> = ({
                     </div>
                     <span style={{ color: 'var(--text-secondary)', fontSize: '0.76rem' }}>{issue.assignee}</span>
                   </div>
+                  {(issue.isBlocker || issue.isTask) && (
+                    <button
+                      type="button"
+                      onClick={(e) => handleResolveItem(issue, e)}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        padding: '4px 10px',
+                        borderRadius: '6px',
+                        background: 'rgba(16, 185, 129, 0.15)',
+                        border: '1px solid rgba(16, 185, 129, 0.4)',
+                        color: '#10b981',
+                        fontSize: '0.72rem',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = '#10b981';
+                        e.currentTarget.style.color = '#fff';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = 'rgba(16, 185, 129, 0.15)';
+                        e.currentTarget.style.color = '#10b981';
+                      }}
+                      title="Mark as Resolved and remove from blocked tasks"
+                    >
+                      <Check size={12} />
+                      <span>Resolve</span>
+                    </button>
+                  )}
                   <ArrowUpRight size={14} color="var(--text-muted)" />
                 </div>
               </div>

@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { X, Send, Check, AlertTriangle, MessageSquare, CheckCircle2, AlertOctagon } from 'lucide-react';
-import { User } from '../types';
+import { User, Blocker } from '../types';
 import { RuleEngine } from '../services/ruleEngine';
 import { DailyReportService } from '../services/dailyReportService';
+import { BlockerService } from '../services/blockerService';
 
 interface RuleDrivenCheckInModalProps {
   isOpen: boolean;
@@ -30,18 +31,51 @@ export const RuleDrivenCheckInModal: React.FC<RuleDrivenCheckInModalProps> = ({
   const [expectedCompletion, setExpectedCompletion] = useState<'Today' | 'Tomorrow' | 'Later'>('Today');
   const [notes, setNotes] = useState('');
   const [isSuccess, setIsSuccess] = useState(false);
+  const [activeUserBlocker, setActiveUserBlocker] = useState<Blocker | null>(null);
+  const [blockerResolvedNotice, setBlockerResolvedNotice] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
       const generated = RuleEngine.generateRuleDrivenCheckInQuestions(currentUser.id);
       setData(generated);
       setIsSuccess(false);
-      if (generated.openBlockersCount > 0) {
+      setBlockerResolvedNotice(false);
+
+      const allBlockers = BlockerService.getBlockers();
+      const myBlocker = allBlockers.find(
+        (b) =>
+          (b.memberId === currentUser.id ||
+            (b.reportedBy && b.reportedBy.toLowerCase().includes(currentUser.name.toLowerCase())) ||
+            (currentUser.telegramChatId && (b.memberId === `usr-${currentUser.telegramChatId}` || b.memberId === currentUser.telegramChatId))) &&
+          b.status !== 'Resolved'
+      );
+
+      if (myBlocker) {
+        setActiveUserBlocker(myBlocker);
         setIsBlocked(true);
-        setBlockers('Staging API payment gateway sandbox mock returning 502 Bad Gateway');
+        setBlockers(myBlocker.description || myBlocker.title);
+      } else {
+        setActiveUserBlocker(null);
+        if (generated.openBlockersCount > 0) {
+          setIsBlocked(true);
+          setBlockers('Staging API payment gateway sandbox mock returning 502 Bad Gateway');
+        } else {
+          setIsBlocked(false);
+          setBlockers('');
+        }
       }
     }
   }, [isOpen, currentUser]);
+
+  const handleResolvePreviousBlocker = () => {
+    if (activeUserBlocker) {
+      BlockerService.updateBlockerStatus(activeUserBlocker.id, 'Resolved', currentUser.id);
+      setActiveUserBlocker(null);
+      setIsBlocked(false);
+      setBlockers('');
+      setBlockerResolvedNotice(true);
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -88,6 +122,76 @@ export const RuleDrivenCheckInModal: React.FC<RuleDrivenCheckInModalProps> = ({
             <X size={18} />
           </button>
         </div>
+
+        {/* Reminder for Previously Reported Blocker */}
+        {activeUserBlocker && (
+          <div
+            style={{
+              padding: '12px 16px',
+              borderRadius: '8px',
+              background: 'rgba(245, 158, 11, 0.12)',
+              border: '1px solid rgba(245, 158, 11, 0.3)',
+              marginBottom: '16px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              gap: '12px',
+              flexWrap: 'wrap',
+            }}
+          >
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: '0.82rem', fontWeight: 800, color: '#fbbf24', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <AlertTriangle size={15} />
+                <span>Reminder: Blocker Reported Yesterday / Previously</span>
+              </div>
+              <div style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                You previously reported: <strong>"{activeUserBlocker.title}: {activeUserBlocker.description}"</strong>. Is this now resolved?
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleResolvePreviousBlocker}
+              style={{
+                padding: '6px 14px',
+                borderRadius: '6px',
+                background: '#10b981',
+                border: 'none',
+                color: '#fff',
+                fontSize: '0.75rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+                boxShadow: '0 2px 4px rgba(16, 185, 129, 0.25)',
+              }}
+            >
+              <Check size={13} />
+              <span>Yes, Mark Resolved</span>
+            </button>
+          </div>
+        )}
+
+        {blockerResolvedNotice && (
+          <div
+            style={{
+              padding: '10px 14px',
+              borderRadius: '8px',
+              background: 'rgba(16, 185, 129, 0.12)',
+              border: '1px solid rgba(16, 185, 129, 0.3)',
+              color: '#10b981',
+              fontSize: '0.78rem',
+              fontWeight: 700,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              marginBottom: '16px',
+            }}
+          >
+            <CheckCircle2 size={16} />
+            <span>Blocker marked as Resolved and removed from blocked tasks!</span>
+          </div>
+        )}
 
         {isSuccess ? (
           <div
