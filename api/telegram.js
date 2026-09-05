@@ -243,8 +243,22 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true });
     }
 
-    // 6. /resolve or /unblock
-    if (text === '/resolve' || text === '/unblock' || text.startsWith('/resolve ') || text.startsWith('/unblock ')) {
+    // 6. /resolve or /unblock or "the bug is resolved"
+    const isResolveIntent =
+      text === '/resolve' ||
+      text === '/unblock' ||
+      text.startsWith('/resolve') ||
+      text.startsWith('/unblock') ||
+      text === 'resolved' ||
+      text === 'the bug is resolved' ||
+      text === 'bug resolved' ||
+      text === 'the blocker is resolved' ||
+      text === 'blocker resolved' ||
+      text === 'it is resolved' ||
+      text.includes('is resolved') ||
+      text.includes('mark resolved');
+
+    if (isResolveIntent) {
       if (supabase) {
         const { data: openBlockers } = await supabase
           .from('blockers')

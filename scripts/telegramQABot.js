@@ -694,25 +694,29 @@ async function startCheckin(chatId, user) {
   const openBlockers = await getOpenBlockersForUser(chatId, profile.fullName);
 
   if (openBlockers.length > 0) {
-    const b = openBlockers[0];
     userSessions.set(chatId, {
       type: 'checkin',
       step: 'resolve_previous_blocker',
-      pendingBlocker: b,
+      pendingBlockers: openBlockers,
       profile,
       answers: {},
     });
 
+    const blockerCountText = openBlockers.length === 1 ? 'an active blocker' : `${openBlockers.length} active blockers`;
+    const blockerItemsList = openBlockers
+      .map((b) => `• <b>${escapeHtml(b.title || 'Blocker')}</b>: <i>"${escapeHtml(b.description)}"</i>`)
+      .join('\n');
+
     await sendMessage(
       chatId,
-      `👋 <b>Good morning, ${profile.fullName}!</b>\n\n` +
+      `👋 <b>Good morning, ${escapeHtml(profile.fullName)}!</b>\n\n` +
       `⚠️ <b>Reminder from Yesterday:</b>\n` +
-      `You previously reported an active blocker on <b>${b.projectName || profile.projectName}</b>:\n` +
-      `<i>"${b.title || 'Blocker'}: ${b.description}"</i>\n\n` +
-      `<b>Is this blocker now resolved?</b>\n\n` +
-      `1️⃣ <b>Yes, it is resolved</b> (Mark resolved & remove from blocked tasks)\n` +
+      `You previously reported ${blockerCountText} on <b>${escapeHtml(openBlockers[0].projectName || profile.projectName)}</b>:\n` +
+      `${blockerItemsList}\n\n` +
+      `<b>Are these blocker(s) now resolved?</b>\n\n` +
+      `1️⃣ <b>Yes, mark resolved</b> (Remove from blocked tasks on QA Command Center)\n` +
       `2️⃣ <b>No, still blocked</b>\n\n` +
-      `<i>Reply 1 (or 'yes') to remove it, or 2 (or 'no') to keep it active:</i>`
+      `<i>Reply 1 (or 'yes', 'resolved') to mark them resolved, or 2 (or 'no') to keep active:</i>`
     );
     return;
   }
@@ -726,12 +730,12 @@ async function startCheckin(chatId, user) {
 
   await sendMessage(
     chatId,
-    `👋 <b>Good morning, ${profile.fullName}!</b>\n\n` +
-    `📁 <b>Active Project:</b> <b>${profile.projectName}</b>\n\n` +
+    `👋 <b>Good morning, ${escapeHtml(profile.fullName)}!</b>\n\n` +
+    `📁 <b>Active Project:</b> <b>${escapeHtml(profile.projectName)}</b>\n\n` +
     `Welcome to your structured <b>Daily QA Standup</b>.\n` +
-    `Please answer the following 5 questions for <b>${profile.projectName}</b>.\n\n` +
+    `Please answer the following 5 questions for <b>${escapeHtml(profile.projectName)}</b>.\n\n` +
     `<b>Question 1 of 5:</b>\n` +
-    `<i>What did you complete yesterday on ${profile.projectName}?</i>\n` +
+    `<i>What did you complete yesterday on ${escapeHtml(profile.projectName)}?</i>\n` +
     `(Test cases executed, bugs verified, PRDs reviewed)`
   );
 }
@@ -742,25 +746,28 @@ async function handleCheckinStep(chatId, user, text) {
   const profile = session.profile;
 
   if (session.step === 'resolve_previous_blocker') {
-    const isYes = text === '1' || text.toLowerCase().includes('yes') || text.toLowerCase().includes('resolved') || text.toLowerCase() === 'y';
-    if (isYes && session.pendingBlocker) {
-      await markBlockerResolved(session.pendingBlocker.id);
+    const isYes = text === '1' || text.toLowerCase().includes('yes') || text.toLowerCase().includes('resolved') || text.toLowerCase() === 'y' || text.toLowerCase().includes('fixed');
+    const blockersToResolve = session.pendingBlockers || [session.pendingBlocker].filter(Boolean);
+    if (isYes && blockersToResolve.length > 0) {
+      for (const b of blockersToResolve) {
+        await markBlockerResolved(b.id);
+      }
       await sendMessage(
         chatId,
-        `✅ <b>Blocker Marked as Resolved!</b>\n` +
-        `It has been removed from the blocked tasks on the QA Command Center Dashboard.\n\n` +
+        `✅ <b>${blockersToResolve.length} Blocker(s) Marked as Resolved!</b>\n` +
+        `They have been removed from the blocked tasks on the QA Command Center Dashboard.\n\n` +
         `Now let's proceed with your daily standup.\n\n` +
         `<b>Question 1 of 5:</b>\n` +
-        `<i>What did you complete yesterday on ${profile.projectName}?</i>\n` +
+        `<i>What did you complete yesterday on ${escapeHtml(profile.projectName)}?</i>\n` +
         `(Test cases executed, bugs verified, PRDs reviewed)`
       );
     } else {
       await sendMessage(
         chatId,
-        `Understood, keeping the blocker active on the dashboard.\n\n` +
+        `Understood, keeping blocker(s) active on the dashboard.\n\n` +
         `Now let's proceed with your daily standup.\n\n` +
         `<b>Question 1 of 5:</b>\n` +
-        `<i>What did you complete yesterday on ${profile.projectName}?</i>\n` +
+        `<i>What did you complete yesterday on ${escapeHtml(profile.projectName)}?</i>\n` +
         `(Test cases executed, bugs verified, PRDs reviewed)`
       );
     }
@@ -1136,7 +1143,21 @@ async function handleMessage(message) {
     return;
   }
 
-  if (text === '/resolve' || text === '/unblock' || text.startsWith('/resolve ') || text.startsWith('/unblock ')) {
+  const isResolveCommand =
+    text === '/resolve' ||
+    text === '/unblock' ||
+    text.startsWith('/resolve') ||
+    text.startsWith('/unblock') ||
+    text === 'resolved' ||
+    text === 'the bug is resolved' ||
+    text === 'bug resolved' ||
+    text === 'the blocker is resolved' ||
+    text === 'blocker resolved' ||
+    text === 'it is resolved' ||
+    text.includes('is resolved') ||
+    text.includes('mark resolved');
+
+  if (isResolveCommand) {
     const openBlockers = await getOpenBlockersForUser(chatId, profile ? profile.fullName : '');
 
     if (openBlockers.length === 0) {

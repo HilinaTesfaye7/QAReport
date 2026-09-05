@@ -1,15 +1,42 @@
 [
   {
+    "id": "blk-mtog4cng",
+    "title": "Blocker via Telegram (Coco)",
+    "description": "wooo",
+    "projectId": "prj-mto97e35",
+    "projectName": "ko",
+    "severity": "Critical",
+    "status": "Resolved",
+    "reportedBy": "Coco",
+    "createdAt": "2026-09-05T13:56:02.956Z",
+    "chatId": 347835367,
+    "resolvedAt": "2026-09-05T13:56:12.925Z"
+  },
+  {
+    "id": "blk-mtog36tr",
+    "title": "Blocker via Telegram (Coco)",
+    "description": "eko",
+    "projectId": "prj-mto97e35",
+    "projectName": "ko",
+    "severity": "Critical",
+    "status": "Resolved",
+    "reportedBy": "Coco",
+    "createdAt": "2026-09-05T13:55:08.751Z",
+    "chatId": 347835367,
+    "resolvedAt": "2026-09-05T13:56:12.925Z"
+  },
+  {
     "id": "blk-mtofvwxc",
     "title": "Blocker via Telegram (Coco)",
     "description": "help help it's down",
     "projectId": "prj-mto97e35",
     "projectName": "ko",
     "severity": "Critical",
-    "status": "Open",
+    "status": "Resolved",
     "reportedBy": "Coco",
     "createdAt": "2026-09-05T13:49:29.328Z",
-    "chatId": 347835367
+    "chatId": 347835367,
+    "resolvedAt": "2026-09-05T13:56:12.925Z"
   },
   {
     "id": "blk-mtofvb2i",
@@ -18,10 +45,11 @@
     "projectId": "prj-mto97e35",
     "projectName": "ko",
     "severity": "Critical",
-    "status": "Open",
+    "status": "Resolved",
     "reportedBy": "Coco",
     "createdAt": "2026-09-05T13:49:01.002Z",
-    "chatId": 347835367
+    "chatId": 347835367,
+    "resolvedAt": "2026-09-05T13:56:12.925Z"
   },
   {
     "id": "blk-mtodwb3h",
