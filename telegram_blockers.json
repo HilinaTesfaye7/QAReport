@@ -1,5 +1,18 @@
 [
   {
+    "id": "blk-mtogbcvo",
+    "title": "Blocker via Standup (Coco)",
+    "description": "Gdgdgd, fhfy",
+    "projectId": "prj-mto97e35",
+    "projectName": "ko",
+    "severity": "High",
+    "status": "Resolved",
+    "reportedBy": "Coco",
+    "chatId": 347835367,
+    "createdAt": "2026-09-05T14:01:29.844Z",
+    "resolvedAt": "2026-09-05T20:16:32.628Z"
+  },
+  {
     "id": "blk-mtog4cng",
     "title": "Blocker via Telegram (Coco)",
     "description": "wooo",

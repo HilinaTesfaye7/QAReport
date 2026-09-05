@@ -19,18 +19,18 @@
     "updatedAt": "2026-09-05T11:54:52.077+00:00"
   },
   "7527336375": {
-    "fullName": "Hshs bshs",
-    "role": "Automation QA Engineer",
-    "projectId": "prj-ko",
-    "projectName": "ko",
+    "fullName": "Ola king",
+    "role": "QA Lead",
+    "projectId": "prj-mtof6cqc",
+    "projectName": "Crypto Vault Wallet",
     "assignedProjectIds": [
-      "prj-ko"
+      "prj-mtof6cqc"
     ],
     "assignedProjects": [
-      "ko"
+      "Crypto Vault Wallet"
     ],
     "telegramUsername": "",
     "chatId": "7527336375",
-    "updatedAt": "2026-09-05T12:53:17.951+00:00"
+    "updatedAt": "2026-09-05T20:11:25.503+00:00"
   }
 }

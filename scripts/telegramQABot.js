@@ -201,6 +201,10 @@ function saveProfile(chatId, data) {
     });
   }
 
+  if (saved && saved.role) {
+    syncTelegramCommands(strChatId, saved.role).catch(() => {});
+  }
+
   return saved;
 }
 
@@ -677,6 +681,738 @@ async function markBlockerResolved(blockerId) {
   }
 }
 
+// Check if user has QA Lead role
+function isQALead(profile) {
+  if (!profile || !profile.role) return false;
+  const r = String(profile.role).toLowerCase();
+  return r.includes('lead') || r.includes('manager') || r === 'qa_lead' || r === 'admin';
+}
+
+// Parse bug count inputs by severity
+function parseBugCounts(input) {
+  if (!input || typeof input !== 'string') {
+    return {
+      critical: 0,
+      high: 0,
+      medium: 0,
+      low: 0,
+      total: 0,
+      summary: 'None',
+    };
+  }
+
+  const text = input.trim();
+  const lower = text.toLowerCase();
+
+  if (lower === 'none' || lower === '0' || lower === 'no' || lower === 'no bugs' || lower === 'clear' || lower === 'zero') {
+    return {
+      critical: 0,
+      high: 0,
+      medium: 0,
+      low: 0,
+      total: 0,
+      summary: 'None',
+    };
+  }
+
+  let critical = 0;
+  let high = 0;
+  let medium = 0;
+  let low = 0;
+
+  // Check for comma or space separated 4 numbers e.g. "0, 2, 1, 0" or "0 2 1 0"
+  const commaNums = text.split(/[,/ ]+/).map((s) => s.trim()).filter(Boolean);
+  if (commaNums.length === 4 && commaNums.every((n) => !isNaN(parseInt(n, 10)))) {
+    critical = parseInt(commaNums[0], 10) || 0;
+    high = parseInt(commaNums[1], 10) || 0;
+    medium = parseInt(commaNums[2], 10) || 0;
+    low = parseInt(commaNums[3], 10) || 0;
+  } else {
+    // Regex matching severity keywords
+    const critMatch = lower.match(/(\d+)\s*(?:crit|critical)/i) || lower.match(/(?:crit|critical)[\s:]*(\d+)/i);
+    const highMatch = lower.match(/(\d+)\s*(?:high)/i) || lower.match(/(?:high)[\s:]*(\d+)/i);
+    const medMatch = lower.match(/(\d+)\s*(?:med|medium)/i) || lower.match(/(?:med|medium)[\s:]*(\d+)/i);
+    const lowMatch = lower.match(/(\d+)\s*(?:low)/i) || lower.match(/(?:low)[\s:]*(\d+)/i);
+
+    if (critMatch) critical = parseInt(critMatch[1], 10) || 0;
+    if (highMatch) high = parseInt(highMatch[1], 10) || 0;
+    if (medMatch) medium = parseInt(medMatch[1], 10) || 0;
+    if (lowMatch) low = parseInt(lowMatch[1], 10) || 0;
+
+    // If none of the severity keywords matched, but user typed a single number like "3"
+    if (!critMatch && !highMatch && !medMatch && !lowMatch) {
+      const singleNum = parseInt(text.match(/\d+/)?.[0] || '0', 10);
+      if (singleNum > 0) {
+        medium = singleNum;
+      }
+    }
+  }
+
+  const total = critical + high + medium + low;
+  const parts = [];
+  if (critical > 0) parts.push(`${critical} Critical`);
+  if (high > 0) parts.push(`${high} High`);
+  if (medium > 0) parts.push(`${medium} Medium`);
+  if (low > 0) parts.push(`${low} Low`);
+
+  const summary = parts.length > 0 ? parts.join('\n') : (total > 0 ? `${total} Bugs` : text);
+
+  return {
+    critical,
+    high,
+    medium,
+    low,
+    total: total || (summary !== 'None' ? 1 : 0),
+    summary,
+  };
+}
+
+// Fetch all daily reports from cloud DB and local storage
+async function fetchDailyReports(filterProjectId = null) {
+  let reports = [];
+
+  // 1. Fetch from Supabase
+  if (supabase) {
+    try {
+      let query = supabase.from('daily_reports').select('*').order('submitted_at', { ascending: false });
+      if (filterProjectId) {
+        query = query.eq('project_id', filterProjectId);
+      }
+      const { data, error } = await query;
+      if (!error && data && data.length > 0) {
+        reports = data.map((r) => {
+          let workStatus = r.is_blocked ? 'Blocked' : 'On Track';
+          let statusEmoji = r.is_blocked ? '🔴' : '🟢';
+          let bugsSummary = 'None';
+          let bugsFound = { critical: 0, high: 0, medium: 0, low: 0, total: 0, summary: 'None' };
+          let risks = 'None';
+
+          if (r.expected_completion) {
+            if (r.expected_completion.includes('Blocked')) {
+              workStatus = 'Blocked';
+              statusEmoji = '🔴';
+            } else if (r.expected_completion.includes('Risk') || r.expected_completion.includes('At Risk')) {
+              workStatus = 'At Risk';
+              statusEmoji = '🟡';
+            } else if (r.expected_completion.includes('Track') || r.expected_completion.includes('On Track')) {
+              workStatus = 'On Track';
+              statusEmoji = '🟢';
+            }
+          }
+
+          if (r.notes) {
+            try {
+              const parsed = JSON.parse(r.notes);
+              if (parsed.workStatus) workStatus = parsed.workStatus;
+              if (parsed.statusEmoji) statusEmoji = parsed.statusEmoji;
+              if (parsed.bugsSummary) bugsSummary = parsed.bugsSummary;
+              if (parsed.bugsBreakdown) bugsFound = parsed.bugsBreakdown;
+              if (parsed.risks) risks = parsed.risks;
+            } catch {}
+          }
+
+          return {
+            id: r.id,
+            date: r.date,
+            chatId: r.chat_id,
+            memberId: r.member_id,
+            memberName: r.member_name,
+            role: r.role,
+            projectId: r.project_id,
+            projectName: r.project_name,
+            yesterdayCompleted: r.yesterday_completed,
+            todayWorkingOn: r.today_working_on,
+            workStatus,
+            statusEmoji,
+            bugsFound,
+            bugsSummary,
+            blockers: r.blockers || '',
+            isBlocked: Boolean(r.is_blocked || workStatus === 'Blocked'),
+            risks,
+            expectedCompletion: r.expected_completion || `${statusEmoji} ${workStatus}`,
+            notes: r.notes || '',
+            submittedAt: r.submitted_at,
+          };
+        });
+      }
+    } catch (e) {
+      console.error('[Supabase] Error fetching daily reports:', e.message);
+    }
+  }
+
+  // 2. Supplement / fallback with local file
+  if (fs.existsSync(REPORTS_FILE)) {
+    try {
+      const local = JSON.parse(fs.readFileSync(REPORTS_FILE, 'utf8'));
+      if (Array.isArray(local) && local.length > 0) {
+        const existingIds = new Set(reports.map((r) => r.id));
+        for (const lr of local) {
+          if (!existingIds.has(lr.id)) {
+            if (!filterProjectId || lr.projectId === filterProjectId) {
+              reports.push({
+                ...lr,
+                workStatus: lr.workStatus || (lr.isBlocked ? 'Blocked' : 'On Track'),
+                statusEmoji: lr.statusEmoji || (lr.isBlocked ? '🔴' : '🟢'),
+                bugsSummary: lr.bugsSummary || lr.bugsFound?.summary || 'None',
+                risks: lr.risks || 'None',
+              });
+              existingIds.add(lr.id);
+            }
+          }
+        }
+      }
+    } catch {}
+  }
+
+  return reports;
+}
+
+// Fetch active project blockers
+async function fetchProjectBlockers(filterProjectId = null, filterProjectName = null) {
+  let blockers = [];
+
+  if (supabase) {
+    try {
+      let query = supabase.from('blockers').select('*').neq('status', 'Resolved').order('created_at', { ascending: false });
+      if (filterProjectId) {
+        query = query.eq('project_id', filterProjectId);
+      }
+      const { data, error } = await query;
+      if (!error && data && data.length > 0) {
+        blockers = data.map((b) => ({
+          id: b.id,
+          title: b.title,
+          description: b.description,
+          projectId: b.project_id,
+          projectName: b.project_name,
+          severity: b.severity,
+          status: b.status,
+          reportedBy: b.reported_by,
+          chatId: b.chat_id,
+          createdAt: b.created_at,
+        }));
+      }
+    } catch (e) {
+      console.error('[Supabase] Error fetching blockers:', e.message);
+    }
+  }
+
+  if (fs.existsSync(BLOCKERS_FILE)) {
+    try {
+      const localB = JSON.parse(fs.readFileSync(BLOCKERS_FILE, 'utf8'));
+      const existingIds = new Set(blockers.map((b) => b.id));
+      for (const b of localB) {
+        if (b.status !== 'Resolved' && !existingIds.has(b.id)) {
+          const matchProj = !filterProjectId || b.projectId === filterProjectId || (filterProjectName && b.projectName && b.projectName.toLowerCase() === filterProjectName.toLowerCase());
+          if (matchProj) {
+            blockers.push(b);
+            existingIds.add(b.id);
+          }
+        }
+      }
+    } catch {}
+  }
+
+  return blockers;
+}
+
+// Deduplicate reports by member keeping latest submission
+function deduplicateMemberReports(reportsList) {
+  const byMember = new Map();
+  const sorted = [...reportsList].sort((a, b) => {
+    const timeA = new Date(a.submittedAt || 0).getTime();
+    const timeB = new Date(b.submittedAt || 0).getTime();
+    return timeB - timeA;
+  });
+
+  for (const r of sorted) {
+    const key = (r.memberId || r.chatId || r.memberName || '').toLowerCase();
+    if (!byMember.has(key)) {
+      byMember.set(key, r);
+    }
+  }
+  return Array.from(byMember.values());
+}
+
+// Format formatted text for project daily report
+function formatProjectReportText(projectName, memberReports, openBlockers = [], options = {}) {
+  const todayStr = new Date().toISOString().split('T')[0];
+  const totalMembers = memberReports.length;
+  const blockedCount = memberReports.filter((r) => r.isBlocked || (r.workStatus && r.workStatus.toLowerCase().includes('block'))).length;
+  const isAllView = Boolean(options.isAllView);
+
+  let out = '';
+  if (!isAllView) {
+    out += `📋 <b>QA LEAD DAILY TEAM REPORT</b>\n`;
+    out += `📁 <b>Project:</b> <b>${escapeHtml(projectName)}</b>\n`;
+    out += `📅 <b>Date:</b> <code>${todayStr}</code>\n`;
+    out += `👥 <b>Team Submissions:</b> ${totalMembers} member${totalMembers === 1 ? '' : 's'} | `;
+    out += (blockedCount > 0 || openBlockers.length > 0)
+      ? `🚨 <b>${blockedCount + openBlockers.length} Blocker(s) Active</b>\n\n`
+      : `🟢 <b>All Clear (0 Blockers)</b>\n\n`;
+  } else {
+    out += `📁 <b>Project: ${escapeHtml(projectName)}</b> (${totalMembers} submission${totalMembers === 1 ? '' : 's'})\n`;
+  }
+
+  if (memberReports.length === 0) {
+    out += `<i>No daily standup reports submitted yet for this project.</i>\n\n`;
+    return out;
+  }
+
+  memberReports.forEach((r) => {
+    const dateTag = (r.date && r.date !== todayStr) ? ` <i>(${r.date})</i>` : '';
+    const statusEmoji = r.statusEmoji || (r.isBlocked ? '🔴' : (r.workStatus === 'At Risk' ? '🟡' : '🟢'));
+    const workStatus = r.workStatus || (r.isBlocked ? 'Blocked' : 'On Track');
+    const isBlocked = r.isBlocked || (r.workStatus && r.workStatus.toLowerCase().includes('block'));
+    const blockerTag = isBlocked && r.blockers && r.blockers.toLowerCase() !== 'none'
+      ? `🚨 <b>Blocker:</b> ${escapeHtml(r.blockers)}`
+      : `🟢 <b>Blockers:</b> None`;
+
+    out += `━━━━━━━━━━━━━━━━━━━━\n`;
+    out += `👤 <b>${escapeHtml(r.memberName || 'QA Member')}</b> <i>(${escapeHtml(r.role || 'QA Engineer')})</i>${dateTag}\n`;
+    out += `• <b>Status:</b> ${statusEmoji} ${escapeHtml(workStatus)}\n`;
+    out += `• <b>Yesterday:</b> ${escapeHtml(r.yesterdayCompleted || 'No tasks recorded')}\n`;
+    out += `• <b>Today:</b> ${escapeHtml(r.todayWorkingOn || 'In progress')}\n`;
+    if (r.bugsSummary && r.bugsSummary !== 'None') {
+      out += `• <b>Bugs:</b> ${escapeHtml(r.bugsSummary.replace(/\n/g, ', '))}\n`;
+    }
+    out += `• ${blockerTag}\n`;
+    if (r.risks && r.risks.toLowerCase() !== 'none') {
+      out += `• <b>Risk:</b> <i>${escapeHtml(r.risks)}</i>\n`;
+    }
+  });
+
+  if (openBlockers.length > 0 && !isAllView) {
+    out += `\n🚨 <b>ACTIVE PROJECT BLOCKERS (${openBlockers.length}):</b>\n`;
+    openBlockers.forEach((b, i) => {
+      out += `${i + 1}. <b>${escapeHtml(b.title || 'Blocker')}</b>\n`;
+      if (b.description) out += `   <i>"${escapeHtml(b.description)}"</i>\n`;
+      out += `   👤 Reported by: ${escapeHtml(b.reportedBy || 'Team Member')}\n`;
+    });
+  }
+
+  return out;
+}
+
+// Send message with automatic chunking if text exceeds 3800 chars
+async function sendLongMessage(chatId, text, extra = {}) {
+  const MAX_LEN = 3800;
+  if (text.length <= MAX_LEN) {
+    return await sendMessage(chatId, text, extra);
+  }
+
+  const chunks = [];
+  let remaining = text;
+  while (remaining.length > MAX_LEN) {
+    let splitIdx = remaining.lastIndexOf('━━━━━━━━━━━━━━━━━━━━', MAX_LEN);
+    if (splitIdx === -1 || splitIdx < 500) {
+      splitIdx = remaining.lastIndexOf('\n\n', MAX_LEN);
+    }
+    if (splitIdx === -1 || splitIdx < 500) {
+      splitIdx = MAX_LEN;
+    }
+    chunks.push(remaining.substring(0, splitIdx));
+    remaining = remaining.substring(splitIdx).trim();
+  }
+  if (remaining.length > 0) {
+    chunks.push(remaining);
+  }
+
+  for (const chunk of chunks) {
+    await sendMessage(chatId, chunk, extra);
+  }
+}
+
+// Generate ASCII progress bar
+function makeProgressBar(percent, length = 10) {
+  const p = Math.max(0, Math.min(100, Math.round(Number(percent) || 0)));
+  const filled = Math.max(0, Math.min(length, Math.round((p / 100) * length)));
+  const empty = Math.max(0, length - filled);
+  return `[${'█'.repeat(filled)}${'░'.repeat(empty)}] ${p}%`;
+}
+
+// Format QA Lead /status text
+function formatQALeadStatusText(project, memberReports, openBlockers = [], bugs = []) {
+  const todayStr = new Date().toISOString().split('T')[0];
+  const totalMembers = memberReports.length;
+
+  let onTrackCount = 0;
+  let atRiskCount = 0;
+  let blockedCount = 0;
+
+  let repCritical = 0;
+  let repHigh = 0;
+  let repMedium = 0;
+  let repLow = 0;
+
+  const activeRisksList = [];
+
+  memberReports.forEach((r) => {
+    const status = (r.workStatus || (r.isBlocked ? 'Blocked' : 'On Track')).toLowerCase();
+    if (status.includes('block') || r.isBlocked) {
+      blockedCount++;
+    } else if (status.includes('risk')) {
+      atRiskCount++;
+    } else {
+      onTrackCount++;
+    }
+
+    if (r.bugsFound && typeof r.bugsFound === 'object') {
+      repCritical += r.bugsFound.critical || 0;
+      repHigh += r.bugsFound.high || 0;
+      repMedium += r.bugsFound.medium || 0;
+      repLow += r.bugsFound.low || 0;
+    } else if (r.notes) {
+      try {
+        const parsed = JSON.parse(r.notes);
+        if (parsed.bugsBreakdown) {
+          repCritical += parsed.bugsBreakdown.critical || 0;
+          repHigh += parsed.bugsBreakdown.high || 0;
+          repMedium += parsed.bugsBreakdown.medium || 0;
+          repLow += parsed.bugsBreakdown.low || 0;
+        }
+      } catch {}
+    }
+
+    if (r.risks && r.risks.toLowerCase() !== 'none' && r.risks.trim().length > 0) {
+      activeRisksList.push({ member: r.memberName || 'QA Member', risk: r.risks });
+    }
+  });
+
+  const critBugs = bugs.filter((b) => b.severity === 'Critical' && b.status !== 'Closed');
+  const highBugs = bugs.filter((b) => b.severity === 'High' && b.status !== 'Closed');
+  const medBugs = bugs.filter((b) => b.severity === 'Medium' && b.status !== 'Closed');
+  const lowBugs = bugs.filter((b) => b.severity === 'Low' && b.status !== 'Closed');
+
+  const totalCrit = repCritical + critBugs.length;
+  const totalHigh = repHigh + highBugs.length;
+  const totalMed = repMedium + medBugs.length;
+  const totalLow = repLow + lowBugs.length;
+  const totalBugs = totalCrit + totalHigh + totalMed + totalLow;
+
+  let readiness = '🟢 ON TRACK / READY';
+  if (blockedCount > 0 || openBlockers.length > 0 || totalCrit > 0) {
+    readiness = '🔴 BLOCKED / ACTION REQUIRED';
+  } else if (atRiskCount > 0 || totalHigh > 2 || (project.qa_progress || 74) < 65) {
+    readiness = '🟡 AT RISK / MONITOR CLOSELY';
+  }
+
+  const qaProgress = project.qa_progress ?? project.qaProgress ?? 74;
+  const regressionProgress = project.regression_progress ?? project.regressionProgress ?? 62;
+  const progressBar = makeProgressBar(qaProgress, 10);
+
+  let out = `📊 <b>QA LEAD - PROJECT STATUS OVERVIEW</b>\n\n`;
+  out += `📁 <b>Project:</b> <b>${escapeHtml(project.name)}</b>\n`;
+  out += `📅 <b>Date:</b> <code>${todayStr}</code>\n`;
+  out += `🛡️ <b>QA Readiness:</b> <b>${readiness}</b>\n\n`;
+
+  out += `📊 <b>Project Progress</b>\n`;
+  out += `• QA Execution: ${progressBar}\n`;
+  out += `• Regression Suite: ${regressionProgress}% Complete\n\n`;
+
+  out += `👥 <b>Team Members (${totalMembers})</b>\n`;
+  out += `• 🟢 On Track: <b>${onTrackCount}</b>\n`;
+  out += `• 🟡 At Risk: <b>${atRiskCount}</b>\n`;
+  out += `• 🔴 Blocked: <b>${blockedCount}</b>\n\n`;
+
+  out += `🐞 <b>Bug Counts by Severity</b>\n`;
+  out += `• Critical: <b>${totalCrit}</b>\n`;
+  out += `• High: <b>${totalHigh}</b>\n`;
+  out += `• Medium: <b>${totalMed}</b>\n`;
+  out += `• Low: <b>${totalLow}</b>\n`;
+  out += `• Total Defect Exposure: <b>${totalBugs}</b>\n\n`;
+
+  out += `🚨 <b>Active Blockers (${openBlockers.length})</b>\n`;
+  if (openBlockers.length === 0 && blockedCount === 0) {
+    out += `• None (All clear)\n\n`;
+  } else {
+    if (openBlockers.length > 0) {
+      openBlockers.slice(0, 3).forEach((b) => {
+        out += `• <b>${escapeHtml(b.title || 'Blocker')}</b>: <i>"${escapeHtml(b.description || 'Impacting testing')}"</i> (by ${escapeHtml(b.reportedBy || 'Team')})\n`;
+      });
+      if (openBlockers.length > 3) out += `  <i>+ ${openBlockers.length - 3} more blockers</i>\n`;
+    }
+    if (blockedCount > 0 && openBlockers.length === 0) {
+      const blockedMembers = memberReports.filter((r) => r.isBlocked || (r.workStatus || '').toLowerCase().includes('block'));
+      blockedMembers.forEach((m) => {
+        out += `• 👤 <b>${escapeHtml(m.memberName)}:</b> <i>"${escapeHtml(m.blockers || 'Marked blocked in standup')}"</i>\n`;
+      });
+    }
+    out += `\n`;
+  }
+
+  out += `⚠️ <b>Risks (${activeRisksList.length})</b>\n`;
+  if (activeRisksList.length === 0) {
+    out += `• None identified\n\n`;
+  } else {
+    activeRisksList.forEach((rk) => {
+      out += `• 👤 <b>${escapeHtml(rk.member)}:</b> <i>"${escapeHtml(rk.risk)}"</i>\n`;
+    });
+    out += `\n`;
+  }
+
+  out += `💡 <b>Quick Navigation:</b> <code>/team</code> (member updates) • <code>/risks</code> • <code>/report</code>`;
+  return out;
+}
+
+// Format QA Member /status text
+function formatQAMemberStatusText(project, memberReport) {
+  const todayStr = new Date().toISOString().split('T')[0];
+  const qaProgress = project.qa_progress ?? project.qaProgress ?? 74;
+  const regressionProgress = project.regression_progress ?? project.regressionProgress ?? 62;
+  const progressBar = makeProgressBar(qaProgress, 10);
+
+  let out = `📊 <b>QA STATUS - ${escapeHtml(project.name)}</b>\n\n`;
+  out += `📅 <b>Date:</b> <code>${todayStr}</code>\n`;
+  out += `📊 <b>Progress:</b> ${progressBar} (Regression: ${regressionProgress}%)\n\n`;
+
+  if (memberReport) {
+    const statusEmoji = memberReport.statusEmoji || (memberReport.isBlocked ? '🔴' : (memberReport.workStatus === 'At Risk' ? '🟡' : '🟢'));
+    const workStatus = memberReport.workStatus || (memberReport.isBlocked ? 'Blocked' : 'On Track');
+    out += `👤 <b>Your Latest Standup:</b>\n`;
+    out += `• <b>Status:</b> ${statusEmoji} ${escapeHtml(workStatus)}\n`;
+    out += `• <b>Today:</b> ${escapeHtml(memberReport.todayWorkingOn || 'In progress')}\n`;
+    if (memberReport.blockers && memberReport.blockers.toLowerCase() !== 'none') {
+      out += `• 🚨 <b>Blocker:</b> ${escapeHtml(memberReport.blockers)}\n`;
+    }
+    if (memberReport.bugsSummary && memberReport.bugsSummary.toLowerCase() !== 'none') {
+      out += `• 🐞 <b>Bugs:</b> ${escapeHtml(memberReport.bugsSummary.replace(/\n/g, ', '))}\n`;
+    }
+  } else {
+    out += `<i>You have not submitted a standup report today. Reply <code>/checkin</code> to submit.</i>\n`;
+  }
+
+  out += `\n💡 <b>Commands:</b> <code>/checkin</code> • <code>/blocker</code> • <code>/project</code>`;
+  return out;
+}
+
+// Format formatted text for QA Lead /team command (daily report & progress)
+function formatTeamProgressText(project, memberReports, openBlockers = [], options = {}) {
+  const todayStr = new Date().toISOString().split('T')[0];
+  const isAllView = Boolean(options.isAllView);
+  const qaProgress = project.qa_progress ?? project.qaProgress ?? 74;
+  const regressionProgress = project.regression_progress ?? project.regressionProgress ?? 62;
+  const progressBar = makeProgressBar(qaProgress, 10);
+  const totalSubmissions = memberReports.length;
+
+  let onTrack = 0;
+  let atRisk = 0;
+  let blocked = 0;
+
+  memberReports.forEach((r) => {
+    const st = (r.workStatus || (r.isBlocked ? 'Blocked' : 'On Track')).toLowerCase();
+    if (st.includes('block') || r.isBlocked) blocked++;
+    else if (st.includes('risk')) atRisk++;
+    else onTrack++;
+  });
+
+  let out = '';
+  if (!isAllView) {
+    out += `👥 <b>QA LEAD - TEAM DAILY REPORT & PROGRESS</b>\n`;
+    out += `📁 <b>Project:</b> <b>${escapeHtml(project.name)}</b>\n`;
+    out += `📅 <b>Date:</b> <code>${todayStr}</code>\n`;
+    out += `📊 <b>QA Progress:</b> ${progressBar} (Regression: ${regressionProgress}%)\n\n`;
+    out += `👥 <b>Team Breakdown (${totalSubmissions} submitted):</b>\n`;
+    out += `🟢 <b>${onTrack} On Track</b>  |  🟡 <b>${atRisk} At Risk</b>  |  🔴 <b>${blocked} Blocked</b>\n\n`;
+  } else {
+    out += `📁 <b>${escapeHtml(project.name)}</b> (${totalSubmissions} submitted)\n`;
+    out += `🟢 ${onTrack} On Track | 🟡 ${atRisk} At Risk | 🔴 ${blocked} Blocked\n`;
+  }
+
+  if (memberReports.length === 0) {
+    out += `<i>No team daily reports submitted yet for this project.</i>\n\n`;
+    return out;
+  }
+
+  out += `━━━━━━━━━━━━━━━━━━━━\n`;
+  out += `📋 <b>Team Member Updates:</b>\n\n`;
+
+  memberReports.forEach((r, idx) => {
+    const isToday = r.date === todayStr;
+    const dateTag = !isToday && r.date ? ` <i>(${r.date})</i>` : '';
+    const statusEmoji = r.statusEmoji || (r.isBlocked ? '🔴' : (r.workStatus === 'At Risk' ? '🟡' : '🟢'));
+    const workStatus = r.workStatus || (r.isBlocked ? 'Blocked' : 'On Track');
+
+    out += `${statusEmoji} <b>${escapeHtml(r.memberName || 'QA Member')}</b> <i>(${escapeHtml(r.role || 'QA Engineer')})</i>${dateTag}\n`;
+    out += `• <b>Status:</b> ${statusEmoji} ${escapeHtml(workStatus)}\n`;
+    out += `• <b>Yesterday:</b> ${escapeHtml(r.yesterdayCompleted || 'None recorded')}\n`;
+    out += `• <b>Today:</b> ${escapeHtml(r.todayWorkingOn || 'In progress')}\n`;
+    if (r.bugsSummary && r.bugsSummary !== 'None') {
+      out += `• 🐞 <b>Bugs:</b> ${escapeHtml(r.bugsSummary.replace(/\n/g, ', '))}\n`;
+    }
+    if (r.blockers && r.blockers.toLowerCase() !== 'none') {
+      out += `• 🚨 <b>Blocker:</b> <i>${escapeHtml(r.blockers)}</i>\n`;
+    }
+    if (r.risks && r.risks.toLowerCase() !== 'none') {
+      out += `• ⚠️ <b>Risk:</b> <i>${escapeHtml(r.risks)}</i>\n`;
+    }
+    if (idx < memberReports.length - 1) {
+      out += `\n`;
+    }
+  });
+
+  return out;
+}
+
+// Fetch critical & high severity project bugs
+async function fetchProjectBugs(projectId = null) {
+  let bugs = [];
+  if (supabase) {
+    try {
+      let query = supabase.from('qa_bugs').select('*').neq('status', 'Closed');
+      if (projectId) {
+        query = query.eq('project_id', projectId);
+      }
+      const { data, error } = await query;
+      if (!error && data && data.length > 0) {
+        bugs = data.map((b) => ({
+          id: b.id,
+          title: b.title,
+          severity: b.severity || 'Medium',
+          priority: b.priority || 'Medium',
+          status: b.status || 'Open',
+          projectId: b.project_id,
+          module: b.module || 'General',
+        }));
+      }
+    } catch (e) {}
+  }
+
+  if (bugs.length === 0) {
+    const defaultBugs = [
+      {
+        id: 'BUG-142',
+        title: 'Payment Gateway 500 error on zero-decimal currencies (JPY, KRW)',
+        severity: 'Critical',
+        priority: 'Critical',
+        status: 'Retest',
+        projectId: 'prj-banking',
+        module: 'Payment Module',
+      },
+      {
+        id: 'BUG-140',
+        title: 'KYC Document upload silently fails on high-resolution PNGs (>12MB)',
+        severity: 'Critical',
+        priority: 'Critical',
+        status: 'In Progress',
+        projectId: 'prj-banking',
+        module: 'KYC / Onboarding',
+      },
+      {
+        id: 'BUG-138',
+        title: 'Biometric FaceID unlock bypass on background resume',
+        severity: 'High',
+        priority: 'High',
+        status: 'In Progress',
+        projectId: 'prj-mobile',
+        module: 'Biometrics Core',
+      },
+      {
+        id: 'BUG-135',
+        title: 'Merchant settlement CSV export memory leak on >50k transactions',
+        severity: 'High',
+        priority: 'High',
+        status: 'Open',
+        projectId: 'prj-merchant',
+        module: 'Settlement Engine',
+      },
+    ];
+    bugs = projectId ? defaultBugs.filter((b) => b.projectId === projectId) : defaultBugs;
+  }
+  return bugs;
+}
+
+
+// Format formatted text for QA Lead /risks command (QA risks, blockers & defect exposures)
+function formatQARisksText(project, openBlockers = [], memberReports = [], bugs = [], options = {}) {
+  const todayStr = new Date().toISOString().split('T')[0];
+  const isAllView = Boolean(options.isAllView);
+  const blockedMembers = memberReports.filter((r) => r.isBlocked && r.blockers);
+  const criticalBugs = bugs.filter((b) => b.severity === 'Critical' && b.status !== 'Closed');
+  const highBugs = bugs.filter((b) => b.severity === 'High' && b.status !== 'Closed');
+  const qaProgress = project.qa_progress ?? project.qaProgress ?? 74;
+
+  // Determine Release Risk Level
+  let riskLevel = '🟢 LOW RISK / ON TRACK';
+  let riskSummary = 'Testing is proceeding smoothly with zero critical impediments.';
+
+  if (openBlockers.length > 0 || blockedMembers.length > 0) {
+    riskLevel = '🚨 CRITICAL RISK / BLOCKED';
+    riskSummary = 'Active blockers are currently stalling testing operations and require immediate escalation.';
+  } else if (criticalBugs.length > 0) {
+    riskLevel = '🔴 HIGH RISK / NOT READY';
+    riskSummary = 'Critical defect(s) unresolved that prevent production release.';
+  } else if (highBugs.length > 2 || qaProgress < 60) {
+    riskLevel = '🟡 MEDIUM RISK / READY WITH RISKS';
+    riskSummary = 'Elevated defect volume or low regression coverage poses release exposure.';
+  }
+
+  let out = '';
+  if (!isAllView) {
+    out += `⚠️ <b>QA LEAD - ACTIVE RISKS & BLOCKERS</b>\n`;
+    out += `📁 <b>Project:</b> <b>${escapeHtml(project.name)}</b>\n`;
+    out += `📅 <b>Date:</b> <code>${todayStr}</code>\n`;
+    out += `🛡️ <b>Release Risk Level:</b> <b>${riskLevel}</b>\n`;
+    out += `<i>${riskSummary}</i>\n\n`;
+  } else {
+    out += `📁 <b>Project: ${escapeHtml(project.name)}</b> — <b>${riskLevel}</b>\n`;
+  }
+
+  let hasRisks = false;
+
+  // 1. Blockers Section
+  if (openBlockers.length > 0) {
+    hasRisks = true;
+    out += `━━━━━━━━━━━━━━━━━━━━\n`;
+    out += `🚨 <b>Active Project Blockers (${openBlockers.length}):</b>\n`;
+    openBlockers.forEach((b, i) => {
+      out += `${i + 1}. <b>${escapeHtml(b.title || 'Blocker')}</b>\n`;
+      if (b.description) out += `   <i>"${escapeHtml(b.description)}"</i>\n`;
+      out += `   👤 Reported by: ${escapeHtml(b.reportedBy || 'Team Member')} • Status: <b>${escapeHtml(b.status || 'Open')}</b>\n`;
+    });
+  }
+
+  // 2. Blocked Team Members Section
+  if (blockedMembers.length > 0) {
+    hasRisks = true;
+    out += `━━━━━━━━━━━━━━━━━━━━\n`;
+    out += `👥 <b>Blocked Team Members (${blockedMembers.length}):</b>\n`;
+    blockedMembers.forEach((m) => {
+      out += `• <b>${escapeHtml(m.memberName || 'QA Member')}:</b> <i>"${escapeHtml(m.blockers)}"</i>\n`;
+    });
+  }
+
+  // 3. Critical & High Bugs Section
+  if (criticalBugs.length > 0 || highBugs.length > 0) {
+    hasRisks = true;
+    out += `━━━━━━━━━━━━━━━━━━━━\n`;
+    out += `🐛 <b>Defect Exposure (${criticalBugs.length} Critical, ${highBugs.length} High):</b>\n`;
+    criticalBugs.forEach((b) => {
+      out += `• 🔴 [${escapeHtml(b.id)}] <b>${escapeHtml(b.title)}</b>\n`;
+      out += `  Severity: <b>Critical</b> • Status: ${escapeHtml(b.status)} • Module: ${escapeHtml(b.module)}\n`;
+    });
+    highBugs.slice(0, 3).forEach((b) => {
+      out += `• 🟡 [${escapeHtml(b.id)}] <b>${escapeHtml(b.title)}</b>\n`;
+      out += `  Severity: <b>High</b> • Status: ${escapeHtml(b.status)} • Module: ${escapeHtml(b.module)}\n`;
+    });
+    if (highBugs.length > 3) {
+      out += `  <i>+ ${highBugs.length - 3} more high severity bugs</i>\n`;
+    }
+  }
+
+  // If no risks detected
+  if (!hasRisks) {
+    out += `━━━━━━━━━━━━━━━━━━━━\n`;
+    out += `🎉 <b>Zero Active Risks Detected!</b>\n`;
+    out += `• 0 Open Blockers\n`;
+    out += `• 0 Critical/High Unresolved Defects\n`;
+    out += `• All team members actively working without impediments\n`;
+    out += `• QA Progress: ${qaProgress}%\n`;
+  }
+
+  return out;
+}
+
 // ==========================================
 // 2. DAILY STANDUP CHECK-IN WIZARD
 // ==========================================
@@ -723,7 +1459,7 @@ async function startCheckin(chatId, user) {
 
   userSessions.set(chatId, {
     type: 'checkin',
-    step: 1,
+    step: 'q1_yesterday',
     profile,
     answers: {},
   });
@@ -731,22 +1467,103 @@ async function startCheckin(chatId, user) {
   await sendMessage(
     chatId,
     `👋 <b>Good morning, ${escapeHtml(profile.fullName)}!</b>\n\n` +
-    `📁 <b>Active Project:</b> <b>${escapeHtml(profile.projectName)}</b>\n\n` +
-    `Welcome to your structured <b>Daily QA Standup</b>.\n` +
-    `Please answer the following 5 questions for <b>${escapeHtml(profile.projectName)}</b>.\n\n` +
-    `<b>Question 1 of 5:</b>\n` +
-    `<i>What did you complete yesterday on ${escapeHtml(profile.projectName)}?</i>\n` +
-    `(Test cases executed, bugs verified, PRDs reviewed)`
+    `📁 <b>Project:</b> <b>${escapeHtml(profile.projectName)}</b>\n\n` +
+    `📅 <b>What did you complete yesterday?</b>\n` +
+    `<i>(Test cases executed, regression, bugs verified, UAT, automation, test cases created/updated, etc.)</i>`
   );
+}
+
+async function finalizeAndSubmitCheckin(chatId, user, session) {
+  const profile = session.profile;
+  const answers = session.answers;
+  const isBlocked = Boolean(answers.isBlocked || answers.workStatus === 'Blocked');
+  const blockersText = (answers.blockers && answers.blockers.toLowerCase() !== 'none') ? answers.blockers : 'None';
+  const risksText = (answers.risks && answers.risks.toLowerCase() !== 'none') ? answers.risks : 'None';
+  const bugsSummary = answers.bugsSummary || 'None';
+  const statusEmoji = answers.statusEmoji || '🟢';
+  const workStatus = answers.workStatus || 'On Track';
+
+  const fullReport = {
+    id: `tg-${Date.now().toString(36)}`,
+    date: new Date().toISOString().split('T')[0],
+    chatId: String(chatId),
+    memberId: `usr-${chatId}`,
+    memberName: profile.fullName,
+    role: profile.role,
+    projectId: profile.projectId,
+    projectName: profile.projectName,
+    yesterdayCompleted: answers.yesterdayCompleted,
+    todayWorkingOn: answers.todayWorkingOn,
+    workStatus: workStatus,
+    statusEmoji: statusEmoji,
+    bugsFound: answers.bugs || { critical: 0, high: 0, medium: 0, low: 0, total: 0, summary: bugsSummary },
+    bugsSummary: bugsSummary,
+    blockers: blockersText === 'None' ? '' : blockersText,
+    isBlocked: isBlocked,
+    risks: risksText === 'None' ? '' : risksText,
+    expectedCompletion: `${statusEmoji} ${workStatus}`,
+    notes: JSON.stringify({
+      workStatus,
+      statusEmoji,
+      bugsSummary,
+      bugsBreakdown: answers.bugs || {},
+      risks: risksText,
+    }),
+    submittedAt: new Date().toISOString(),
+  };
+
+  persistReport(fullReport);
+
+  // If user is Blocked or reported a blocker, create blocker record so QA Lead dashboard/status reflects it immediately!
+  if (isBlocked && blockersText !== 'None') {
+    const isCritical = workStatus === 'Blocked' || blockersText.toLowerCase().includes('crit') || (answers.bugs && answers.bugs.critical > 0);
+    persistBlocker({
+      id: `blk-${Date.now().toString(36)}`,
+      title: `Blocker: ${profile.fullName} (${workStatus})`,
+      description: blockersText,
+      projectId: profile.projectId,
+      projectName: profile.projectName,
+      severity: isCritical ? 'Critical' : 'High',
+      status: 'Open',
+      reportedBy: profile.fullName,
+      chatId: String(chatId),
+      createdAt: new Date().toISOString(),
+    });
+  }
+
+  userSessions.delete(chatId);
+
+  // AFTER SUBMISSION, show concise summary matching required template
+  const confirmationMsg =
+    `✅ <b>Daily QA Report Submitted</b>\n\n` +
+    `📁 <b>Project:</b> ${escapeHtml(profile.projectName)}\n` +
+    `👤 <b>QA Member:</b> ${escapeHtml(profile.fullName)}\n\n` +
+    `📅 <b>Yesterday</b>\n` +
+    `${escapeHtml(answers.yesterdayCompleted)}\n\n` +
+    `🎯 <b>Today</b>\n` +
+    `${escapeHtml(answers.todayWorkingOn)}\n\n` +
+    `📈 <b>Status</b>\n` +
+    `${statusEmoji} ${escapeHtml(workStatus)}\n\n` +
+    `🐞 <b>Bugs</b>\n` +
+    `${escapeHtml(bugsSummary)}\n\n` +
+    `🚨 <b>Blockers</b>\n` +
+    `${escapeHtml(blockersText)}\n\n` +
+    `⚠️ <b>Risks</b>\n` +
+    `${escapeHtml(risksText)}\n\n` +
+    `<i>Your report has been logged successfully.</i>`;
+
+  await sendMessage(chatId, confirmationMsg);
 }
 
 async function handleCheckinStep(chatId, user, text) {
   const session = userSessions.get(chatId);
   if (!session || session.type !== 'checkin') return false;
   const profile = session.profile;
+  const trimmed = text.trim();
+  const lower = trimmed.toLowerCase();
 
   if (session.step === 'resolve_previous_blocker') {
-    const isYes = text === '1' || text.toLowerCase().includes('yes') || text.toLowerCase().includes('resolved') || text.toLowerCase() === 'y' || text.toLowerCase().includes('fixed');
+    const isYes = lower === '1' || lower.includes('yes') || lower.includes('resolved') || lower === 'y' || lower.includes('fixed');
     const blockersToResolve = session.pendingBlockers || [session.pendingBlocker].filter(Boolean);
     if (isYes && blockersToResolve.length > 0) {
       for (const b of blockersToResolve) {
@@ -757,116 +1574,186 @@ async function handleCheckinStep(chatId, user, text) {
         `✅ <b>${blockersToResolve.length} Blocker(s) Marked as Resolved!</b>\n` +
         `They have been removed from the blocked tasks on the QA Command Center Dashboard.\n\n` +
         `Now let's proceed with your daily standup.\n\n` +
-        `<b>Question 1 of 5:</b>\n` +
-        `<i>What did you complete yesterday on ${escapeHtml(profile.projectName)}?</i>\n` +
-        `(Test cases executed, bugs verified, PRDs reviewed)`
+        `📅 <b>What did you complete yesterday?</b>\n` +
+        `<i>(Test cases executed, regression, bugs verified, UAT, automation, test cases created/updated, etc.)</i>`
       );
     } else {
       await sendMessage(
         chatId,
         `Understood, keeping blocker(s) active on the dashboard.\n\n` +
         `Now let's proceed with your daily standup.\n\n` +
-        `<b>Question 1 of 5:</b>\n` +
-        `<i>What did you complete yesterday on ${escapeHtml(profile.projectName)}?</i>\n` +
-        `(Test cases executed, bugs verified, PRDs reviewed)`
+        `📅 <b>What did you complete yesterday?</b>\n` +
+        `<i>(Test cases executed, regression, bugs verified, UAT, automation, test cases created/updated, etc.)</i>`
       );
     }
-    session.step = 1;
+    session.step = 'q1_yesterday';
     return true;
   }
 
   switch (session.step) {
+    case 'q1_yesterday':
     case 1:
-      session.answers.yesterdayCompleted = text;
-      session.step = 2;
+      session.answers.yesterdayCompleted = trimmed;
+      session.step = 'q2_today';
       await sendMessage(
         chatId,
-        `<b>Question 2 of 5:</b>\n` +
-        `<i>What is your primary testing task today on ${profile.projectName}?</i>\n` +
-        `(Modules, regression suites, API endpoints)`
+        `🎯 <b>What is your primary testing task today?</b>\n` +
+        `<i>(Feature, module, regression suite, API, UAT, automation, etc.)</i>`
       );
       return true;
 
+    case 'q2_today':
     case 2:
-      session.answers.todayWorkingOn = text;
-      session.step = 3;
+      session.answers.todayWorkingOn = trimmed;
+      session.step = 'q3_status';
       await sendMessage(
         chatId,
-        `<b>Question 3 of 5:</b>\n` +
-        `<i>Do you have any blockers on ${profile.projectName}?</i>\n` +
-        `(Reply with your blocker description, or reply <code>none</code> if all clear)`
+        `📈 <b>What is the current status of your work?</b>\n\n` +
+        `1️⃣ 🟢 On Track\n` +
+        `2️⃣ 🟡 At Risk\n` +
+        `3️⃣ 🔴 Blocked\n\n` +
+        `<i>Reply 1, 2, or 3 (or type On Track, At Risk, Blocked):</i>`
       );
       return true;
 
-    case 3:
-      session.answers.blockers = text.toLowerCase() === 'none' ? '' : text;
-      session.answers.isBlocked = text.toLowerCase() !== 'none' && text.trim().length > 0;
-      session.step = 4;
-      await sendMessage(
-        chatId,
-        `<b>Question 4 of 5:</b>\n` +
-        `<i>What is your expected completion time?</i>\n` +
-        `Reply: <code>Today</code>, <code>Tomorrow</code>, or <code>Later</code>`
-      );
-      return true;
-
-    case 4:
-      session.answers.expectedCompletion = text;
-      session.step = 5;
-      await sendMessage(
-        chatId,
-        `<b>Question 5 of 5:</b>\n` +
-        `<i>Any additional notes or risks for the QA Lead?</i> (or reply <code>none</code>)`
-      );
-      return true;
-
-    case 5: {
-      session.answers.notes = text.toLowerCase() === 'none' ? '' : text;
-
-      const fullReport = {
-        id: `tg-${Date.now().toString(36)}`,
-        date: new Date().toISOString().split('T')[0],
-        chatId,
-        memberId: `usr-${chatId}`,
-        memberName: profile.fullName,
-        role: profile.role,
-        projectId: profile.projectId,
-        projectName: profile.projectName,
-        ...session.answers,
-        submittedAt: new Date().toISOString(),
-      };
-
-      persistReport(fullReport);
-
-      // If blocker was flagged, also create blocker record
-      if (fullReport.isBlocked) {
-        persistBlocker({
-          id: `blk-${Date.now().toString(36)}`,
-          title: `Blocker via Standup (${profile.fullName})`,
-          description: fullReport.blockers,
-          projectId: profile.projectId,
-          projectName: profile.projectName,
-          severity: 'High',
-          status: 'Open',
-          reportedBy: profile.fullName,
+    case 'q3_status':
+    case 3: {
+      if (lower === '1' || lower.includes('track') || lower.includes('green') || lower.includes('🟢')) {
+        session.answers.workStatus = 'On Track';
+        session.answers.statusEmoji = '🟢';
+        session.answers.isBlocked = false;
+      } else if (lower === '2' || lower.includes('risk') || lower.includes('yellow') || lower.includes('🟡')) {
+        session.answers.workStatus = 'At Risk';
+        session.answers.statusEmoji = '🟡';
+        session.answers.isBlocked = false;
+      } else if (lower === '3' || lower.includes('block') || lower.includes('red') || lower.includes('🔴')) {
+        session.answers.workStatus = 'Blocked';
+        session.answers.statusEmoji = '🔴';
+        session.answers.isBlocked = true;
+      } else {
+        await sendMessage(
           chatId,
-          createdAt: new Date().toISOString(),
-        });
+          `⚠️ Please select your status:\n` +
+          `1️⃣ 🟢 On Track\n` +
+          `2️⃣ 🟡 At Risk\n` +
+          `3️⃣ 🔴 Blocked\n\n` +
+          `<i>Reply 1, 2, or 3:</i>`
+        );
+        return true;
       }
 
-      userSessions.delete(chatId);
-
+      session.step = 'q4_bugs';
       await sendMessage(
         chatId,
-        `✅ <b>Daily QA Report Submitted Successfully!</b>\n\n` +
-        `📁 <b>Project:</b> ${profile.projectName}\n` +
-        `👤 <b>QA Member:</b> ${profile.fullName} (${profile.role})\n` +
-        `📋 <b>Yesterday:</b> ${fullReport.yesterdayCompleted}\n` +
-        `🎯 <b>Today:</b> ${fullReport.todayWorkingOn}\n` +
-        `${fullReport.isBlocked ? `⚠️ <b>Blocker Flagged:</b> ${fullReport.blockers}\n` : '🟢 <b>Blockers:</b> None\n'}` +
-        `⏱ <b>Completion:</b> ${fullReport.expectedCompletion}\n\n` +
-        `<i>Your report has been logged and synced with the QA Command Center. Have a productive testing day!</i>`
+        `🐞 <b>Did you find any bugs during your testing?</b>\n\n` +
+        `1️⃣ ✅ No bugs\n` +
+        `2️⃣ 🐞 Yes\n\n` +
+        `<i>Reply 1 (No bugs) or 2 (Yes):</i>`
       );
+      return true;
+    }
+
+    case 'q4_bugs':
+    case 4: {
+      const isNo = lower === '1' || lower.includes('no') || lower === 'none' || lower === '0' || lower.includes('clear') || lower.includes('✅');
+      const isYes = lower === '2' || lower.includes('yes') || lower.includes('found') || lower.includes('🐞') || lower.includes('bug');
+
+      if (isNo) {
+        session.answers.bugs = { critical: 0, high: 0, medium: 0, low: 0, total: 0, summary: 'None' };
+        session.answers.bugsSummary = 'None';
+        // Jump straight to Q5 without asking for bug counts
+        session.step = 'q5_blockers';
+        await sendMessage(
+          chatId,
+          `🚨 <b>Do you have any blocker or risk that the QA Lead should know about?</b>\n\n` +
+          `1️⃣ ✅ None\n` +
+          `2️⃣ ⚠️ Report a blocker/risk\n\n` +
+          `<i>Reply 1 (None) or 2 (Report):</i>`
+        );
+        return true;
+      } else if (isYes) {
+        session.step = 'q4_bug_counts';
+        await sendMessage(
+          chatId,
+          `🐞 <b>How many bugs did you find?</b>\n\n` +
+          `Please specify by severity:\n` +
+          `• Critical\n` +
+          `• High\n` +
+          `• Medium\n` +
+          `• Low\n\n` +
+          `<i>Example: <code>2 High, 1 Medium</code> or <code>1 Critical, 2 Low</code> or <code>0, 2, 1, 0</code>:</i>`
+        );
+        return true;
+      } else {
+        await sendMessage(
+          chatId,
+          `Please choose an option:\n1️⃣ ✅ No bugs\n2️⃣ 🐞 Yes\n\n<i>Reply 1 or 2:</i>`
+        );
+        return true;
+      }
+    }
+
+    case 'q4_bug_counts': {
+      const parsedBugs = parseBugCounts(trimmed);
+      session.answers.bugs = parsedBugs;
+      session.answers.bugsSummary = parsedBugs.summary;
+
+      session.step = 'q5_blockers';
+      await sendMessage(
+        chatId,
+        `🚨 <b>Do you have any blocker or risk that the QA Lead should know about?</b>\n\n` +
+        `1️⃣ ✅ None\n` +
+        `2️⃣ ⚠️ Report a blocker/risk\n\n` +
+        `<i>Reply 1 (None) or 2 (Report):</i>`
+      );
+      return true;
+    }
+
+    case 'q5_blockers':
+    case 5: {
+      const isNone = lower === '1' || lower.includes('none') || lower === 'no' || lower.includes('clear') || lower.includes('all clear') || lower.includes('✅');
+      const isReport = lower === '2' || lower.includes('report') || lower.includes('yes') || lower.includes('⚠️') || lower.includes('block') || lower.includes('risk');
+
+      if (isNone) {
+        session.answers.blockers = session.answers.workStatus === 'Blocked' ? 'Work marked as Blocked in standup' : 'None';
+        session.answers.risks = 'None';
+        session.answers.isBlocked = session.answers.workStatus === 'Blocked';
+        await finalizeAndSubmitCheckin(chatId, user, session);
+        return true;
+      } else if (isReport) {
+        session.step = 'q5_blocker_description';
+        await sendMessage(
+          chatId,
+          `⚠️ <b>Please describe the blocker or risk:</b>\n` +
+          `<i>(What is blocking you or what risk could affect the release?)</i>`
+        );
+        return true;
+      } else {
+        await sendMessage(
+          chatId,
+          `Please choose an option:\n1️⃣ ✅ None\n2️⃣ ⚠️ Report a blocker/risk\n\n<i>Reply 1 or 2:</i>`
+        );
+        return true;
+      }
+    }
+
+    case 'q5_blocker_description': {
+      const desc = trimmed;
+      if (session.answers.workStatus === 'Blocked' || lower.includes('block')) {
+        session.answers.blockers = desc;
+        session.answers.isBlocked = true;
+        session.answers.risks = lower.includes('risk') ? desc : 'None';
+      } else if (lower.includes('risk')) {
+        session.answers.risks = desc;
+        session.answers.blockers = 'None';
+        session.answers.isBlocked = false;
+      } else {
+        session.answers.blockers = desc;
+        session.answers.risks = 'None';
+        session.answers.isBlocked = true;
+      }
+
+      await finalizeAndSubmitCheckin(chatId, user, session);
       return true;
     }
 
@@ -1000,6 +1887,9 @@ async function handleMessage(message) {
   console.log(`[Telegram IN] Chat ${chatId} (@${user.username || user.first_name || 'unknown'}): "${rawText}"`);
 
   const profile = await findOrLinkProfile(chatId, user);
+  if (profile && profile.role) {
+    syncTelegramCommands(chatId, profile.role).catch(() => {});
+  }
 
   // Handle /start, start, /help, help, /menu, menu
   if (text === '/start' || text === 'start' || text === '/help' || text === 'help' || text === '/menu' || text === 'menu') {
@@ -1012,20 +1902,36 @@ async function handleMessage(message) {
       return;
     }
 
+    const isLead = isQALead(profile);
+    const commandsList = isLead
+      ? `<b>Available Commands (QA Lead):</b>\n` +
+        `• /status — Overall QA & project readiness\n` +
+        `• /team — Team members and their current status\n` +
+        `• /project — Manage and switch active QA project\n` +
+        `• /blocker &lt;reason&gt; — View or report blockers\n` +
+        `• /resolve — Resolve active blockers\n` +
+        `• /risks — View QA risks & defect exposures\n` +
+        `• /report — Generate daily/weekly QA reports\n` +
+        `• /profile — View and update your profile\n` +
+        `• /role [title] — Switch your QA role (e.g. /role QA Engineer)\n` +
+        `• /cancel — Cancel an active operation`
+      : `<b>Available Commands:</b>\n` +
+        `• /checkin — Submit daily QA standup\n` +
+        `• /project — Switch active project\n` +
+        `• /blocker &lt;reason&gt; — Report urgent blocker\n` +
+        `• /resolve — Resolve active blocker\n` +
+        `• /profile — View and update profile\n` +
+        `• /status — View relevant QA status\n` +
+        `• /role [title] — Switch your QA role\n` +
+        `• /cancel — Cancel current operation`;
+
     await sendMessage(
       chatId,
       `🛡️ <b>Welcome to AegisQA, ${escapeHtml(profile.fullName)}!</b>\n\n` +
       `👤 <b>Role:</b> ${escapeHtml(profile.role)}\n` +
       `🚀 <b>Active Project:</b> ${escapeHtml(profile.projectName)}\n` +
       `💬 <b>Chat ID:</b> <code>${chatId}</code>\n\n` +
-      `<b>Available Commands:</b>\n` +
-      `• /checkin — Start your daily QA standup for ${escapeHtml(profile.projectName)}\n` +
-      `• /project — Switch your active QA project\n` +
-      `• /blocker &lt;reason&gt; — Immediately report an urgent blocker\n` +
-      `• /resolve — Resolve active blockers and remove from blocked tasks\n` +
-      `• /profile — View or update your profile\n` +
-      `• /status — View platform release readiness & regression metrics\n` +
-      `• /cancel — Cancel an active operation`
+      commandsList
     );
     return;
   }
@@ -1076,6 +1982,25 @@ async function handleMessage(message) {
       return;
     }
 
+    const isLead = isQALead(profile);
+    const profileQuickCommands = isLead
+      ? `<b>Quick Commands (QA Lead):</b>\n` +
+        `• /status — Overall QA & project readiness\n` +
+        `• /team — Team members and their current status\n` +
+        `• /project — Manage/switch project\n` +
+        `• /blocker — View/report blockers\n` +
+        `• /resolve — Resolve blockers\n` +
+        `• /risks — View QA risks\n` +
+        `• /report — Generate daily/weekly QA reports\n` +
+        `• /role — Switch role`
+      : `<b>Quick Commands:</b>\n` +
+        `• /checkin — Submit daily standup\n` +
+        `• /project — Switch active project\n` +
+        `• /blocker — Report urgent blocker\n` +
+        `• /resolve — Resolve active blocker\n` +
+        `• /status — View relevant QA status\n` +
+        `• /role — Switch role`;
+
     await sendMessage(
       chatId,
       `👤 <b>AegisQA Profile</b>\n\n` +
@@ -1084,10 +2009,7 @@ async function handleMessage(message) {
       `• <b>Active Project:</b> ${escapeHtml(profile.projectName)}\n` +
       `• <b>Telegram:</b> @${escapeHtml(user.username || 'n/a')}\n` +
       `• <b>Chat ID:</b> <code>${chatId}</code>\n\n` +
-      `<b>Quick Commands:</b>\n` +
-      `• /project — Switch active project\n` +
-      `• /register — Re-run full setup wizard\n` +
-      `• /checkin — Submit today's standup`
+      profileQuickCommands
     );
     return;
   }
@@ -1098,6 +2020,19 @@ async function handleMessage(message) {
   }
 
   if (text === '/checkin') {
+    if (isQALead(profile)) {
+      await sendMessage(
+        chatId,
+        `ℹ️ <b>QA Lead Role Active</b>\n\n` +
+        `As a <b>QA Lead</b>, you monitor team progress rather than submitting individual daily check-ins.\n\n` +
+        `• Use <code>/status</code> for overall QA readiness & defect metrics\n` +
+        `• Use <code>/team</code> to view team daily updates & testing progress\n` +
+        `• Use <code>/report</code> for detailed team standup rollup\n` +
+        `• Use <code>/risks</code> to view active QA risks & blockers\n\n` +
+        `<i>If you want to submit individual testing check-ins, switch your role using <code>/role QA Engineer</code>.</i>`
+      );
+      return;
+    }
     await startCheckin(chatId, user);
     return;
   }
@@ -1183,28 +2118,497 @@ async function handleMessage(message) {
   }
 
   if (text === '/status') {
-    const currentProject = profile ? profile.projectName : 'Banking SuperApp';
+    const isLead = isQALead(profile);
+    const projects = await refreshProjectsFromCloud();
+    const activeProjName = profile ? profile.projectName : 'Banking SuperApp';
+    const activeProjId = profile ? profile.projectId : 'prj-banking';
+    const selectedProject = projects.find((p) => p.id === activeProjId || p.name.toLowerCase() === activeProjName.toLowerCase()) || {
+      id: activeProjId,
+      name: activeProjName,
+      qa_progress: 74,
+      regression_progress: 62,
+    };
+
+    const allReports = await fetchDailyReports(selectedProject.id);
+    const dedupedReports = deduplicateMemberReports(allReports);
+    const allBlockers = await fetchProjectBlockers(selectedProject.id, selectedProject.name);
+
+    if (isLead) {
+      const allBugs = await fetchProjectBugs(selectedProject.id);
+      const leadStatusText = formatQALeadStatusText(selectedProject, dedupedReports, allBlockers, allBugs);
+      await sendLongMessage(chatId, leadStatusText);
+    } else {
+      const myReport = dedupedReports.find((r) => String(r.chatId) === String(chatId) || (profile && r.memberName === profile.fullName));
+      const memberStatusText = formatQAMemberStatusText(selectedProject, myReport);
+      await sendMessage(chatId, memberStatusText);
+    }
+    return;
+  }
+
+  if (text === '/report' || text.startsWith('/report ') || text === '/reports' || text.startsWith('/reports ') || text === '/dailyreport' || text.startsWith('/dailyreport ')) {
+    const isLead = isQALead(profile);
+
+    if (!isLead) {
+      await sendMessage(
+        chatId,
+        `⚠️ <b>Access Restricted: QA Lead Only</b>\n\n` +
+        `The <code>/report</code> command generates consolidated daily standup reports from all team members and is reserved for <b>QA Leads</b>.\n\n` +
+        `👤 <b>Your Current Profile:</b>\n` +
+        `• Name: ${escapeHtml(profile ? profile.fullName : 'QA Member')}\n` +
+        `• Role: <b>${escapeHtml(profile ? profile.role : 'QA Engineer / Tester')}</b>\n` +
+        `• Project: ${escapeHtml(profile ? profile.projectName : 'None')}\n\n` +
+        `💡 <i>If you are the QA Lead, reply with:</i>\n` +
+        `<code>/role QA Lead</code> to update your role, or <code>/register</code> to re-configure.`
+      );
+      return;
+    }
+
+    const rawArg = rawText.replace(/^\/(report|reports|dailyreport)\s*/i, '').trim();
+    const arg = rawArg.toLowerCase();
+    const projects = await refreshProjectsFromCloud();
+    const allReports = await fetchDailyReports();
+    const allBlockers = await fetchProjectBlockers();
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    // CASE 1: /report all -> Grouped by project across all projects
+    if (arg === 'all') {
+      const projectMap = new Map();
+      projects.forEach((p) => {
+        projectMap.set(p.id, { id: p.id, name: p.name, reports: [], blockers: [] });
+      });
+
+      // Distribute reports to projects
+      allReports.forEach((r) => {
+        const pId = r.projectId || 'prj-unknown';
+        if (!projectMap.has(pId)) {
+          projectMap.set(pId, { id: pId, name: r.projectName || 'General Project', reports: [], blockers: [] });
+        }
+        projectMap.get(pId).reports.push(r);
+      });
+
+      // Distribute blockers to projects
+      allBlockers.forEach((b) => {
+        const pId = b.projectId || 'prj-unknown';
+        if (!projectMap.has(pId)) {
+          projectMap.set(pId, { id: pId, name: b.projectName || 'General Project', reports: [], blockers: [] });
+        }
+        projectMap.get(pId).blockers.push(b);
+      });
+
+      const activeProjects = Array.from(projectMap.values()).filter(
+        (p) => p.reports.length > 0 || p.blockers.length > 0
+      );
+
+      if (activeProjects.length === 0) {
+        await sendMessage(
+          chatId,
+          `📋 <b>QA LEAD - ALL PROJECTS DAILY REPORT</b>\n` +
+          `📅 <b>Date:</b> <code>${todayStr}</code>\n\n` +
+          `ℹ️ No team daily reports have been submitted yet today.\n\n` +
+          `<i>Team members can submit their updates using <code>/checkin</code>.</i>`
+        );
+        return;
+      }
+
+      let fullMsg = `📊 <b>QA LEAD - CONSOLIDATED DAILY TEAM REPORTS</b>\n`;
+      fullMsg += `📅 <b>Date:</b> <code>${todayStr}</code>\n`;
+      fullMsg += `📋 <b>Total Active Projects:</b> ${activeProjects.length}\n\n`;
+
+      activeProjects.forEach((proj) => {
+        const deduped = deduplicateMemberReports(proj.reports);
+        fullMsg += `==============================\n`;
+        fullMsg += formatProjectReportText(proj.name, deduped, proj.blockers, { isAllView: true }) + '\n';
+      });
+
+      fullMsg += `━━━━━━━━━━━━━━━━━━━━\n`;
+      fullMsg += `💡 <i>Filter by specific project: <code>/report &lt;name or number&gt;</code></i>`;
+
+      await sendLongMessage(chatId, fullMsg);
+      return;
+    }
+
+    // CASE 2: Specific project requested (/report <name or number>) or Active Project (/report)
+    let selectedProject = null;
+
+    if (rawArg) {
+      const num = parseInt(rawArg, 10);
+      if (!isNaN(num) && num >= 1 && num <= projects.length) {
+        selectedProject = projects[num - 1];
+      } else {
+        selectedProject = projects.find(
+          (p) => p.name.toLowerCase() === arg || p.id.toLowerCase() === arg
+        ) || projects.find(
+          (p) => p.name.toLowerCase().includes(arg) || p.id.toLowerCase().includes(arg)
+        );
+
+        if (!selectedProject) {
+          const reportMatch = allReports.find(
+            (r) => (r.projectName && r.projectName.toLowerCase().includes(arg)) || (r.projectId && r.projectId.toLowerCase().includes(arg))
+          );
+          if (reportMatch) {
+            selectedProject = {
+              id: reportMatch.projectId,
+              name: reportMatch.projectName,
+            };
+          }
+        }
+      }
+
+      if (!selectedProject) {
+        let availableList = projects.map((p, idx) => `${NUMBER_EMOJIS[idx] || `[${idx + 1}]`} ${p.name}`).join('\n');
+        await sendMessage(
+          chatId,
+          `⚠️ <b>Project "${escapeHtml(rawArg)}" not found.</b>\n\n` +
+          `<b>Available Projects:</b>\n` +
+          availableList + '\n\n' +
+          `<i>Reply <code>/report &lt;project name or number&gt;</code> or <code>/report all</code></i>`
+        );
+        return;
+      }
+    } else {
+      const activeProjName = profile.projectName || 'Banking SuperApp';
+      const activeProjId = profile.projectId || 'prj-banking';
+      selectedProject = projects.find((p) => p.id === activeProjId || p.name.toLowerCase() === activeProjName.toLowerCase()) || {
+        id: activeProjId,
+        name: activeProjName,
+      };
+    }
+
+    const projReports = allReports.filter(
+      (r) => r.projectId === selectedProject.id || (r.projectName && r.projectName.toLowerCase() === selectedProject.name.toLowerCase())
+    );
+    const dedupedReports = deduplicateMemberReports(projReports);
+    const projBlockers = allBlockers.filter(
+      (b) => b.projectId === selectedProject.id || (b.projectName && b.projectName.toLowerCase() === selectedProject.name.toLowerCase())
+    );
+
+    let reportMsg = formatProjectReportText(selectedProject.name, dedupedReports, projBlockers, { isAllView: false });
+
+    // Show quick list of other projects with reports
+    const otherProjects = [];
+    const otherProjNames = new Set();
+    allReports.forEach((r) => {
+      const pName = r.projectName || 'General';
+      if (pName.toLowerCase() !== selectedProject.name.toLowerCase() && !otherProjNames.has(pName.toLowerCase())) {
+        otherProjNames.add(pName.toLowerCase());
+        otherProjects.push(pName);
+      }
+    });
+
+    reportMsg += `\n━━━━━━━━━━━━━━━━━━━━\n`;
+    reportMsg += `💡 <b>Quick Commands:</b>\n`;
+    if (otherProjects.length > 0) {
+      reportMsg += `• Other projects: ` + otherProjects.map((op) => `<code>/report ${escapeHtml(op)}</code>`).join(', ') + `\n`;
+    }
+    reportMsg += `• View all projects: <code>/report all</code>\n`;
+    reportMsg += `• Switch active project: <code>/project</code>\n`;
+
+    await sendLongMessage(chatId, reportMsg);
+    return;
+  }
+
+  // /team Command for QA Lead (team daily report & testing progress)
+  if (text === '/team' || text.startsWith('/team ') || text === '/progress' || text.startsWith('/progress ') || text === '/teamreport' || text.startsWith('/teamreport ')) {
+    const isLead = isQALead(profile);
+
+    if (!isLead) {
+      await sendMessage(
+        chatId,
+        `⚠️ <b>Access Restricted: QA Lead Only</b>\n\n` +
+        `The <code>/team</code> command provides team daily standup updates and testing progress and is reserved for <b>QA Leads</b>.\n\n` +
+        `👤 <b>Your Current Profile:</b>\n` +
+        `• Name: ${escapeHtml(profile ? profile.fullName : 'QA Member')}\n` +
+        `• Role: <b>${escapeHtml(profile ? profile.role : 'QA Engineer / Tester')}</b>\n` +
+        `• Project: ${escapeHtml(profile ? profile.projectName : 'None')}\n\n` +
+        `💡 <i>If you are the QA Lead, reply with:</i>\n` +
+        `<code>/role QA Lead</code> to update your role, or <code>/register</code> to re-configure.`
+      );
+      return;
+    }
+
+    const rawArg = rawText.replace(/^\/(team|progress|teamreport)\s*/i, '').trim();
+    const arg = rawArg.toLowerCase();
+    const projects = await refreshProjectsFromCloud();
+    const allReports = await fetchDailyReports();
+    const allBlockers = await fetchProjectBlockers();
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    // CASE 1: /team all
+    if (arg === 'all') {
+      let fullMsg = `👥 <b>QA LEAD - ALL PROJECTS TEAM PROGRESS</b>\n`;
+      fullMsg += `📅 <b>Date:</b> <code>${todayStr}</code>\n`;
+      fullMsg += `📋 <b>Total Projects:</b> ${projects.length}\n\n`;
+
+      projects.forEach((proj) => {
+        const projReports = allReports.filter(
+          (r) => r.projectId === proj.id || (r.projectName && r.projectName.toLowerCase() === proj.name.toLowerCase())
+        );
+        const deduped = deduplicateMemberReports(projReports);
+        const projBlockers = allBlockers.filter(
+          (b) => b.projectId === proj.id || (b.projectName && b.projectName.toLowerCase() === proj.name.toLowerCase())
+        );
+
+        fullMsg += `==============================\n`;
+        fullMsg += formatTeamProgressText(proj, deduped, projBlockers, { isAllView: true }) + '\n';
+      });
+
+      fullMsg += `━━━━━━━━━━━━━━━━━━━━\n`;
+      fullMsg += `💡 <i>View specific project: <code>/team &lt;name or number&gt;</code> • QA Risks: <code>/risks</code></i>`;
+
+      await sendLongMessage(chatId, fullMsg);
+      return;
+    }
+
+    // CASE 2: Specific Project or Active Project
+    let selectedProject = null;
+
+    if (rawArg) {
+      const num = parseInt(rawArg, 10);
+      if (!isNaN(num) && num >= 1 && num <= projects.length) {
+        selectedProject = projects[num - 1];
+      } else {
+        selectedProject = projects.find(
+          (p) => p.name.toLowerCase() === arg || p.id.toLowerCase() === arg
+        ) || projects.find(
+          (p) => p.name.toLowerCase().includes(arg) || p.id.toLowerCase().includes(arg)
+        );
+
+        if (!selectedProject) {
+          const reportMatch = allReports.find(
+            (r) => (r.projectName && r.projectName.toLowerCase().includes(arg)) || (r.projectId && r.projectId.toLowerCase().includes(arg))
+          );
+          if (reportMatch) {
+            selectedProject = {
+              id: reportMatch.projectId,
+              name: reportMatch.projectName,
+            };
+          }
+        }
+      }
+
+      if (!selectedProject) {
+        let availableList = projects.map((p, idx) => `${NUMBER_EMOJIS[idx] || `[${idx + 1}]`} ${p.name}`).join('\n');
+        await sendMessage(
+          chatId,
+          `⚠️ <b>Project "${escapeHtml(rawArg)}" not found.</b>\n\n` +
+          `<b>Available Projects:</b>\n` +
+          availableList + '\n\n' +
+          `<i>Reply <code>/team &lt;project name or number&gt;</code> or <code>/team all</code></i>`
+        );
+        return;
+      }
+    } else {
+      const activeProjName = profile.projectName || 'Banking SuperApp';
+      const activeProjId = profile.projectId || 'prj-banking';
+      selectedProject = projects.find((p) => p.id === activeProjId || p.name.toLowerCase() === activeProjName.toLowerCase()) || {
+        id: activeProjId,
+        name: activeProjName,
+      };
+    }
+
+    const projReports = allReports.filter(
+      (r) => r.projectId === selectedProject.id || (r.projectName && r.projectName.toLowerCase() === selectedProject.name.toLowerCase())
+    );
+    const dedupedReports = deduplicateMemberReports(projReports);
+    const projBlockers = allBlockers.filter(
+      (b) => b.projectId === selectedProject.id || (b.projectName && b.projectName.toLowerCase() === selectedProject.name.toLowerCase())
+    );
+
+    let teamMsg = formatTeamProgressText(selectedProject, dedupedReports, projBlockers, { isAllView: false });
+
+    teamMsg += `\n━━━━━━━━━━━━━━━━━━━━\n`;
+    teamMsg += `💡 <b>Quick Navigation:</b>\n`;
+    teamMsg += `• View active QA risks: <code>/risks</code>\n`;
+    teamMsg += `• Detailed standup rollup: <code>/report</code>\n`;
+    teamMsg += `• View all projects: <code>/team all</code>\n`;
+    teamMsg += `• Switch active project: <code>/project</code>\n`;
+
+    await sendLongMessage(chatId, teamMsg);
+    return;
+  }
+
+  // /risks Command for QA Lead (view QA risks, blockers & defect exposures)
+  if (text === '/risks' || text.startsWith('/risks ') || text === '/risk' || text.startsWith('/risk ') || text === '/qarisk' || text.startsWith('/qarisk ')) {
+    const isLead = isQALead(profile);
+
+    if (!isLead) {
+      await sendMessage(
+        chatId,
+        `⚠️ <b>Access Restricted: QA Lead Only</b>\n\n` +
+        `The <code>/risks</code> command provides release risk exposure, blockers, and defect metrics and is reserved for <b>QA Leads</b>.\n\n` +
+        `👤 <b>Your Current Profile:</b>\n` +
+        `• Name: ${escapeHtml(profile ? profile.fullName : 'QA Member')}\n` +
+        `• Role: <b>${escapeHtml(profile ? profile.role : 'QA Engineer / Tester')}</b>\n` +
+        `• Project: ${escapeHtml(profile ? profile.projectName : 'None')}\n\n` +
+        `💡 <i>If you are the QA Lead, reply with:</i>\n` +
+        `<code>/role QA Lead</code> to update your role, or <code>/register</code> to re-configure.`
+      );
+      return;
+    }
+
+    const rawArg = rawText.replace(/^\/(risks|risk|qarisk)\s*/i, '').trim();
+    const arg = rawArg.toLowerCase();
+    const projects = await refreshProjectsFromCloud();
+    const allReports = await fetchDailyReports();
+    const allBlockers = await fetchProjectBlockers();
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    // CASE 1: /risks all
+    if (arg === 'all') {
+      let fullMsg = `⚠️ <b>QA LEAD - ALL PROJECTS RISK OVERVIEW</b>\n`;
+      fullMsg += `📅 <b>Date:</b> <code>${todayStr}</code>\n\n`;
+
+      for (const proj of projects) {
+        const projReports = allReports.filter(
+          (r) => r.projectId === proj.id || (r.projectName && r.projectName.toLowerCase() === proj.name.toLowerCase())
+        );
+        const deduped = deduplicateMemberReports(projReports);
+        const projBlockers = allBlockers.filter(
+          (b) => b.projectId === proj.id || (b.projectName && b.projectName.toLowerCase() === proj.name.toLowerCase())
+        );
+        const projBugs = await fetchProjectBugs(proj.id);
+
+        fullMsg += `==============================\n`;
+        fullMsg += formatQARisksText(proj, projBlockers, deduped, projBugs, { isAllView: true }) + '\n';
+      }
+
+      fullMsg += `━━━━━━━━━━━━━━━━━━━━\n`;
+      fullMsg += `💡 <i>Detailed project risks: <code>/risks &lt;name or number&gt;</code> • Team status: <code>/team</code></i>`;
+
+      await sendLongMessage(chatId, fullMsg);
+      return;
+    }
+
+    // CASE 2: Specific Project or Active Project
+    let selectedProject = null;
+
+    if (rawArg) {
+      const num = parseInt(rawArg, 10);
+      if (!isNaN(num) && num >= 1 && num <= projects.length) {
+        selectedProject = projects[num - 1];
+      } else {
+        selectedProject = projects.find(
+          (p) => p.name.toLowerCase() === arg || p.id.toLowerCase() === arg
+        ) || projects.find(
+          (p) => p.name.toLowerCase().includes(arg) || p.id.toLowerCase().includes(arg)
+        );
+
+        if (!selectedProject) {
+          const reportMatch = allReports.find(
+            (r) => (r.projectName && r.projectName.toLowerCase().includes(arg)) || (r.projectId && r.projectId.toLowerCase().includes(arg))
+          );
+          if (reportMatch) {
+            selectedProject = {
+              id: reportMatch.projectId,
+              name: reportMatch.projectName,
+            };
+          }
+        }
+      }
+
+      if (!selectedProject) {
+        let availableList = projects.map((p, idx) => `${NUMBER_EMOJIS[idx] || `[${idx + 1}]`} ${p.name}`).join('\n');
+        await sendMessage(
+          chatId,
+          `⚠️ <b>Project "${escapeHtml(rawArg)}" not found.</b>\n\n` +
+          `<b>Available Projects:</b>\n` +
+          availableList + '\n\n' +
+          `<i>Reply <code>/risks &lt;project name or number&gt;</code> or <code>/risks all</code></i>`
+        );
+        return;
+      }
+    } else {
+      const activeProjName = profile.projectName || 'Banking SuperApp';
+      const activeProjId = profile.projectId || 'prj-banking';
+      selectedProject = projects.find((p) => p.id === activeProjId || p.name.toLowerCase() === activeProjName.toLowerCase()) || {
+        id: activeProjId,
+        name: activeProjName,
+      };
+    }
+
+    const projReports = allReports.filter(
+      (r) => r.projectId === selectedProject.id || (r.projectName && r.projectName.toLowerCase() === selectedProject.name.toLowerCase())
+    );
+    const dedupedReports = deduplicateMemberReports(projReports);
+    const projBlockers = allBlockers.filter(
+      (b) => b.projectId === selectedProject.id || (b.projectName && b.projectName.toLowerCase() === selectedProject.name.toLowerCase())
+    );
+    const projBugs = await fetchProjectBugs(selectedProject.id);
+
+    let risksMsg = formatQARisksText(selectedProject, projBlockers, dedupedReports, projBugs, { isAllView: false });
+
+    risksMsg += `\n━━━━━━━━━━━━━━━━━━━━\n`;
+    risksMsg += `💡 <b>Quick Actions:</b>\n`;
+    risksMsg += `• Resolve blockers: <code>/resolve</code>\n`;
+    risksMsg += `• View team daily report: <code>/team</code>\n`;
+    risksMsg += `• View all project risks: <code>/risks all</code>\n`;
+    risksMsg += `• Switch active project: <code>/project</code>\n`;
+
+    await sendLongMessage(chatId, risksMsg);
+    return;
+  }
+
+  // /role Command to view or switch role
+  if (text === '/role') {
     await sendMessage(
       chatId,
-      `📊 <b>AegisQA Live Platform Status</b>\n\n` +
-      `• <b>Banking SuperApp:</b> 78% QA Progress | 82% Regression (Ready with risks)\n` +
-      `• <b>Mobile Banking:</b> 65% QA Progress | 60% Regression (Testing)\n` +
-      `• <b>Merchant Portal:</b> 90% QA Progress | 95% Regression (Ready)\n\n` +
-      `Active Project for you: <b>${escapeHtml(currentProject)}</b>\n` +
-      `QA Team: 3 engineers active | Zero critical outages.`
+      `👤 <b>QA Role Management</b>\n\n` +
+      `• <b>Your Current Role:</b> <b>${escapeHtml(profile ? profile.role : 'QA Engineer / Tester')}</b>\n\n` +
+      `To change your role, reply:\n` +
+      `• <code>/role QA Lead</code>\n` +
+      `• <code>/role QA Engineer / Tester</code>\n` +
+      `• <code>/role Automation QA Engineer</code>\n` +
+      `• <code>/role Manual / Performance QA</code>\n\n` +
+      `<i>QA Leads have access to <code>/team</code>, <code>/report</code>, and <code>/risks</code>.</i>`
+    );
+    return;
+  }
+
+  if (text.startsWith('/role ')) {
+    let newRole = rawText.replace(/^\/role\s+/i, '').trim();
+    if (newRole === '1') newRole = DEFAULT_ROLES[0];
+    else if (newRole === '2') newRole = DEFAULT_ROLES[1];
+    else if (newRole === '3') newRole = DEFAULT_ROLES[2];
+    else if (newRole === '4') newRole = DEFAULT_ROLES[3];
+
+    saveProfile(chatId, {
+      fullName: profile ? profile.fullName : (user.first_name || 'QA Tester'),
+      role: newRole,
+      projectId: profile ? profile.projectId : 'prj-banking',
+      projectName: profile ? profile.projectName : 'Banking SuperApp',
+    });
+
+    const isNowLead = isQALead({ role: newRole });
+
+    await sendMessage(
+      chatId,
+      `✅ <b>Role Updated!</b>\n\n` +
+      `Your role is now set to: <b>${escapeHtml(newRole)}</b>.\n\n` +
+      (isNowLead
+        ? `🎉 <b>QA Lead Privileges Activated!</b>\nYou now have access to:\n• <code>/team</code> — Team daily report & progress\n• <code>/report</code> — Detailed standup rollup\n• <code>/risks</code> — View active QA risks & blockers`
+        : `You can submit your daily updates using <code>/checkin</code>.`)
     );
     return;
   }
 
   // Fallback
-  await sendMessage(
-    chatId,
-    `I didn't recognize that command.\n` +
-    `• Type /checkin to start your daily standup\n` +
-    `• Type /project to change project\n` +
-    `• Type /profile to view your profile\n` +
-    `• Type /help for all commands.`
-  );
+  const isLead = isQALead(profile);
+  const fallbackMsg = isLead
+    ? `I didn't recognize that command.\n` +
+      `• Type /team to view team daily report & progress\n` +
+      `• Type /report to view detailed standup rollup\n` +
+      `• Type /risks to view QA risks & blockers\n` +
+      `• Type /project to change project\n` +
+      `• Type /role to update your role\n` +
+      `• Type /help for all commands.`
+    : `I didn't recognize that command.\n` +
+      `• Type /checkin to start your daily standup\n` +
+      `• Type /project to change project\n` +
+      `• Type /role to update your role\n` +
+      `• Type /profile to view your profile\n` +
+      `• Type /help for all commands.`;
+
+  await sendMessage(chatId, fallbackMsg);
 }
 
 // Long Polling Loop
@@ -1236,6 +2640,71 @@ async function pollUpdates() {
   setTimeout(pollUpdates, 800);
 }
 
+// Sync Telegram commands for bot menu (/ command autocomplete)
+async function syncTelegramCommands(chatId = null, role = null) {
+  try {
+    const isLead = role && (role.toLowerCase().includes('lead') || role.toLowerCase().includes('manager'));
+
+    if (chatId) {
+      const commands = isLead ? [
+        { command: 'status', description: 'Overall QA & project readiness' },
+        { command: 'team', description: 'Team members and their current status' },
+        { command: 'project', description: 'Manage and switch active QA project' },
+        { command: 'blocker', description: 'View or report blockers' },
+        { command: 'resolve', description: 'Resolve active blockers' },
+        { command: 'risks', description: 'View QA risks & defect exposures' },
+        { command: 'report', description: 'Generate daily/weekly QA reports' },
+        { command: 'profile', description: 'View and update profile' },
+        { command: 'role', description: 'View or switch QA role' },
+        { command: 'help', description: 'Show all commands' },
+        { command: 'cancel', description: 'Cancel current operation' },
+      ] : [
+        { command: 'checkin', description: 'Submit daily QA standup' },
+        { command: 'project', description: 'Switch active QA project' },
+        { command: 'blocker', description: 'Report urgent blocker' },
+        { command: 'resolve', description: 'Resolve active blocker' },
+        { command: 'profile', description: 'View and update profile' },
+        { command: 'status', description: 'View relevant QA status' },
+        { command: 'role', description: 'View or switch QA role' },
+        { command: 'help', description: 'Show all commands' },
+        { command: 'cancel', description: 'Cancel current operation' },
+      ];
+
+      await fetch(`${TELEGRAM_API}/setMyCommands`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          commands,
+          scope: { type: 'chat', chat_id: String(chatId) },
+        }),
+      });
+    } else {
+      const defaultCommands = [
+        { command: 'checkin', description: 'Submit daily QA standup' },
+        { command: 'status', description: 'View relevant QA status' },
+        { command: 'project', description: 'Switch active QA project' },
+        { command: 'blocker', description: 'Report urgent blocker' },
+        { command: 'resolve', description: 'Resolve active blocker' },
+        { command: 'profile', description: 'View and update profile' },
+        { command: 'role', description: 'View or switch QA role' },
+        { command: 'help', description: 'Show all commands' },
+        { command: 'cancel', description: 'Cancel current operation' },
+      ];
+
+      await fetch(`${TELEGRAM_API}/setMyCommands`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          commands: defaultCommands,
+          scope: { type: 'default' },
+        }),
+      });
+    }
+  } catch (err) {
+    console.error('[syncTelegramCommands Error]', err.message);
+  }
+}
+
 // Startup
 async function init() {
   console.log('\n=============================================');
@@ -1254,6 +2723,16 @@ async function init() {
 
     console.log(`✓ Connected to Telegram Bot: @${data.result.username} (${data.result.first_name})`);
     console.log(`✓ Bot ID: ${data.result.id}`);
+
+    // Register Telegram command menus
+    console.log('✓ Registering Telegram command menus...');
+    await syncTelegramCommands();
+    const existingProfiles = loadProfiles();
+    for (const [cId, prof] of Object.entries(existingProfiles)) {
+      await syncTelegramCommands(cId, prof.role);
+    }
+    console.log(`✓ Synchronized command menus for ${Object.keys(existingProfiles).length} user profiles.`);
+
     console.log('✓ Listening for messages, onboarding, /project, and /checkin...\n');
 
     pollUpdates();
@@ -1263,4 +2742,24 @@ async function init() {
   }
 }
 
-init();
+const isDirectRun = process.argv[1] && (process.argv[1].endsWith('telegramQABot.js') || process.argv[1].endsWith('telegramQABot'));
+if (isDirectRun) {
+  init();
+}
+
+export {
+  isQALead,
+  parseBugCounts,
+  fetchDailyReports,
+  fetchProjectBlockers,
+  fetchProjectBugs,
+  deduplicateMemberReports,
+  formatProjectReportText,
+  formatTeamProgressText,
+  formatQARisksText,
+  formatQALeadStatusText,
+  formatQAMemberStatusText,
+  makeProgressBar,
+  sendLongMessage,
+  syncTelegramCommands,
+};

@@ -1,5 +1,18 @@
 [
   {
+    "id": "blk-mtogbcvo",
+    "title": "Blocker via Standup (Coco)",
+    "description": "Gdgdgd, fhfy",
+    "projectId": "prj-mto97e35",
+    "projectName": "ko",
+    "severity": "High",
+    "status": "Resolved",
+    "reportedBy": "Coco",
+    "chatId": 347835367,
+    "createdAt": "2026-09-05T14:01:29.844Z",
+    "resolvedAt": "2026-09-05T20:16:32.628Z"
+  },
+  {
     "id": "blk-mtog4cng",
     "title": "Blocker via Telegram (Coco)",
     "description": "wooo",
@@ -10,7 +23,7 @@
     "reportedBy": "Coco",
     "createdAt": "2026-09-05T13:56:02.956Z",
     "chatId": 347835367,
-    "resolvedAt": "2026-09-05T13:56:12.925Z"
+    "resolvedAt": "2026-09-05T13:56:12.923Z"
   },
   {
     "id": "blk-mtog36tr",
@@ -23,7 +36,7 @@
     "reportedBy": "Coco",
     "createdAt": "2026-09-05T13:55:08.751Z",
     "chatId": 347835367,
-    "resolvedAt": "2026-09-05T13:56:12.925Z"
+    "resolvedAt": "2026-09-05T13:56:12.924Z"
   },
   {
     "id": "blk-mtofvwxc",
@@ -36,7 +49,7 @@
     "reportedBy": "Coco",
     "createdAt": "2026-09-05T13:49:29.328Z",
     "chatId": 347835367,
-    "resolvedAt": "2026-09-05T13:56:12.925Z"
+    "resolvedAt": "2026-09-05T13:56:12.924Z"
   },
   {
     "id": "blk-mtofvb2i",
@@ -49,7 +62,7 @@
     "reportedBy": "Coco",
     "createdAt": "2026-09-05T13:49:01.002Z",
     "chatId": 347835367,
-    "resolvedAt": "2026-09-05T13:56:12.925Z"
+    "resolvedAt": "2026-09-05T13:56:12.924Z"
   },
   {
     "id": "blk-mtodwb3h",
