@@ -20,6 +20,7 @@ import {
   Sparkles,
   Layers,
   UserMinus,
+  Trash2,
 } from 'lucide-react';
 import { Project, User, DailyReport } from '../types';
 import { StorageService } from '../services/storage';
@@ -54,6 +55,22 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
   const [isUpdatingVelocity, setIsUpdatingVelocity] = useState(false);
   const [progressVal, setProgressVal] = useState(project.qaProgress);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDeleteProject = async () => {
+    setIsDeleting(true);
+    try {
+      await ProjectService.deleteProject(currentProject.id, currentUser.id);
+      setIsDeleteModalOpen(false);
+      onBackToProjects();
+    } catch (err: any) {
+      console.error('Error deleting project:', err);
+      alert(err?.message || 'Failed to delete project');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   // Add Member inline modal state
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
@@ -357,25 +374,57 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
             </p>
           </div>
 
-          <button
-            onClick={() => setIsUpdatingVelocity(!isUpdatingVelocity)}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '7px 14px',
-              borderRadius: '8px',
-              background: 'rgba(255, 255, 255, 0.05)',
-              border: '1px solid var(--border-subtle)',
-              color: 'var(--text-secondary)',
-              fontSize: '0.8rem',
-              fontWeight: 700,
-              cursor: 'pointer',
-            }}
-          >
-            <Edit3 size={14} />
-            <span>Update Velocity</span>
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button
+              onClick={() => setIsUpdatingVelocity(!isUpdatingVelocity)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '7px 14px',
+                borderRadius: '8px',
+                background: 'rgba(255, 255, 255, 0.05)',
+                border: '1px solid var(--border-subtle)',
+                color: 'var(--text-secondary)',
+                fontSize: '0.8rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}
+            >
+              <Edit3 size={14} />
+              <span>Update Velocity</span>
+            </button>
+
+            <button
+              onClick={() => setIsDeleteModalOpen(true)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '7px 14px',
+                borderRadius: '8px',
+                background: 'rgba(239, 68, 68, 0.1)',
+                border: '1px solid rgba(239, 68, 68, 0.25)',
+                color: '#f87171',
+                fontSize: '0.8rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'rgba(239, 68, 68, 0.22)';
+                e.currentTarget.style.borderColor = '#ef4444';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)';
+                e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.25)';
+              }}
+              title={`Delete ${project.name}`}
+            >
+              <Trash2 size={14} />
+              <span>Delete Project</span>
+            </button>
+          </div>
         </div>
 
         {/* Velocity editor popup */}
@@ -1182,6 +1231,111 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
             if (onSelectProject) onSelectProject(newProj.id);
           }}
         />
+      )}
+
+      {/* Delete Project Confirmation Modal */}
+      {isDeleteModalOpen && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.75)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: '20px',
+          }}
+          onClick={() => !isDeleting && setIsDeleteModalOpen(false)}
+        >
+          <div
+            style={{
+              background: '#0f172a',
+              border: '1px solid rgba(239, 68, 68, 0.3)',
+              borderRadius: '14px',
+              maxWidth: '480px',
+              width: '100%',
+              padding: '24px',
+              boxShadow: '0 20px 40px rgba(0, 0, 0, 0.5), 0 0 20px rgba(239, 68, 68, 0.15)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+              <div
+                style={{
+                  width: '40px',
+                  height: '40px',
+                  borderRadius: '10px',
+                  background: 'rgba(239, 68, 68, 0.15)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#ef4444',
+                }}
+              >
+                <Trash2 size={20} />
+              </div>
+              <div>
+                <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#f8fafc', margin: 0 }}>
+                  Delete Project
+                </h3>
+                <span style={{ fontSize: '0.75rem', color: '#ef4444', fontWeight: 600 }}>
+                  Permanent Action
+                </span>
+              </div>
+            </div>
+
+            <p style={{ fontSize: '0.86rem', color: '#cbd5e1', lineHeight: 1.5, margin: '0 0 20px 0' }}>
+              Are you sure you want to delete <strong style={{ color: '#ffffff' }}>"{currentProject.name}"</strong>? This will remove all QA configurations, test progress, and member assignments from both the dashboard and the Telegram QA bot.
+            </p>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={() => setIsDeleteModalOpen(false)}
+                style={{
+                  padding: '8px 16px',
+                  fontSize: '0.84rem',
+                  fontWeight: 600,
+                  borderRadius: '8px',
+                  background: 'rgba(255, 255, 255, 0.06)',
+                  color: '#94a3b8',
+                  border: '1px solid rgba(255, 255, 255, 0.12)',
+                  cursor: isDeleting ? 'not-allowed' : 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={handleDeleteProject}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '8px 18px',
+                  fontSize: '0.84rem',
+                  fontWeight: 700,
+                  borderRadius: '8px',
+                  background: 'linear-gradient(135deg, #dc2626, #b91c1c)',
+                  color: '#ffffff',
+                  border: 'none',
+                  cursor: isDeleting ? 'not-allowed' : 'pointer',
+                  boxShadow: '0 4px 14px rgba(220, 38, 38, 0.4)',
+                }}
+              >
+                <Trash2 size={14} />
+                <span>{isDeleting ? 'Deleting...' : 'Delete Project'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

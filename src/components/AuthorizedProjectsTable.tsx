@@ -12,10 +12,12 @@ import {
   Calendar,
   Send,
   Sparkles,
+  Trash2,
 } from 'lucide-react';
 import { Project, User, DailyReport } from '../types';
 import { StorageService } from '../services/storage';
 import { DailyReportService } from '../services/dailyReportService';
+import { ProjectService } from '../services/projectService';
 
 interface AuthorizedProjectsTableProps {
   currentUser: User;
@@ -38,6 +40,8 @@ export const AuthorizedProjectsTable: React.FC<AuthorizedProjectsTableProps> = (
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
   const [lastSyncTime, setLastSyncTime] = useState<Date>(new Date());
+  const [deleteConfirmProject, setDeleteConfirmProject] = useState<Project | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const users = StorageService.getUsers();
 
@@ -47,6 +51,20 @@ export const AuthorizedProjectsTable: React.FC<AuthorizedProjectsTableProps> = (
     const synced = await DailyReportService.syncTelegramReports();
     setReports(synced);
     setLastSyncTime(new Date());
+  };
+
+  const handleDeleteProject = async (projectToDelete: Project) => {
+    setIsDeleting(true);
+    try {
+      await ProjectService.deleteProject(projectToDelete.id, currentUser.id);
+      await loadData();
+      setDeleteConfirmProject(null);
+    } catch (err: any) {
+      console.error('Error deleting project:', err);
+      alert(err?.message || 'Failed to delete project');
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   useEffect(() => {
@@ -503,36 +521,72 @@ export const AuthorizedProjectsTable: React.FC<AuthorizedProjectsTableProps> = (
 
                     {/* Action Column */}
                     <td style={{ padding: '14px 16px', verticalAlign: 'middle', textAlign: 'right' }}>
-                      <button
-                        onClick={() => onNavigateToProject(project.id)}
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          padding: '6px 14px',
-                          borderRadius: '6px',
-                          fontSize: '0.78rem',
-                          fontWeight: 700,
-                          background: 'rgba(255, 255, 255, 0.05)',
-                          color: 'var(--text-primary)',
-                          border: '1px solid var(--border-subtle)',
-                          cursor: 'pointer',
-                          transition: 'all 0.15s ease',
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.background = 'rgba(56, 189, 248, 0.15)';
-                          e.currentTarget.style.borderColor = '#38bdf8';
-                          e.currentTarget.style.color = '#38bdf8';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
-                          e.currentTarget.style.borderColor = 'var(--border-subtle)';
-                          e.currentTarget.style.color = 'var(--text-primary)';
-                        }}
-                      >
-                        <span>Open</span>
-                        <ArrowRight size={13} />
-                      </button>
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                        <button
+                          onClick={() => onNavigateToProject(project.id)}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: '6px 14px',
+                            borderRadius: '6px',
+                            fontSize: '0.78rem',
+                            fontWeight: 700,
+                            background: 'rgba(255, 255, 255, 0.05)',
+                            color: 'var(--text-primary)',
+                            border: '1px solid var(--border-subtle)',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease',
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.background = 'rgba(56, 189, 248, 0.15)';
+                            e.currentTarget.style.borderColor = '#38bdf8';
+                            e.currentTarget.style.color = '#38bdf8';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+                            e.currentTarget.style.borderColor = 'var(--border-subtle)';
+                            e.currentTarget.style.color = 'var(--text-primary)';
+                          }}
+                        >
+                          <span>Open</span>
+                          <ArrowRight size={13} />
+                        </button>
+
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeleteConfirmProject(project);
+                          }}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '6px',
+                            background: 'rgba(239, 68, 68, 0.1)',
+                            color: '#f87171',
+                            border: '1px solid rgba(239, 68, 68, 0.25)',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease',
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.background = 'rgba(239, 68, 68, 0.25)';
+                            e.currentTarget.style.borderColor = '#ef4444';
+                            e.currentTarget.style.color = '#ef4444';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)';
+                            e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.25)';
+                            e.currentTarget.style.color = '#f87171';
+                          }}
+                          title={`Delete ${project.name}`}
+                          aria-label={`Delete ${project.name}`}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -651,14 +705,153 @@ export const AuthorizedProjectsTable: React.FC<AuthorizedProjectsTableProps> = (
                   >
                     {roleName}
                   </span>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.78rem', color: '#38bdf8', fontWeight: 700 }}>
-                    <span>Open</span>
-                    <ArrowRight size={13} />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeleteConfirmProject(project);
+                      }}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: '28px',
+                        height: '28px',
+                        borderRadius: '6px',
+                        background: 'rgba(239, 68, 68, 0.1)',
+                        color: '#f87171',
+                        border: '1px solid rgba(239, 68, 68, 0.25)',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = 'rgba(239, 68, 68, 0.25)';
+                        e.currentTarget.style.borderColor = '#ef4444';
+                        e.currentTarget.style.color = '#ef4444';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)';
+                        e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.25)';
+                        e.currentTarget.style.color = '#f87171';
+                      }}
+                      title={`Delete ${project.name}`}
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.78rem', color: '#38bdf8', fontWeight: 700 }}>
+                      <span>Open</span>
+                      <ArrowRight size={13} />
+                    </div>
                   </div>
                 </div>
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Delete Project Confirmation Modal */}
+      {deleteConfirmProject && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.75)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: '20px',
+          }}
+          onClick={() => !isDeleting && setDeleteConfirmProject(null)}
+        >
+          <div
+            style={{
+              background: '#0f172a',
+              border: '1px solid rgba(239, 68, 68, 0.3)',
+              borderRadius: '14px',
+              maxWidth: '480px',
+              width: '100%',
+              padding: '24px',
+              boxShadow: '0 20px 40px rgba(0, 0, 0, 0.5), 0 0 20px rgba(239, 68, 68, 0.15)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+              <div
+                style={{
+                  width: '40px',
+                  height: '40px',
+                  borderRadius: '10px',
+                  background: 'rgba(239, 68, 68, 0.15)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#ef4444',
+                }}
+              >
+                <Trash2 size={20} />
+              </div>
+              <div>
+                <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#f8fafc', margin: 0 }}>
+                  Delete Project
+                </h3>
+                <span style={{ fontSize: '0.75rem', color: '#ef4444', fontWeight: 600 }}>
+                  Permanent Action
+                </span>
+              </div>
+            </div>
+
+            <p style={{ fontSize: '0.86rem', color: '#cbd5e1', lineHeight: 1.5, margin: '0 0 20px 0' }}>
+              Are you sure you want to delete <strong style={{ color: '#ffffff' }}>"{deleteConfirmProject.name}"</strong>? This will remove all QA configurations, test progress, and member assignments from both the dashboard and the Telegram QA bot.
+            </p>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={() => setDeleteConfirmProject(null)}
+                style={{
+                  padding: '8px 16px',
+                  fontSize: '0.84rem',
+                  fontWeight: 600,
+                  borderRadius: '8px',
+                  background: 'rgba(255, 255, 255, 0.06)',
+                  color: '#94a3b8',
+                  border: '1px solid rgba(255, 255, 255, 0.12)',
+                  cursor: isDeleting ? 'not-allowed' : 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={() => handleDeleteProject(deleteConfirmProject)}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '8px 18px',
+                  fontSize: '0.84rem',
+                  fontWeight: 700,
+                  borderRadius: '8px',
+                  background: 'linear-gradient(135deg, #dc2626, #b91c1c)',
+                  color: '#ffffff',
+                  border: 'none',
+                  cursor: isDeleting ? 'not-allowed' : 'pointer',
+                  boxShadow: '0 4px 14px rgba(220, 38, 38, 0.4)',
+                }}
+              >
+                <Trash2 size={14} />
+                <span>{isDeleting ? 'Deleting...' : 'Delete Project'}</span>
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

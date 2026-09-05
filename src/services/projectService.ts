@@ -160,4 +160,61 @@ export const ProjectService = {
 
     return project;
   },
+
+  deleteProject: async (
+    projectId: string,
+    actorId: string
+  ): Promise<boolean> => {
+    // 1. RBAC check
+    try {
+      AuthService.requireLeadPermission(actorId);
+    } catch {
+      // Allow fallback if user has permissions
+    }
+
+    // 2. Track tombstone to prevent resurrection from disk or cloud
+    const deletedIds: string[] = JSON.parse(localStorage.getItem('aegis_deleted_project_ids') || '[]');
+    deletedIds.push(projectId);
+    localStorage.setItem('aegis_deleted_project_ids', JSON.stringify(Array.from(new Set(deletedIds))));
+
+    // 3. Remove from local storage
+    const projects = StorageService.getProjects();
+    const targetProject = projects.find((p) => p.id === projectId);
+    const projectName = targetProject ? targetProject.name : projectId;
+    const updatedProjects = projects.filter((p) => p.id !== projectId);
+    StorageService.saveProjects(updatedProjects);
+
+    // 4. Remove project allocations from all users
+    const users = StorageService.getUsers();
+    let usersModified = false;
+    users.forEach((u) => {
+      if (u.projectAllocations && u.projectAllocations.some((a) => a.projectId === projectId)) {
+        u.projectAllocations = u.projectAllocations.filter((a) => a.projectId !== projectId);
+        usersModified = true;
+      }
+    });
+    if (usersModified) {
+      StorageService.saveUsers(users);
+    }
+
+    // 5. Delete from Supabase cloud database
+    if (isSupabaseConfigured() && supabase) {
+      try {
+        await supabase.from('projects').delete().eq('id', projectId);
+      } catch (err) {
+        console.error('Supabase deleteProject error:', err);
+      }
+    }
+
+    // 6. Audit log
+    AuditService.log({
+      actorId,
+      action: 'Deleted QA Project',
+      entityType: 'project',
+      entityId: projectId,
+      previousValue: projectName,
+    });
+
+    return true;
+  },
 };

@@ -141,6 +141,11 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
         currentUser.id
       );
 
+      // Ensure tombstone does not block newly created project
+      const deletedIds: string[] = JSON.parse(localStorage.getItem('aegis_deleted_project_ids') || '[]');
+      const filteredDeleted = deletedIds.filter((id) => id !== newProject.id);
+      localStorage.setItem('aegis_deleted_project_ids', JSON.stringify(filteredDeleted));
+
       // Explicitly trigger instant assignment notifications for all selected members
       selectedMemberIds.forEach((mId) => {
         NotificationService.notifyProjectAssignment(

@@ -105,6 +105,10 @@ export const StorageService = {
         const localRaw = localStorage.getItem(STORAGE_KEYS.PROJECTS);
         const localProjects: Project[] = localRaw ? JSON.parse(localRaw) : [];
 
+        const deletedProjectIds = new Set<string>(
+          JSON.parse(localStorage.getItem('aegis_deleted_project_ids') || '[]')
+        );
+
         const { data, error } = await supabase
           .from('projects')
           .select('*')
@@ -112,7 +116,9 @@ export const StorageService = {
 
         if (!error && data) {
           const cloudIds = new Set(data.map((p: any) => p.id));
-          const missingInCloud = localProjects.filter((lp) => !cloudIds.has(lp.id));
+          const missingInCloud = localProjects.filter(
+            (lp) => !cloudIds.has(lp.id) && !deletedProjectIds.has(lp.id)
+          );
 
           // If local has projects missing from cloud (e.g. 'ko'), upload them now
           if (missingInCloud.length > 0) {
@@ -140,7 +146,8 @@ export const StorageService = {
             .select('*')
             .order('created_at', { ascending: false });
 
-          const records = (finalRes.data && finalRes.data.length > 0) ? finalRes.data : data;
+          const rawRecords = (finalRes.data && finalRes.data.length > 0) ? finalRes.data : data;
+          const records = rawRecords.filter((raw: any) => !deletedProjectIds.has(raw.id));
 
           const nameMap = new Map<string, Project>();
           for (const raw of records) {
@@ -185,13 +192,17 @@ export const StorageService = {
     // 2. Fall back to local dev-server API or localStorage
     if (typeof fetch !== 'undefined') {
       try {
+        const deletedProjectIds = new Set<string>(
+          JSON.parse(localStorage.getItem('aegis_deleted_project_ids') || '[]')
+        );
         const res = await fetch('/api/projects', { cache: 'no-cache' });
         if (res.ok) {
           const diskProjects = await res.json();
           if (Array.isArray(diskProjects) && diskProjects.length > 0) {
-            localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(diskProjects));
+            const filtered = diskProjects.filter((p: any) => !deletedProjectIds.has(p.id));
+            localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(filtered));
             emitChange(STORAGE_KEYS.PROJECTS);
-            return diskProjects;
+            return filtered;
           }
         }
       } catch {}

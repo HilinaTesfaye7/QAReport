@@ -1,5 +1,29 @@
 [
   {
+    "id": "blk-mtodwb3h",
+    "title": "Blocker via Standup (Hshs bshs)",
+    "description": "Jehs, hdhd",
+    "projectId": "prj-ko",
+    "projectName": "ko",
+    "severity": "High",
+    "status": "Open",
+    "reportedBy": "Hshs bshs",
+    "chatId": 7527336375,
+    "createdAt": "2026-09-05T12:53:48.461Z"
+  },
+  {
+    "id": "blk-mtodunbn",
+    "title": "Blocker via Standup (Alem gete)",
+    "description": "Hshshs",
+    "projectId": "prj-mtodmxsp",
+    "projectName": "Crypto Vault Wallet",
+    "severity": "High",
+    "status": "Open",
+    "reportedBy": "Alem gete",
+    "chatId": 7527336375,
+    "createdAt": "2026-09-05T12:52:30.995Z"
+  },
+  {
     "id": "blk-mtodfyak",
     "title": "Blocker via Standup (Lyla kebde)",
     "description": "Hshshs, hshsh, hshsh",
