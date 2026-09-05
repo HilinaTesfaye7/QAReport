@@ -42,7 +42,8 @@ export const AuthorizedProjectsTable: React.FC<AuthorizedProjectsTableProps> = (
   const users = StorageService.getUsers();
 
   const loadData = async () => {
-    setProjects(StorageService.getProjects());
+    const cloudProjects = await StorageService.syncProjectsWithDisk();
+    setProjects(cloudProjects);
     const synced = await DailyReportService.syncTelegramReports();
     setReports(synced);
     setLastSyncTime(new Date());

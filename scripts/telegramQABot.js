@@ -99,7 +99,34 @@ const PUBLIC_PROJECTS_FILE = path.resolve(process.cwd(), 'public', 'projects.jso
 
 const NUMBER_EMOJIS = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟', '1️⃣1️⃣', '1️⃣2️⃣', '1️⃣3️⃣', '1️⃣4️⃣', '1️⃣5️⃣'];
 
+let memoryProjects = null;
+
+async function refreshProjectsFromCloud() {
+  if (supabase) {
+    try {
+      const { data, error } = await supabase.from('projects').select('*').order('created_at', { ascending: false });
+      if (!error && data && data.length > 0) {
+        memoryProjects = data.map((p) => ({
+          id: p.id,
+          name: p.name,
+          description: p.description || '',
+          status: p.status,
+          memberIds: p.member_ids || [],
+          resources: p.resources || {},
+        }));
+        fs.writeFileSync(PROJECTS_FILE, JSON.stringify(memoryProjects, null, 2), 'utf8');
+        fs.writeFileSync(PUBLIC_PROJECTS_FILE, JSON.stringify(memoryProjects, null, 2), 'utf8');
+        return memoryProjects;
+      }
+    } catch (e) {
+      console.error('[Supabase] Error refreshing projects:', e.message);
+    }
+  }
+  return getProjects();
+}
+
 function getProjects() {
+  if (memoryProjects && memoryProjects.length > 0) return memoryProjects;
   for (const file of [PROJECTS_FILE, PUBLIC_PROJECTS_FILE]) {
     if (fs.existsSync(file)) {
       try {
@@ -571,23 +598,9 @@ async function handleCheckinStep(chatId, user, text) {
 // ==========================================
 
 async function startProjectSwitch(chatId) {
+  const projects = await refreshProjectsFromCloud();
   const profile = getProfile(chatId);
-  const projects = getProjects();
   const memberId = `usr-${chatId}`;
-
-  // Ensure any assigned project in user's profile is present in the list
-  if (profile && Array.isArray(profile.assignedProjects)) {
-    for (const apName of profile.assignedProjects) {
-      if (!projects.some((p) => p.name.toLowerCase() === apName.toLowerCase())) {
-        projects.push({
-          id: `prj-${Date.now().toString(36)}`,
-          name: apName,
-          status: 'Testing',
-          memberIds: [memberId],
-        });
-      }
-    }
-  }
 
   userSessions.set(chatId, {
     type: 'switch_project',
@@ -662,6 +675,18 @@ async function handleProjectSwitch(chatId, text) {
     };
     projects.push(newProj);
     saveProjects(projects);
+
+    if (supabase) {
+      supabase.from('projects').upsert({
+        id: projectId,
+        name: projectName,
+        description: `QA Project ${projectName}`,
+        status: 'Testing',
+        member_ids: [`usr-${chatId}`],
+      }).then(({ error }) => {
+        if (error) console.error('[Supabase] Error creating project:', error.message);
+      });
+    }
   }
 
   saveProfile(chatId, {

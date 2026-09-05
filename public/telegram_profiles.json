@@ -5,19 +5,17 @@
     "projectId": "prj-mobile",
     "projectName": "Mobile Banking iOS & Android",
     "assignedProjectIds": [
-      "prj-mto5ocyy",
-      "prj-mto626up",
-      "prj-mto66654",
-      "prj-mto6ud6h"
+      "prj-banking",
+      "prj-mobile",
+      "prj-nextgen"
     ],
     "assignedProjects": [
-      "dd",
-      "mndfmnsdf",
-      "bvnb",
-      "bvcbvcbv"
+      "Banking SuperApp",
+      "Mobile Banking iOS & Android",
+      "NextGen Mobile Banking"
     ],
     "telegramUsername": "Helu777",
     "chatId": "347835367",
-    "updatedAt": "2026-09-05T10:18:57.298Z"
+    "updatedAt": "2026-09-05T10:30:00.000Z"
   }
 }

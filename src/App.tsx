@@ -19,6 +19,7 @@ import { RuleDrivenCheckInModal } from './components/RuleDrivenCheckInModal';
 import { GlobalSearchModal } from './components/GlobalSearchModal';
 import { WorkloadAssignmentModal } from './components/WorkloadAssignmentModal';
 import { AuthService } from './services/authService';
+import { StorageService } from './services/storage';
 import { User } from './types';
 
 export const App: React.FC = () => {
@@ -38,6 +39,13 @@ export const App: React.FC = () => {
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
+
+  // Initial cloud sync on mount from Supabase
+  useEffect(() => {
+    StorageService.syncProjectsWithDisk();
+    StorageService.syncDailyReportsWithCloud();
+    StorageService.syncBlockersWithCloud();
+  }, []);
 
   const toggleTheme = () => {
     setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));

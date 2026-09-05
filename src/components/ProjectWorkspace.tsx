@@ -21,8 +21,9 @@ export const ProjectWorkspace: React.FC<ProjectWorkspaceProps> = ({
   const [viewMode, setViewMode] = useState<'directory' | 'workspace'>(activeProjectId ? 'workspace' : 'directory');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
-  const reloadProjects = () => {
-    setProjects(StorageService.getProjects());
+  const reloadProjects = async () => {
+    const cloudProjects = await StorageService.syncProjectsWithDisk();
+    setProjects(cloudProjects);
   };
 
   useEffect(() => {
