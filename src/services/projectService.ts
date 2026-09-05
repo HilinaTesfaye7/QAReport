@@ -3,6 +3,7 @@ import { StorageService } from './storage';
 import { AuditService } from './auditService';
 import { NotificationService } from './notificationService';
 import { AuthService } from './authService';
+import { supabase, isSupabaseConfigured } from './supabaseClient';
 
 export const ProjectService = {
   getProjects: (): Project[] => {
@@ -95,6 +96,19 @@ export const ProjectService = {
       project.memberIds.push(memberId);
       StorageService.saveProjects(projects);
 
+      if (isSupabaseConfigured() && supabase) {
+        supabase
+          .from('projects')
+          .update({
+            member_ids: project.memberIds,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', projectId)
+          .then(({ error }) => {
+            if (error) console.error('Supabase assignMember sync error:', error.message);
+          });
+      }
+
       NotificationService.notifyProjectAssignment(project, memberId, actorId);
 
       AuditService.log({
@@ -122,6 +136,19 @@ export const ProjectService = {
 
     project.memberIds = project.memberIds.filter((id) => id !== memberId);
     StorageService.saveProjects(projects);
+
+    if (isSupabaseConfigured() && supabase) {
+      supabase
+        .from('projects')
+        .update({
+          member_ids: project.memberIds,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', projectId)
+        .then(({ error }) => {
+          if (error) console.error('Supabase unassignMember sync error:', error.message);
+        });
+    }
 
     AuditService.log({
       actorId,

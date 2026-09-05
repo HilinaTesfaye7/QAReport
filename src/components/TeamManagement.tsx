@@ -57,12 +57,26 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
   const handleDeleteMember = async (memberToDelete: User) => {
     setIsDeleting(true);
     try {
-      // 1. Remove from local storage users list
+      // 1. Track tombstone to permanently prevent resurrection from fallback files or cloud sync
+      const deletedIds = JSON.parse(localStorage.getItem('aegis_deleted_member_ids') || '[]');
+      deletedIds.push(memberToDelete.id);
+      if (memberToDelete.telegramChatId) {
+        deletedIds.push(memberToDelete.telegramChatId, `usr-${memberToDelete.telegramChatId}`);
+      }
+      if (memberToDelete.name) {
+        deletedIds.push(memberToDelete.name.trim().toLowerCase());
+      }
+      if (memberToDelete.telegramUsername) {
+        deletedIds.push(memberToDelete.telegramUsername.replace(/^@/, '').toLowerCase());
+      }
+      localStorage.setItem('aegis_deleted_member_ids', JSON.stringify(Array.from(new Set(deletedIds))));
+
+      // 2. Remove from local storage users list
       const updatedUsers = users.filter((u) => u.id !== memberToDelete.id);
       StorageService.saveUsers(updatedUsers);
       setUsers(updatedUsers);
 
-      // 2. Unassign from all project memberIds
+      // 3. Unassign from all project memberIds
       const allProjects = StorageService.getProjects();
       let modified = false;
       allProjects.forEach((p) => {
@@ -76,7 +90,7 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
         setProjects(allProjects);
       }
 
-      // 3. Remove from Supabase telegram_profiles and projects
+      // 4. Remove from Supabase telegram_profiles and projects
       if (isSupabaseConfigured() && supabase) {
         try {
           if (memberToDelete.telegramChatId) {
@@ -106,7 +120,14 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
   };
 
   const loadData = async () => {
-    setUsers(StorageService.getUsers());
+    const deletedIds = new Set(JSON.parse(localStorage.getItem('aegis_deleted_member_ids') || '[]'));
+    const initialUsers = StorageService.getUsers().filter(
+      (u) =>
+        !deletedIds.has(u.id) &&
+        !deletedIds.has(u.name.trim().toLowerCase()) &&
+        !(u.telegramChatId && deletedIds.has(u.telegramChatId))
+    );
+    setUsers(initialUsers);
     setProjects(StorageService.getProjects());
     setWorkloads(WorkloadService.getAllMembersWorkload());
     const synced = await DailyReportService.syncTelegramReports();
@@ -120,12 +141,25 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
           .select('*');
 
         if (!error && cloudProfiles && cloudProfiles.length > 0) {
-          const currentUsers = StorageService.getUsers();
+          const currentUsers = StorageService.getUsers().filter(
+            (u) =>
+              !deletedIds.has(u.id) &&
+              !deletedIds.has(u.name.trim().toLowerCase()) &&
+              !(u.telegramChatId && deletedIds.has(u.telegramChatId))
+          );
           let changed = false;
 
           for (const p of cloudProfiles) {
             const normalizedName = (p.full_name || '').trim();
             if (!normalizedName) continue;
+            if (
+              deletedIds.has(p.chat_id) ||
+              deletedIds.has(`usr-${p.chat_id}`) ||
+              deletedIds.has(normalizedName.toLowerCase()) ||
+              (p.telegram_username && deletedIds.has(p.telegram_username.toLowerCase()))
+            ) {
+              continue;
+            }
 
             const existingIdx = currentUsers.findIndex(
               (u) =>
@@ -183,12 +217,27 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
       const res = await fetch('/telegram_profiles.json', { cache: 'no-cache' });
       if (res.ok) {
         const tgProfiles = await res.json();
-        const existingUsers = StorageService.getUsers();
+        const existingUsers = StorageService.getUsers().filter(
+          (u) =>
+            !deletedIds.has(u.id) &&
+            !deletedIds.has(u.name.trim().toLowerCase()) &&
+            !(u.telegramChatId && deletedIds.has(u.telegramChatId))
+        );
         let addedAny = false;
 
         for (const [chatId, p] of Object.entries(tgProfiles as Record<string, any>)) {
+          const pName = (p.fullName || '').trim().toLowerCase();
+          if (
+            deletedIds.has(chatId) ||
+            deletedIds.has(`usr-${chatId}`) ||
+            deletedIds.has(pName) ||
+            (p.telegramUsername && deletedIds.has(p.telegramUsername.toLowerCase()))
+          ) {
+            continue;
+          }
+
           const exists = existingUsers.some(
-            (u) => u.id === `usr-${chatId}` || u.name.toLowerCase() === p.fullName?.toLowerCase()
+            (u) => u.id === `usr-${chatId}` || u.name.toLowerCase() === pName
           );
           if (!exists && p.fullName) {
             existingUsers.push({

@@ -49,7 +49,8 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
 }) => {
   // Streamlined tabs: PRD, Design (Figma), Members, and Standups
   const [activeTab, setActiveTab] = useState<'prd' | 'figma' | 'members' | 'standups'>('prd');
-  const [reports, setReports] = useState<DailyReport[]>(StorageService.getDailyReports());
+  const [currentProject, setCurrentProject] = useState<Project>(project);
+  const [reports, setReports] = useState<DailyReport[]>(DailyReportService.getDailyReports());
   const [isUpdatingVelocity, setIsUpdatingVelocity] = useState(false);
   const [progressVal, setProgressVal] = useState(project.qaProgress);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -62,11 +63,16 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
   const isLead = currentUser.role === 'qa_lead';
   const projectsList = allProjects || StorageService.getProjects();
   const allUsers = StorageService.getUsers();
-  const projectMembers = allUsers.filter((u) => project.memberIds.includes(u.id));
-  const leadUser = allUsers.find((u) => u.id === project.qaLeadId);
+  const projectMembers = allUsers.filter((u) => currentProject.memberIds.includes(u.id));
+  const leadUser = allUsers.find((u) => u.id === currentProject.qaLeadId);
 
   // Users not yet on this project
-  const availableUsersToAdd = allUsers.filter((u) => !project.memberIds.includes(u.id));
+  const availableUsersToAdd = allUsers.filter((u) => !currentProject.memberIds.includes(u.id));
+
+  useEffect(() => {
+    setCurrentProject(project);
+    setProgressVal(project.qaProgress);
+  }, [project]);
 
   // Sync Telegram reports
   useEffect(() => {
@@ -76,28 +82,31 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
 
     const handleStorage = () => {
       setReports(DailyReportService.getDailyReports());
+      const fresh = StorageService.getProjects().find((p) => p.id === currentProject.id);
+      if (fresh) setCurrentProject(fresh);
     };
     window.addEventListener('aegis_storage_change', handleStorage);
     return () => window.removeEventListener('aegis_storage_change', handleStorage);
-  }, [project.id]);
+  }, [currentProject.id]);
 
   useEffect(() => {
-    setProgressVal(project.qaProgress);
-  }, [project.qaProgress]);
+    setProgressVal(currentProject.qaProgress);
+  }, [currentProject.qaProgress]);
 
   // Filter standups for this project
   const projectStandups = reports.filter(
     (r) =>
-      r.projectId === project.id ||
-      r.projectName?.toLowerCase() === project.name.toLowerCase()
+      r.projectId === currentProject.id ||
+      r.projectName?.toLowerCase() === currentProject.name.toLowerCase()
   );
 
   const handleSaveVelocity = () => {
     const all = StorageService.getProjects();
-    const target = all.find((p) => p.id === project.id);
+    const target = all.find((p) => p.id === currentProject.id);
     if (target) {
       target.qaProgress = progressVal;
       StorageService.saveProjects(all);
+      setCurrentProject({ ...target });
     }
     setIsUpdatingVelocity(false);
   };
@@ -107,7 +116,8 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
     if (!selectedMemberToAdd) return;
 
     try {
-      const updatedProj = ProjectService.assignMember(project.id, selectedMemberToAdd, currentUser.id);
+      const updatedProj = ProjectService.assignMember(currentProject.id, selectedMemberToAdd, currentUser.id);
+      setCurrentProject({ ...updatedProj });
       const targetUser = allUsers.find((u) => u.id === selectedMemberToAdd);
       const memberName = targetUser ? targetUser.name : 'QA Member';
 
@@ -119,7 +129,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
         'You have been added to the QA Squad for this project.'
       );
 
-      setMemberToast(`Assigned ${memberName} to ${project.name} and dispatched assignment notification!`);
+      setMemberToast(`Assigned ${memberName} to ${currentProject.name} and dispatched assignment notification!`);
       setIsAddMemberOpen(false);
       setSelectedMemberToAdd('');
 
@@ -131,7 +141,8 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
 
   const handleUnassignMember = (memberId: string) => {
     try {
-      ProjectService.unassignMember(project.id, memberId, currentUser.id);
+      const updatedProj = ProjectService.unassignMember(currentProject.id, memberId, currentUser.id);
+      setCurrentProject({ ...updatedProj });
       const targetUser = allUsers.find((u) => u.id === memberId);
       const memberName = targetUser ? targetUser.name : 'QA Member';
       setMemberToast(`Removed ${memberName} from this project squad.`);
