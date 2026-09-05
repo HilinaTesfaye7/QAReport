@@ -1,0 +1,401 @@
+[
+  {
+    "id": "prj-banking",
+    "name": "Banking SuperApp",
+    "description": "Next-generation retail banking application with instant payments, multi-currency wallets, and biometric authentication.",
+    "status": "Testing",
+    "startDate": "2026-08-01",
+    "targetReleaseDate": "2026-09-12",
+    "projectOwner": "David Chen (VP Product)",
+    "qaLeadId": "usr-sarah",
+    "memberIds": [
+      "usr-hana",
+      "usr-ahmed",
+      "usr-daniel"
+    ],
+    "qaProgress": 74,
+    "regressionProgress": 62,
+    "resources": {
+      "prdTitle": "PRD v2.4: Instant Wire Transfer & Biometric Core",
+      "prdUrl": "https://docs.bankcorp.internal/prd/superapp-v2.4",
+      "prdContent": "# Product Requirements Document (PRD) - Banking SuperApp v2.4\n\n## 1. Overview & Objectives\nBanking SuperApp v2.4 introduces zero-latency peer-to-peer transfers with real-time biometric authorization. Target release date is September 12, 2026.\n\n## 2. Key Modules & Acceptance Criteria\n- **Module 1: Biometric Authorization (REQ-101)**\n  - FaceID / TouchID / Device Passcode fallback.\n  - Failures locked out after 3 attempts with 5-minute cool-off.\n- **Module 2: Instant Wire Transfer (REQ-102)**\n  - Idempotency key required on every POST /api/v2/transfers.\n  - Duplicate requests within 60s must return 409 Conflict with original transfer receipt.\n- **Module 3: Dynamic Fee Calculation (REQ-103)**\n  - Standard Tier: $1.50 per international wire.\n  - VIP Tier: $0.00 fee waiver.\n- **Module 4: Error Handling & Resilience (REQ-104)**\n  - In event of 504 Gateway Timeout from core banking ledger, transfer status remains PENDING_VERIFICATION, not FAILED, preventing double charges.\n\n## 3. QA Sign-Off Criteria\n- Zero Critical or High open defects.\n- 100% execution of P0/P1 regression suites.\n- Latency P99 under 450ms for transfer authorization.",
+      "prdDocuments": [
+        {
+          "id": "doc-01",
+          "name": "SuperApp_PRD_v2.4_Final.pdf",
+          "fileName": "SuperApp_PRD_v2.4_Final.pdf",
+          "fileSize": "2.4 MB",
+          "uploadedBy": "Sarah Jenkins",
+          "uploadedAt": "2026-08-10",
+          "version": "v2.4",
+          "downloadUrl": "#"
+        },
+        {
+          "id": "doc-02",
+          "name": "Transfer_API_Swagger_Spec.docx",
+          "fileName": "Transfer_API_Swagger_Spec.docx",
+          "fileSize": "840 KB",
+          "uploadedBy": "David Chen",
+          "uploadedAt": "2026-08-12",
+          "version": "v2.4.1",
+          "downloadUrl": "#"
+        }
+      ],
+      "figmaUrl": "https://www.figma.com/file/aegis-banking-superapp-hifi/v2.4",
+      "figmaName": "SuperApp Design System & Transfer Flow v2.4",
+      "figmaDescription": "Full mobile and responsive web frames with auto-layout padding tokens.",
+      "figmaVersion": "2.4.0",
+      "figmaPreviewTitle": "SuperApp UI Kit & Interactive Transfer Flows (Figma v2.4)",
+      "requirements": [
+        "REQ-101: Biometric Authentication with Secure Enclave",
+        "REQ-102: Instant Wire Transfer with Idempotency Key",
+        "REQ-103: Dynamic Fee calculation based on KYC Tier",
+        "REQ-104: Timeout resilience & transaction rollback protection",
+        "REQ-105: Real-time push notification and statement export"
+      ],
+      "testEnvUrl": "https://staging-app.bankingsuperapp.internal",
+      "repoUrl": "https://github.com/bankcorp/superapp-client",
+      "buildVersion": "v2.4.0-rc3",
+      "apiDocUrl": "https://api-docs.bankcorp.internal/v2/swagger",
+      "testCredentials": [
+        {
+          "role": "Standard Tier Tester",
+          "user": "qa.standard@bank.internal",
+          "pass": "SecurePass!2026",
+          "notes": "Pre-seeded balance: $12,500 USD"
+        },
+        {
+          "role": "VIP Tier Tester",
+          "user": "qa.vip@bank.internal",
+          "pass": "GoldTier#999",
+          "notes": "Pre-seeded balance: $150,000 USD (0% fees)"
+        },
+        {
+          "role": "Blocked KYC Tester",
+          "user": "qa.restricted@bank.internal",
+          "pass": "KycHold$444",
+          "notes": "Should trigger KYC re-verification banner"
+        }
+      ],
+      "releaseInfo": "Candidate build 2.4.0-rc3. Regression sign-off window closes Sep 10, 18:00 UTC.",
+      "importantNotes": "Staging API payment gateway sandbox undergoes maintenance between 02:00-04:00 UTC."
+    }
+  },
+  {
+    "id": "prj-mobile",
+    "name": "Mobile Banking iOS & Android",
+    "description": "Cross-platform native mobile client focusing on card management, contactless NFC payments, and push security tokens.",
+    "status": "UAT",
+    "startDate": "2026-07-15",
+    "targetReleaseDate": "2026-09-18",
+    "projectOwner": "Elena Rostova (Mobile Director)",
+    "qaLeadId": "usr-sarah",
+    "memberIds": [
+      "usr-hana",
+      "usr-sara"
+    ],
+    "qaProgress": 81,
+    "regressionProgress": 78,
+    "resources": {
+      "prdTitle": "PRD Mobile v3.1: Virtual Card Issuance & NFC",
+      "prdUrl": "https://docs.bankcorp.internal/prd/mobile-v3.1",
+      "prdContent": "# Mobile Banking v3.1 Specifications\nSupport Apple Pay and Google Wallet instant push provisioning. Card freeze/unfreeze toggle with sub-second feedback.",
+      "figmaUrl": "https://www.figma.com/file/aegis-mobile-cards/v3.1",
+      "figmaName": "Mobile Cards & Wallet Flow v3.1",
+      "figmaDescription": "Native iOS & Android card views with encrypted CVV reveal.",
+      "figmaVersion": "3.1.0",
+      "figmaPreviewTitle": "Mobile Native Components & Virtual Card Flow",
+      "requirements": [
+        "REQ-M01: Virtual card generation within 2 seconds",
+        "REQ-M02: Apple Wallet / Google Wallet provisioning",
+        "REQ-M03: Instant card locking and geo-fencing controls"
+      ],
+      "testEnvUrl": "https://mobile-stage.bankingsuperapp.internal",
+      "repoUrl": "https://github.com/bankcorp/mobile-native",
+      "buildVersion": "build-412",
+      "apiDocUrl": "https://api-docs.bankcorp.internal/mobile/v3",
+      "testCredentials": [
+        {
+          "role": "Mobile Beta User",
+          "user": "qa.mobile.tester@bank.internal",
+          "pass": "Mob@2026Safe",
+          "notes": "Enrolled in NFC pilot sandbox"
+        }
+      ],
+      "releaseInfo": "TestFlight build #412 / Internal App Distribution #208.",
+      "importantNotes": "Test specifically on iOS 18.0 and Android 15 developer previews."
+    }
+  },
+  {
+    "id": "prj-merchant",
+    "name": "Merchant Portal NextGen",
+    "description": "B2B web dashboard for e-commerce and retail merchants to manage settlements, chargebacks, and API webhook integrations.",
+    "status": "Planning",
+    "startDate": "2026-08-20",
+    "targetReleaseDate": "2026-10-05",
+    "projectOwner": "Marcus Vance (Fintech Ops)",
+    "qaLeadId": "usr-sarah",
+    "memberIds": [
+      "usr-sara",
+      "usr-ahmed"
+    ],
+    "qaProgress": 35,
+    "regressionProgress": 15,
+    "resources": {
+      "prdTitle": "PRD Merchant Portal v1.0: Real-time Analytics & Dispute Center",
+      "prdUrl": "https://docs.bankcorp.internal/prd/merchant-portal-v1",
+      "prdContent": "# Merchant Portal v1.0 PRD\nUnified settlement report download in CSV/XLSX. Automated webhook delivery with retry backoff.",
+      "figmaUrl": "https://www.figma.com/file/aegis-merchant-v1/design",
+      "figmaName": "Merchant Portal v1.0 Web App",
+      "figmaDescription": "Full B2B desktop dashboard and dispute evidence modal.",
+      "figmaVersion": "1.0.0",
+      "figmaPreviewTitle": "Merchant B2B Dashboard Layout & Dispute Flow",
+      "requirements": [
+        "REQ-B01: Dispute evidence upload supporting up to 25MB PDF/PNG",
+        "REQ-B02: Webhook signature verification tool for merchants"
+      ],
+      "testEnvUrl": "https://staging-merchant.bankingsuperapp.internal",
+      "repoUrl": "https://github.com/bankcorp/merchant-web",
+      "buildVersion": "v1.0.0-alpha2",
+      "apiDocUrl": "https://api-docs.bankcorp.internal/merchant/v1",
+      "testCredentials": [
+        {
+          "role": "Merchant Admin",
+          "user": "admin@coffeehaven.com",
+          "pass": "CoffeeB2B@99!",
+          "notes": "Connected to mock Stripe & Adyen test rails"
+        }
+      ],
+      "releaseInfo": "Alpha testing phase. Architecture and test plan sign-off.",
+      "importantNotes": "Backend services still in active deployment."
+    }
+  },
+  {
+    "name": "dd",
+    "description": "nbb",
+    "status": "Testing",
+    "startDate": "2026-09-05",
+    "targetReleaseDate": "2026-09-19",
+    "projectOwner": "David Chen (VP Product)",
+    "qaLeadId": "usr-sarah",
+    "memberIds": [
+      "usr-sara",
+      "usr-347835367"
+    ],
+    "resources": {
+      "prdTitle": "nmbmb",
+      "prdUrl": "https://docs.bank.internal/prd/spec-v1",
+      "prdContent": "# Functional Requirements & Acceptance Criteria\n\n## 1. Overview\nComprehensive QA validation of all feature modules and API services.\n\n## 2. Acceptance Criteria\n- Pass 100% of P0 smoke test cases before release.\n- 0 critical or blocker severity defects open in regression cycle.\n- API response time < 250ms for 95th percentile.\n- Figma layout tokens and responsive breakpoints verified.",
+      "prdDocuments": [
+        {
+          "id": "doc-1788599020713",
+          "name": "nmbmb",
+          "fileName": "dd-prd.pdf",
+          "fileSize": "2.4 MB",
+          "uploadedBy": "Sarah Jenkins",
+          "uploadedAt": "2026-09-05",
+          "version": "v1.0-RC",
+          "downloadUrl": "https://docs.bank.internal/prd/spec-v1"
+        }
+      ],
+      "figmaUrl": "https://www.figma.com/file/aegis-design-system/prototype",
+      "figmaName": "dd UI Prototype",
+      "figmaPreviewTitle": "Mobile & Web UI Design Specs",
+      "figmaDescription": "Includes all responsive viewports, state machines, and micro-interaction tokens.",
+      "figmaVersion": "v2.4",
+      "requirements": [
+        "REQ-01: Authentication & Token Lifecycle",
+        "REQ-02: Core Feature Flow and Business Logic Validation",
+        "REQ-03: Responsive Design Breakpoints Verification"
+      ],
+      "testEnvUrl": "https://staging-app.internal",
+      "repoUrl": "https://github.com/company/dd",
+      "buildVersion": "v1.0.0-rc1",
+      "apiDocUrl": "https://staging-app.internal/swagger-ui",
+      "testCredentials": [
+        {
+          "role": "QA Automation Engineer",
+          "user": "qa.test@company.internal",
+          "pass": "AegisPass#2026",
+          "notes": "Staging environment pre-loaded test data profile"
+        }
+      ],
+      "releaseInfo": "Sprint candidate validation window closes prior to release deployment.",
+      "importantNotes": "Review all Figma auto-layout padding specs before marking UI tickets complete."
+    },
+    "id": "prj-mto5ocyy",
+    "qaProgress": 0,
+    "regressionProgress": 0
+  },
+  {
+    "name": "mndfmnsdf",
+    "description": "ndbfndbf",
+    "status": "Testing",
+    "startDate": "2026-09-05",
+    "targetReleaseDate": "2026-09-19",
+    "projectOwner": "David Chen (VP Product)",
+    "qaLeadId": "usr-sarah",
+    "memberIds": [
+      "usr-sara",
+      "usr-347835367"
+    ],
+    "resources": {
+      "prdTitle": "dfdf",
+      "prdUrl": "https://docs.bank.internal/prd/spec-v1",
+      "prdContent": "# Functional Requirements & Acceptance Criteria\n\n## 1. Overview\nComprehensive QA validation of all feature modules and API services.\n\n## 2. Acceptance Criteria\n- Pass 100% of P0 smoke test cases before release.\n- 0 critical or blocker severity defects open in regression cycle.\n- API response time < 250ms for 95th percentile.\n- Figma layout tokens and responsive breakpoints verified.",
+      "prdDocuments": [
+        {
+          "id": "doc-1788599665969",
+          "name": "dfdf",
+          "fileName": "mndfmnsdf-prd.pdf",
+          "fileSize": "2.4 MB",
+          "uploadedBy": "Sarah Jenkins",
+          "uploadedAt": "2026-09-05",
+          "version": "v1.0-RC",
+          "downloadUrl": "https://docs.bank.internal/prd/spec-v1"
+        }
+      ],
+      "figmaUrl": "https://www.figma.com/file/aegis-design-system/prototype",
+      "figmaName": "mndfmnsdf UI Prototype",
+      "figmaPreviewTitle": "Mobile & Web UI Design Specs",
+      "figmaDescription": "Includes all responsive viewports, state machines, and micro-interaction tokens.",
+      "figmaVersion": "v2.4",
+      "requirements": [
+        "REQ-01: Authentication & Token Lifecycle",
+        "REQ-02: Core Feature Flow and Business Logic Validation",
+        "REQ-03: Responsive Design Breakpoints Verification"
+      ],
+      "testEnvUrl": "https://staging-app.internal",
+      "repoUrl": "https://github.com/company/mndfmnsdf",
+      "buildVersion": "v1.0.0-rc1",
+      "apiDocUrl": "https://staging-app.internal/swagger-ui",
+      "testCredentials": [
+        {
+          "role": "QA Automation Engineer",
+          "user": "qa.test@company.internal",
+          "pass": "AegisPass#2026",
+          "notes": "Staging environment pre-loaded test data profile"
+        }
+      ],
+      "releaseInfo": "Sprint candidate validation window closes prior to release deployment.",
+      "importantNotes": "Review all Figma auto-layout padding specs before marking UI tickets complete."
+    },
+    "id": "prj-mto626up",
+    "qaProgress": 0,
+    "regressionProgress": 0
+  },
+  {
+    "name": "bvnb",
+    "description": "ghjgjhg",
+    "status": "Testing",
+    "startDate": "2026-09-05",
+    "targetReleaseDate": "2026-09-19",
+    "projectOwner": "David Chen (VP Product)",
+    "qaLeadId": "usr-sarah",
+    "memberIds": [
+      "usr-sara",
+      "usr-347835367"
+    ],
+    "resources": {
+      "prdTitle": "bvnb Functional Specifications",
+      "prdUrl": "https://docs.bank.internal/prd/spec-v1",
+      "prdContent": "# Functional Requirements & Acceptance Criteria\n\n## 1. Overview\nComprehensive QA validation of all feature modules and API services.\n\n## 2. Acceptance Criteria\n- Pass 100% of P0 smoke test cases before release.\n- 0 critical or blocker severity defects open in regression cycle.\n- API response time < 250ms for 95th percentile.\n- Figma layout tokens and responsive breakpoints verified.",
+      "prdDocuments": [
+        {
+          "id": "doc-1788599851671",
+          "name": "bvnb PRD Specification",
+          "fileName": "bvnb-prd.pdf",
+          "fileSize": "2.4 MB",
+          "uploadedBy": "Sarah Jenkins",
+          "uploadedAt": "2026-09-05",
+          "version": "v1.0-RC",
+          "downloadUrl": "https://docs.bank.internal/prd/spec-v1"
+        }
+      ],
+      "figmaUrl": "https://www.figma.com/file/aegis-design-system/prototype",
+      "figmaName": "bvnb UI Prototype",
+      "figmaPreviewTitle": "Mobile & Web UI Design Specs",
+      "figmaDescription": "Includes all responsive viewports, state machines, and micro-interaction tokens.",
+      "figmaVersion": "v2.4",
+      "requirements": [
+        "REQ-01: Authentication & Token Lifecycle",
+        "REQ-02: Core Feature Flow and Business Logic Validation",
+        "REQ-03: Responsive Design Breakpoints Verification"
+      ],
+      "testEnvUrl": "https://staging-app.internal",
+      "repoUrl": "https://github.com/company/bvnb",
+      "buildVersion": "v1.0.0-rc1",
+      "apiDocUrl": "https://staging-app.internal/swagger-ui",
+      "testCredentials": [
+        {
+          "role": "QA Automation Engineer",
+          "user": "qa.test@company.internal",
+          "pass": "AegisPass#2026",
+          "notes": "Staging environment pre-loaded test data profile"
+        }
+      ],
+      "releaseInfo": "Sprint candidate validation window closes prior to release deployment.",
+      "importantNotes": "Review all Figma auto-layout padding specs before marking UI tickets complete."
+    },
+    "id": "prj-mto66654",
+    "qaProgress": 0,
+    "regressionProgress": 0
+  },
+  {
+    "name": "bvcbvcbv",
+    "description": "bcbvc",
+    "status": "Testing",
+    "startDate": "2026-09-05",
+    "targetReleaseDate": "2026-09-19",
+    "projectOwner": "David Chen (VP Product)",
+    "qaLeadId": "usr-sarah",
+    "memberIds": [
+      "usr-sara",
+      "usr-347835367"
+    ],
+    "resources": {
+      "prdTitle": "gbvbc",
+      "prdUrl": "https://docs.bank.internal/prd/spec-v1",
+      "prdContent": "# Functional Requirements & Acceptance Criteria\n\n## 1. Overview\nComprehensive QA validation of all feature modules and API services.\n\n## 2. Acceptance Criteria\n- Pass 100% of P0 smoke test cases before release.\n- 0 critical or blocker severity defects open in regression cycle.\n- API response time < 250ms for 95th percentile.\n- Figma layout tokens and responsive breakpoints verified.",
+      "prdDocuments": [
+        {
+          "id": "doc-1788600980537",
+          "name": "gbvbc",
+          "fileName": "bvcbvcbv-prd.pdf",
+          "fileSize": "2.4 MB",
+          "uploadedBy": "Sarah Jenkins",
+          "uploadedAt": "2026-09-05",
+          "version": "v1.0-RC",
+          "downloadUrl": "https://docs.bank.internal/prd/spec-v1"
+        }
+      ],
+      "figmaUrl": "https://www.figma.com/file/aegis-design-system/prototype",
+      "figmaName": "bvcbvcbv UI Prototype",
+      "figmaPreviewTitle": "Mobile & Web UI Design Specs",
+      "figmaDescription": "Includes all responsive viewports, state machines, and micro-interaction tokens.",
+      "figmaVersion": "v2.4",
+      "requirements": [
+        "REQ-01: Authentication & Token Lifecycle",
+        "REQ-02: Core Feature Flow and Business Logic Validation",
+        "REQ-03: Responsive Design Breakpoints Verification"
+      ],
+      "testEnvUrl": "https://staging-app.internal",
+      "repoUrl": "https://github.com/company/bvcbvcbv",
+      "buildVersion": "v1.0.0-rc1",
+      "apiDocUrl": "https://staging-app.internal/swagger-ui",
+      "testCredentials": [
+        {
+          "role": "QA Automation Engineer",
+          "user": "qa.test@company.internal",
+          "pass": "AegisPass#2026",
+          "notes": "Staging environment pre-loaded test data profile"
+        }
+      ],
+      "releaseInfo": "Sprint candidate validation window closes prior to release deployment.",
+      "importantNotes": "Review all Figma auto-layout padding specs before marking UI tickets complete."
+    },
+    "id": "prj-mto6ud6h",
+    "qaProgress": 0,
+    "regressionProgress": 0
+  }
+]
