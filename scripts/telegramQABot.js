@@ -19,6 +19,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { createClient } from '@supabase/supabase-js';
 
 // Automatically load .env or .env.example file if present
 function loadEnv() {
@@ -61,6 +62,19 @@ if (!BOT_TOKEN) {
 }
 
 const TELEGRAM_API = `https://api.telegram.org/bot${BOT_TOKEN}`;
+
+// Supabase Cloud Database Client
+const rawSupabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '';
+const supabaseUrl = rawSupabaseUrl ? rawSupabaseUrl.replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '') : '';
+const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '';
+
+const supabase = (supabaseUrl && supabaseAnonKey && !supabaseUrl.includes('placeholder'))
+  ? createClient(supabaseUrl, supabaseAnonKey)
+  : null;
+
+if (supabase) {
+  console.log('✓ Connected to Supabase Cloud Database:', supabaseUrl);
+}
 
 // Seeded Projects from AegisQA Platform
 const DEFAULT_PROJECTS = [
@@ -137,6 +151,25 @@ function saveProfile(chatId, data) {
     fs.writeFileSync(path.resolve(process.cwd(), 'public', 'telegram_profiles.json'), JSON.stringify(profiles, null, 2), 'utf8');
   } catch {}
   console.log(`[Profile] Saved profile for chat ${chatId}: ${data.fullName} (${data.projectName})`);
+
+  // Cloud sync to Supabase
+  if (supabase) {
+    supabase.from('telegram_profiles').upsert({
+      chat_id: String(chatId),
+      full_name: data.fullName || profiles[String(chatId)]?.fullName || 'Coco',
+      role: data.role || profiles[String(chatId)]?.role || 'tester',
+      project_id: data.projectId || profiles[String(chatId)]?.projectId || 'prj-banking',
+      project_name: data.projectName || profiles[String(chatId)]?.projectName || 'Banking SuperApp',
+      assigned_project_ids: data.assignedProjectIds || profiles[String(chatId)]?.assignedProjectIds || [],
+      assigned_projects: data.assignedProjects || profiles[String(chatId)]?.assignedProjects || [],
+      telegram_username: data.telegramUsername || profiles[String(chatId)]?.telegramUsername || '',
+      updated_at: new Date().toISOString(),
+    }).then(({ error }) => {
+      if (error) console.error('[Supabase] Profile sync error:', error.message);
+      else console.log(`[Supabase] Synced profile for ${data.fullName} to cloud`);
+    });
+  }
+
   return profiles[String(chatId)];
 }
 
@@ -185,6 +218,30 @@ function persistReport(report) {
     fs.writeFileSync(path.resolve(process.cwd(), 'public', 'telegram_daily_reports.json'), JSON.stringify(existing, null, 2), 'utf8');
   } catch {}
   console.log(`[Storage] Saved daily report from ${report.memberName} (${report.projectName})`);
+
+  // Cloud sync to Supabase
+  if (supabase) {
+    supabase.from('daily_reports').upsert({
+      id: report.id,
+      date: report.date,
+      chat_id: String(report.chatId || ''),
+      member_id: report.memberId,
+      member_name: report.memberName,
+      role: report.role,
+      project_id: report.projectId,
+      project_name: report.projectName,
+      yesterday_completed: report.yesterdayCompleted,
+      today_working_on: report.todayWorkingOn,
+      blockers: report.blockers || '',
+      is_blocked: Boolean(report.isBlocked),
+      expected_completion: report.expectedCompletion || 'Today',
+      notes: report.notes || '',
+      submitted_at: report.submittedAt || new Date().toISOString(),
+    }).then(({ error }) => {
+      if (error) console.error('[Supabase] Report sync error:', error.message);
+      else console.log(`[Supabase] Synced daily report for ${report.memberName} to cloud`);
+    });
+  }
 }
 
 // Helper to persist blocker
@@ -204,6 +261,25 @@ function persistBlocker(blocker) {
     fs.writeFileSync(path.resolve(process.cwd(), 'public', 'telegram_blockers.json'), JSON.stringify(existing, null, 2), 'utf8');
   } catch {}
   console.log(`[Storage] Logged blocker for project: ${blocker.projectName}`);
+
+  // Cloud sync to Supabase
+  if (supabase) {
+    supabase.from('blockers').upsert({
+      id: blocker.id,
+      title: blocker.title,
+      description: blocker.description || '',
+      project_id: blocker.projectId,
+      project_name: blocker.projectName || '',
+      severity: blocker.severity || 'High',
+      status: blocker.status || 'Open',
+      reported_by: blocker.reportedBy || 'QA Tester',
+      chat_id: String(blocker.chatId || ''),
+      created_at: blocker.createdAt || new Date().toISOString(),
+    }).then(({ error }) => {
+      if (error) console.error('[Supabase] Blocker sync error:', error.message);
+      else console.log(`[Supabase] Synced blocker for ${blocker.projectName} to cloud`);
+    });
+  }
 }
 
 // ==========================================

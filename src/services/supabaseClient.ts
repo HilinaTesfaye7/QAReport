@@ -10,7 +10,8 @@ const getEnv = (key: string): string => {
   return '';
 };
 
-const supabaseUrl = getEnv('VITE_SUPABASE_URL') || getEnv('SUPABASE_URL');
+const rawUrl = getEnv('VITE_SUPABASE_URL') || getEnv('SUPABASE_URL');
+const supabaseUrl = rawUrl ? rawUrl.replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '') : '';
 const supabaseAnonKey = getEnv('VITE_SUPABASE_ANON_KEY') || getEnv('SUPABASE_ANON_KEY');
 
 export const isSupabaseConfigured = (): boolean => {
