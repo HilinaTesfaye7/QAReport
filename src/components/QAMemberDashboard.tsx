@@ -22,6 +22,7 @@ import { TaskService } from '../services/taskService';
 import { BugService } from '../services/bugService';
 import { TestCaseService } from '../services/testCaseService';
 import { BlockerService } from '../services/blockerService';
+import { DailyReportService } from '../services/dailyReportService';
 
 interface QAMemberDashboardProps {
   currentUser: User;
@@ -49,7 +50,12 @@ export const QAMemberDashboard: React.FC<QAMemberDashboardProps> = ({
   const [myBlockers, setMyBlockers] = useState<Blocker[]>([]);
   const [workload, setWorkload] = useState(WorkloadService.computeMemberWorkload(currentUser.id));
 
-  const reloadData = () => {
+  const reloadData = async () => {
+    await Promise.all([
+      StorageService.syncProjectsWithDisk(),
+      BlockerService.syncBlockers(),
+      DailyReportService.syncTelegramReports(),
+    ]);
     setTasks(TaskService.getTasksByAssignee(currentUser.id));
     setBugs(BugService.getBugsByAssignee(currentUser.id));
     setTestCases(TestCaseService.getTestCases().filter((tc) => tc.assigneeId === currentUser.id));
@@ -69,12 +75,13 @@ export const QAMemberDashboard: React.FC<QAMemberDashboardProps> = ({
     return () => window.removeEventListener('aegis_storage_change', handleStorage);
   }, [currentUser]);
 
+  const todayStr = new Date().toISOString().split('T')[0];
   const activeTasks = tasks.filter((t) => t.status !== 'Completed' && t.status !== 'Cancelled');
   const inProgressTasks = tasks.filter((t) => t.status === 'In Progress');
   const completedTasks = tasks.filter((t) => t.status === 'Completed');
-  const overdueTasks = activeTasks.filter((t) => t.dueDate < '2026-09-05');
-  const dueTodayTasks = activeTasks.filter((t) => t.dueDate === '2026-09-05');
-  const upcomingDeadlines = activeTasks.filter((t) => t.dueDate > '2026-09-05');
+  const overdueTasks = activeTasks.filter((t) => t.dueDate < todayStr);
+  const dueTodayTasks = activeTasks.filter((t) => t.dueDate === todayStr);
+  const upcomingDeadlines = activeTasks.filter((t) => t.dueDate > todayStr);
   const retestBugs = bugs.filter((b) => b.status === 'Retest');
   const activeBlockers = myBlockers.filter((b) => b.status !== 'Resolved');
 

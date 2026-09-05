@@ -38,12 +38,13 @@ export const WorkloadService = {
 
     // 3. Deadline Pressure: Due today or overdue (+6 pts), due within 48h (+3 pts)
     let deadlinePressure = 0;
-    const today = '2026-09-05';
+    const today = new Date().toISOString().split('T')[0];
+    const inTwoDays = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     activeTasks.forEach((t) => {
       if (t.dueDate) {
         if (t.dueDate <= today) {
           deadlinePressure += 6;
-        } else if (t.dueDate <= '2026-09-07') {
+        } else if (t.dueDate <= inTwoDays) {
           deadlinePressure += 3;
         }
       }
@@ -123,7 +124,7 @@ export const WorkloadService = {
   },
 
   getAllMembersWorkload: (): MemberWorkload[] => {
-    const engineers = StorageService.getUsers().filter((u) => u.role === 'qa_engineer');
-    return engineers.map((eng) => WorkloadService.computeMemberWorkload(eng.id));
+    const users = StorageService.getUsers();
+    return users.map((u) => WorkloadService.computeMemberWorkload(u.id));
   },
 };

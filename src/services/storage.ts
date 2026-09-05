@@ -1,5 +1,7 @@
 import {
   User,
+  UserRole,
+  ProjectAllocation,
   Project,
   QATask,
   QABug,
@@ -86,6 +88,128 @@ export const StorageService = {
   setCurrentUserId: (id: string) => {
     localStorage.setItem(STORAGE_KEYS.CURRENT_USER_ID, id);
     emitChange(STORAGE_KEYS.CURRENT_USER_ID);
+  },
+  syncUsersWithCloud: async (): Promise<User[]> => {
+    if (isSupabaseConfigured() && supabase) {
+      try {
+        const deletedIds = new Set<string>(
+          JSON.parse(localStorage.getItem('aegis_deleted_member_ids') || '[]')
+        );
+
+        const { data: cloudProfiles, error } = await supabase
+          .from('telegram_profiles')
+          .select('*');
+
+        if (!error && cloudProfiles) {
+          let tombstoneChanged = false;
+          cloudProfiles.forEach((p) => {
+            const keysToRemove = [
+              p.chat_id,
+              `usr-${p.chat_id}`,
+              (p.full_name || '').trim().toLowerCase(),
+              p.telegram_username ? p.telegram_username.replace(/^@/, '').toLowerCase() : '',
+            ].filter(Boolean);
+
+            keysToRemove.forEach((k) => {
+              if (deletedIds.has(k)) {
+                deletedIds.delete(k);
+                tombstoneChanged = true;
+              }
+            });
+          });
+
+          if (tombstoneChanged) {
+            localStorage.setItem(
+              'aegis_deleted_member_ids',
+              JSON.stringify(Array.from(deletedIds))
+            );
+          }
+
+          const currentUsers = StorageService.getUsers().filter(
+            (u) =>
+              !deletedIds.has(u.id) &&
+              !deletedIds.has(u.name.trim().toLowerCase()) &&
+              !(u.telegramChatId && deletedIds.has(u.telegramChatId))
+          );
+          let changed = false;
+
+          for (const p of cloudProfiles) {
+            const normalizedName = (p.full_name || '').trim();
+            if (!normalizedName) continue;
+
+            const existingIdx = currentUsers.findIndex(
+              (u) =>
+                u.id === `usr-${p.chat_id}` ||
+                (p.chat_id && u.telegramChatId === p.chat_id) ||
+                u.name.toLowerCase() === normalizedName.toLowerCase() ||
+                (p.telegram_username && u.telegramUsername?.toLowerCase().includes(p.telegram_username.toLowerCase()))
+            );
+
+            const roleVal: UserRole = (p.role || '').toLowerCase().includes('lead')
+              ? 'qa_lead'
+              : 'qa_engineer';
+
+            const assignedProjectIds: string[] = Array.isArray(p.assigned_project_ids) && p.assigned_project_ids.length > 0
+              ? p.assigned_project_ids
+              : p.project_id ? [p.project_id] : ['prj-banking'];
+
+            const allocations: ProjectAllocation[] = assignedProjectIds.map((pid: string) => ({
+              projectId: pid,
+              percentage: Math.round(100 / assignedProjectIds.length),
+            }));
+
+            if (existingIdx !== -1) {
+              const u = currentUsers[existingIdx];
+              let userUpdated = false;
+              if (u.name !== normalizedName) {
+                u.name = normalizedName;
+                userUpdated = true;
+              }
+              if (u.role !== roleVal) {
+                u.role = roleVal;
+                userUpdated = true;
+              }
+              if (p.chat_id && u.telegramChatId !== p.chat_id) {
+                u.telegramChatId = p.chat_id;
+                userUpdated = true;
+              }
+              if (p.telegram_username && u.telegramUsername !== `@${p.telegram_username.replace(/^@/, '')}`) {
+                u.telegramUsername = `@${p.telegram_username.replace(/^@/, '')}`;
+                userUpdated = true;
+              }
+              if (allocations.length > 0 && (!u.projectAllocations || u.projectAllocations.length === 0 || u.projectAllocations[0].projectId !== allocations[0].projectId)) {
+                u.projectAllocations = allocations;
+                userUpdated = true;
+              }
+              if (userUpdated) changed = true;
+            } else {
+              currentUsers.push({
+                id: `usr-${p.chat_id || Date.now().toString(36)}`,
+                name: normalizedName,
+                email: `${normalizedName.toLowerCase().replace(/[^a-z0-9]/g, '.')}@qa-aegis.com`,
+                role: roleVal,
+                avatar: `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80`,
+                experienceYears: 2,
+                skills: ['Manual Testing', 'Telegram Standup', 'Functional QA'],
+                projectAllocations: allocations,
+                onboardingCompleted: true,
+                telegramUsername: p.telegram_username ? `@${p.telegram_username.replace(/^@/, '')}` : undefined,
+                telegramChatId: p.chat_id,
+              });
+              changed = true;
+            }
+          }
+
+          if (changed) {
+            StorageService.saveUsers(currentUsers);
+          }
+          return currentUsers;
+        }
+      } catch (err) {
+        console.warn('Supabase telegram_profiles sync error:', err);
+      }
+    }
+    return StorageService.getUsers();
   },
 
   // PROJECTS

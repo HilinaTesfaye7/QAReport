@@ -4,6 +4,10 @@ import { AuditService } from './auditService';
 import { NotificationService } from './notificationService';
 
 export const BlockerService = {
+  syncBlockers: async (): Promise<Blocker[]> => {
+    return StorageService.syncBlockersWithCloud();
+  },
+
   getBlockers: (): Blocker[] => {
     return StorageService.getBlockers();
   },
