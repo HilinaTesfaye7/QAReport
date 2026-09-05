@@ -101,13 +101,48 @@ export const StorageService = {
     // 1. Try Supabase Cloud Database first
     if (isSupabaseConfigured() && supabase) {
       try {
+        // Check if there are local projects created before connecting to cloud
+        const localRaw = localStorage.getItem(STORAGE_KEYS.PROJECTS);
+        const localProjects: Project[] = localRaw ? JSON.parse(localRaw) : [];
+
         const { data, error } = await supabase
           .from('projects')
           .select('*')
           .order('created_at', { ascending: false });
 
-        if (!error && data && data.length > 0) {
-          const cloudProjects: Project[] = data.map((p: any) => ({
+        if (!error && data) {
+          const cloudIds = new Set(data.map((p: any) => p.id));
+          const missingInCloud = localProjects.filter((lp) => !cloudIds.has(lp.id));
+
+          // If local has projects missing from cloud (e.g. 'ko'), upload them now
+          if (missingInCloud.length > 0) {
+            const rowsToUpload = missingInCloud.map((p) => ({
+              id: p.id,
+              name: p.name,
+              description: p.description || '',
+              status: p.status,
+              start_date: p.startDate,
+              target_release_date: p.targetReleaseDate,
+              project_owner: p.projectOwner,
+              qa_lead_id: p.qaLeadId,
+              member_ids: p.memberIds,
+              resources: p.resources,
+              qa_progress: p.qaProgress,
+              regression_progress: p.regressionProgress,
+              updated_at: new Date().toISOString(),
+            }));
+            await supabase.from('projects').upsert(rowsToUpload);
+          }
+
+          // Refetch final cloud list
+          const finalRes = await supabase
+            .from('projects')
+            .select('*')
+            .order('created_at', { ascending: false });
+
+          const records = (finalRes.data && finalRes.data.length > 0) ? finalRes.data : data;
+
+          const cloudProjects: Project[] = records.map((p: any) => ({
             id: p.id,
             name: p.name,
             description: p.description || '',
