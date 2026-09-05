@@ -17,6 +17,7 @@ import {
   Filter,
   Copy,
   Check,
+  Trash2,
 } from 'lucide-react';
 import { User, Project, MemberWorkload, DailyReport } from '../types';
 import { StorageService } from '../services/storage';
@@ -50,6 +51,59 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
   const [newExp, setNewExp] = useState(3);
   const [selectedProjectId, setSelectedProjectId] = useState('prj-banking');
   const [copiedLink, setCopiedLink] = useState(false);
+  const [deleteConfirmMember, setDeleteConfirmMember] = useState<User | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDeleteMember = async (memberToDelete: User) => {
+    setIsDeleting(true);
+    try {
+      // 1. Remove from local storage users list
+      const updatedUsers = users.filter((u) => u.id !== memberToDelete.id);
+      StorageService.saveUsers(updatedUsers);
+      setUsers(updatedUsers);
+
+      // 2. Unassign from all project memberIds
+      const allProjects = StorageService.getProjects();
+      let modified = false;
+      allProjects.forEach((p) => {
+        if (p.memberIds.includes(memberToDelete.id)) {
+          p.memberIds = p.memberIds.filter((id) => id !== memberToDelete.id);
+          modified = true;
+        }
+      });
+      if (modified) {
+        StorageService.saveProjects(allProjects);
+        setProjects(allProjects);
+      }
+
+      // 3. Remove from Supabase telegram_profiles and projects
+      if (isSupabaseConfigured() && supabase) {
+        try {
+          if (memberToDelete.telegramChatId) {
+            await supabase.from('telegram_profiles').delete().eq('chat_id', memberToDelete.telegramChatId);
+          }
+          if (memberToDelete.id.startsWith('usr-')) {
+            const potentialChatId = memberToDelete.id.replace(/^usr-/, '');
+            await supabase.from('telegram_profiles').delete().eq('chat_id', potentialChatId);
+          }
+          await supabase.from('telegram_profiles').delete().ilike('full_name', memberToDelete.name);
+
+          if (modified) {
+            const rows = allProjects.map((p) => ({
+              id: p.id,
+              member_ids: p.memberIds,
+            }));
+            await supabase.from('projects').upsert(rows);
+          }
+        } catch (e) {
+          console.warn('Error syncing member deletion to Supabase:', e);
+        }
+      }
+    } finally {
+      setIsDeleting(false);
+      setDeleteConfirmMember(null);
+    }
+  };
 
   const loadData = async () => {
     setUsers(StorageService.getUsers());
@@ -471,20 +525,51 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
                   </div>
                 </div>
 
-                <span
-                  style={{
-                    padding: '3px 10px',
-                    borderRadius: '12px',
-                    fontSize: '0.7rem',
-                    fontWeight: 800,
-                    textTransform: 'uppercase',
-                    background: member.role === 'qa_lead' ? 'rgba(56, 189, 248, 0.15)' : 'rgba(99, 102, 241, 0.15)',
-                    color: member.role === 'qa_lead' ? '#38bdf8' : '#a5b4fc',
-                    border: member.role === 'qa_lead' ? '1px solid rgba(56, 189, 248, 0.3)' : '1px solid rgba(99, 102, 241, 0.3)',
-                  }}
-                >
-                  {member.role === 'qa_lead' ? 'QA LEAD' : 'QA ENGINEER'}
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span
+                    style={{
+                      padding: '3px 10px',
+                      borderRadius: '12px',
+                      fontSize: '0.7rem',
+                      fontWeight: 800,
+                      textTransform: 'uppercase',
+                      background: member.role === 'qa_lead' ? 'rgba(56, 189, 248, 0.15)' : 'rgba(99, 102, 241, 0.15)',
+                      color: member.role === 'qa_lead' ? '#38bdf8' : '#a5b4fc',
+                      border: member.role === 'qa_lead' ? '1px solid rgba(56, 189, 248, 0.3)' : '1px solid rgba(99, 102, 241, 0.3)',
+                    }}
+                  >
+                    {member.role === 'qa_lead' ? 'QA LEAD' : 'QA ENGINEER'}
+                  </span>
+
+                  {currentUser.role === 'qa_lead' && member.id !== currentUser.id && (
+                    <button
+                      onClick={() => setDeleteConfirmMember(member)}
+                      title={`Remove ${member.name}`}
+                      style={{
+                        background: 'rgba(239, 68, 68, 0.12)',
+                        border: '1px solid rgba(239, 68, 68, 0.3)',
+                        color: '#f87171',
+                        borderRadius: '6px',
+                        padding: '4px 7px',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        transition: 'all 0.15s ease',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = 'rgba(239, 68, 68, 0.25)';
+                        e.currentTarget.style.color = '#ef4444';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = 'rgba(239, 68, 68, 0.12)';
+                        e.currentTarget.style.color = '#f87171';
+                      }}
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Skills Badges */}
@@ -755,6 +840,70 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* Modal: Delete Member Confirmation */}
+      {deleteConfirmMember && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ padding: '24px', maxWidth: '440px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
+              <div
+                style={{
+                  background: 'rgba(239, 68, 68, 0.15)',
+                  padding: '10px',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <Trash2 size={20} color="#f87171" />
+              </div>
+              <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                Remove QA Team Member
+              </h3>
+            </div>
+
+            <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: '20px' }}>
+              Are you sure you want to remove <strong>{deleteConfirmMember.name}</strong> from the team roster?
+              This will unassign them from their projects and remove their linked Telegram profile.
+            </p>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmMember(null)}
+                disabled={isDeleting}
+                className="btn-secondary"
+                style={{ padding: '8px 16px', fontSize: '0.82rem' }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDeleteMember(deleteConfirmMember)}
+                disabled={isDeleting}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '8px 16px',
+                  fontSize: '0.82rem',
+                  fontWeight: 700,
+                  borderRadius: '8px',
+                  background: '#ef4444',
+                  color: '#ffffff',
+                  border: 'none',
+                  cursor: isDeleting ? 'not-allowed' : 'pointer',
+                  opacity: isDeleting ? 0.7 : 1,
+                  boxShadow: '0 4px 12px rgba(239, 68, 68, 0.3)',
+                }}
+              >
+                <Trash2 size={14} />
+                <span>{isDeleting ? 'Removing...' : 'Confirm Remove'}</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

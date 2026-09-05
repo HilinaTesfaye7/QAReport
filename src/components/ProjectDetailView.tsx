@@ -19,6 +19,7 @@ import {
   Shield,
   Sparkles,
   Layers,
+  UserMinus,
 } from 'lucide-react';
 import { Project, User, DailyReport } from '../types';
 import { StorageService } from '../services/storage';
@@ -125,6 +126,18 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
       setTimeout(() => setMemberToast(null), 4000);
     } catch (err: any) {
       alert(err?.message || 'Error assigning member');
+    }
+  };
+
+  const handleUnassignMember = (memberId: string) => {
+    try {
+      ProjectService.unassignMember(project.id, memberId, currentUser.id);
+      const targetUser = allUsers.find((u) => u.id === memberId);
+      const memberName = targetUser ? targetUser.name : 'QA Member';
+      setMemberToast(`Removed ${memberName} from this project squad.`);
+      setTimeout(() => setMemberToast(null), 3000);
+    } catch (err: any) {
+      alert(err?.message || 'Error unassigning member');
     }
   };
 
@@ -762,19 +775,39 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
                       </div>
                     </div>
 
-                    <span
-                      style={{
-                        padding: '2px 8px',
-                        borderRadius: '6px',
-                        fontSize: '0.68rem',
-                        fontWeight: 800,
-                        background: m.role === 'qa_lead' ? 'rgba(99, 102, 241, 0.2)' : 'rgba(56, 189, 248, 0.2)',
-                        color: m.role === 'qa_lead' ? '#a5b4fc' : '#38bdf8',
-                        border: m.role === 'qa_lead' ? '1px solid rgba(99, 102, 241, 0.3)' : '1px solid rgba(56, 189, 248, 0.3)',
-                      }}
-                    >
-                      {m.role === 'qa_lead' ? 'QA Lead' : 'QA Engineer'}
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span
+                        style={{
+                          padding: '2px 8px',
+                          borderRadius: '6px',
+                          fontSize: '0.68rem',
+                          fontWeight: 800,
+                          background: m.role === 'qa_lead' ? 'rgba(99, 102, 241, 0.2)' : 'rgba(56, 189, 248, 0.2)',
+                          color: m.role === 'qa_lead' ? '#a5b4fc' : '#38bdf8',
+                          border: m.role === 'qa_lead' ? '1px solid rgba(99, 102, 241, 0.3)' : '1px solid rgba(56, 189, 248, 0.3)',
+                        }}
+                      >
+                        {m.role === 'qa_lead' ? 'QA Lead' : 'QA Engineer'}
+                      </span>
+                      {isLead && m.id !== currentUser.id && (
+                        <button
+                          onClick={() => handleUnassignMember(m.id)}
+                          title={`Unassign ${m.name} from this project`}
+                          style={{
+                            background: 'rgba(239, 68, 68, 0.1)',
+                            border: '1px solid rgba(239, 68, 68, 0.25)',
+                            color: '#f87171',
+                            borderRadius: '6px',
+                            padding: '3px 6px',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                          }}
+                        >
+                          <UserMinus size={12} />
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   {/* Skills tags */}

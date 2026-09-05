@@ -108,4 +108,29 @@ export const ProjectService = {
 
     return project;
   },
+
+  unassignMember: (
+    projectId: string,
+    memberId: string,
+    actorId: string
+  ): Project => {
+    AuthService.requireLeadPermission(actorId);
+
+    const projects = StorageService.getProjects();
+    const project = projects.find((p) => p.id === projectId);
+    if (!project) throw new Error('Project not found');
+
+    project.memberIds = project.memberIds.filter((id) => id !== memberId);
+    StorageService.saveProjects(projects);
+
+    AuditService.log({
+      actorId,
+      action: 'Unassigned Member from Project',
+      entityType: 'project',
+      entityId: projectId,
+      newValue: `Member ${memberId} unassigned`,
+    });
+
+    return project;
+  },
 };
