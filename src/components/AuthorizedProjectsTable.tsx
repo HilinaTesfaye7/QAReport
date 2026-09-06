@@ -15,6 +15,10 @@ import {
   Sparkles,
   Trash2,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
   Edit3,
 } from 'lucide-react';
 import { Project, User, DailyReport, Blocker } from '../types';
@@ -50,6 +54,8 @@ export const AuthorizedProjectsTable: React.FC<AuthorizedProjectsTableProps> = (
   const [lastSyncTime, setLastSyncTime] = useState<Date>(new Date());
   const [deleteConfirmProject, setDeleteConfirmProject] = useState<Project | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(5);
 
   const users = StorageService.getUsers();
 
@@ -338,6 +344,18 @@ export const AuthorizedProjectsTable: React.FC<AuthorizedProjectsTableProps> = (
     return true;
   });
 
+  // Reset page to 1 when search, filter or pageSize changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, statusFilter, pageSize]);
+
+  const totalItems = filteredProjects.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const safeCurrentPage = Math.min(Math.max(1, currentPage), totalPages);
+  const startIndex = (safeCurrentPage - 1) * pageSize;
+  const endIndex = Math.min(startIndex + pageSize, totalItems);
+  const paginatedProjects = filteredProjects.slice(startIndex, endIndex);
+
   // Get user role for this project
   const getUserRoleForProject = (project: Project): string => {
     if (project.qaLeadId === currentUser.id) return 'QA LEAD';
@@ -559,7 +577,7 @@ export const AuthorizedProjectsTable: React.FC<AuthorizedProjectsTableProps> = (
               </tr>
             </thead>
             <tbody>
-              {filteredProjects.map((project) => {
+              {paginatedProjects.map((project) => {
                 const standup = getLatestProjectStandup(project.id);
                 const memberCount = project.memberIds.length + 1; // including QA lead
                 const currentStatus = getProjectStatus(project);
@@ -885,7 +903,7 @@ export const AuthorizedProjectsTable: React.FC<AuthorizedProjectsTableProps> = (
       ) : (
         /* GRID VIEW (Compact modernized cards with the latest standup embed) */
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '16px' }}>
-          {filteredProjects.map((project) => {
+          {paginatedProjects.map((project) => {
             const roleName = getUserRoleForProject(project);
             const standup = getLatestProjectStandup(project.id);
             const currentStatus = getProjectStatus(project);
@@ -1119,6 +1137,202 @@ export const AuthorizedProjectsTable: React.FC<AuthorizedProjectsTableProps> = (
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Modern Responsive Pagination Controls */}
+      {totalItems > 0 && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '16px',
+            marginTop: '20px',
+            paddingTop: '16px',
+            borderTop: '1px solid var(--border-subtle)',
+          }}
+        >
+          {/* Left: Item Counter & Page Size Selector */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+              Showing <strong style={{ color: 'var(--text-primary)' }}>{totalItems === 0 ? 0 : startIndex + 1}</strong> to{' '}
+              <strong style={{ color: 'var(--text-primary)' }}>{endIndex}</strong> of{' '}
+              <strong style={{ color: 'var(--text-primary)' }}>{totalItems}</strong> projects
+            </span>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Show:</span>
+              <div style={{ display: 'flex', gap: '4px' }}>
+                {[5, 10, 20, 50].map((size) => (
+                  <button
+                    key={size}
+                    type="button"
+                    onClick={() => {
+                      setPageSize(size);
+                      setCurrentPage(1);
+                    }}
+                    style={{
+                      padding: '4px 10px',
+                      borderRadius: '6px',
+                      fontSize: '0.76rem',
+                      fontWeight: pageSize === size ? 800 : 500,
+                      background: pageSize === size ? 'rgba(56, 189, 248, 0.2)' : 'rgba(255, 255, 255, 0.04)',
+                      color: pageSize === size ? '#38bdf8' : 'var(--text-secondary)',
+                      border: pageSize === size ? '1px solid rgba(56, 189, 248, 0.4)' : '1px solid var(--border-subtle)',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    {size}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Right: Page Navigation Buttons */}
+          {totalPages > 1 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <button
+                type="button"
+                disabled={safeCurrentPage === 1}
+                onClick={() => setCurrentPage(1)}
+                title="First Page"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '6px',
+                  background: 'rgba(255, 255, 255, 0.04)',
+                  border: '1px solid var(--border-subtle)',
+                  color: safeCurrentPage === 1 ? 'var(--text-muted)' : 'var(--text-primary)',
+                  cursor: safeCurrentPage === 1 ? 'not-allowed' : 'pointer',
+                  opacity: safeCurrentPage === 1 ? 0.4 : 1,
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <ChevronsLeft size={15} />
+              </button>
+              <button
+                type="button"
+                disabled={safeCurrentPage === 1}
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                title="Previous Page"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '6px',
+                  background: 'rgba(255, 255, 255, 0.04)',
+                  border: '1px solid var(--border-subtle)',
+                  color: safeCurrentPage === 1 ? 'var(--text-muted)' : 'var(--text-primary)',
+                  cursor: safeCurrentPage === 1 ? 'not-allowed' : 'pointer',
+                  opacity: safeCurrentPage === 1 ? 0.4 : 1,
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <ChevronLeft size={15} />
+              </button>
+
+              {/* Numeric Page Buttons with Compact Ellipsis */}
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter((p) => p === 1 || p === totalPages || Math.abs(p - safeCurrentPage) <= 1)
+                .reduce((acc: (number | string)[], p, idx, arr) => {
+                  if (idx > 0 && p - (arr[idx - 1] as number) > 1) {
+                    acc.push('...');
+                  }
+                  acc.push(p);
+                  return acc;
+                }, [])
+                .map((item, idx) => {
+                  if (item === '...') {
+                    return (
+                      <span key={`dots-${idx}`} style={{ padding: '0 4px', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                        ...
+                      </span>
+                    );
+                  }
+                  const pageNum = item as number;
+                  const isActive = pageNum === safeCurrentPage;
+                  return (
+                    <button
+                      key={pageNum}
+                      type="button"
+                      onClick={() => setCurrentPage(pageNum)}
+                      style={{
+                        minWidth: '32px',
+                        height: '32px',
+                        padding: '0 6px',
+                        borderRadius: '6px',
+                        fontSize: '0.78rem',
+                        fontWeight: isActive ? 800 : 600,
+                        background: isActive
+                          ? 'linear-gradient(135deg, #2563eb, #38bdf8)'
+                          : 'rgba(255, 255, 255, 0.04)',
+                        color: isActive ? '#ffffff' : 'var(--text-primary)',
+                        border: isActive ? 'none' : '1px solid var(--border-subtle)',
+                        boxShadow: isActive ? '0 2px 8px rgba(37, 99, 235, 0.4)' : 'none',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                })}
+
+              <button
+                type="button"
+                disabled={safeCurrentPage === totalPages}
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                title="Next Page"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '6px',
+                  background: 'rgba(255, 255, 255, 0.04)',
+                  border: '1px solid var(--border-subtle)',
+                  color: safeCurrentPage === totalPages ? 'var(--text-muted)' : 'var(--text-primary)',
+                  cursor: safeCurrentPage === totalPages ? 'not-allowed' : 'pointer',
+                  opacity: safeCurrentPage === totalPages ? 0.4 : 1,
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <ChevronRight size={15} />
+              </button>
+              <button
+                type="button"
+                disabled={safeCurrentPage === totalPages}
+                onClick={() => setCurrentPage(totalPages)}
+                title="Last Page"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '6px',
+                  background: 'rgba(255, 255, 255, 0.04)',
+                  border: '1px solid var(--border-subtle)',
+                  color: safeCurrentPage === totalPages ? 'var(--text-muted)' : 'var(--text-primary)',
+                  cursor: safeCurrentPage === totalPages ? 'not-allowed' : 'pointer',
+                  opacity: safeCurrentPage === totalPages ? 0.4 : 1,
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <ChevronsRight size={15} />
+              </button>
+            </div>
+          )}
         </div>
       )}
 

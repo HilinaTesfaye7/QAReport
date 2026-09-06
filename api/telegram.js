@@ -714,6 +714,15 @@ export default async function handler(req, res) {
     });
   }
 
+  // Support direct outbound notification dispatch from the web portal (bypasses browser CORS)
+  if (req.body && (req.body.action === 'send_message' || req.body.action === 'send_notification')) {
+    const { chatId, text, parse_mode } = req.body;
+    if (chatId && text) {
+      await sendTelegramMessage(chatId, text, parse_mode || 'HTML');
+      return res.status(200).json({ ok: true });
+    }
+  }
+
   const update = req.body;
   if (!update || !update.message) {
     return res.status(200).json({ ok: true });

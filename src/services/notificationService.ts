@@ -47,6 +47,30 @@ export class TelegramProvider implements NotificationProvider {
         const safeTitle = escapeTelegramHtml(notification.title);
         const safeMessage = escapeTelegramHtml(notification.message);
         const text = `<b>${safeTitle}</b>\n\n${safeMessage}`;
+
+        // 1. Try serverless proxy first (works 100% in browser without CORS blocks)
+        if (typeof window !== 'undefined' && window.location?.origin && window.location.origin.startsWith('http')) {
+          try {
+            const proxyRes = await fetch(`${window.location.origin}/api/telegram`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                action: 'send_message',
+                chatId: targetChatId,
+                text,
+                parse_mode: 'HTML',
+              }),
+            });
+            if (proxyRes.ok) {
+              const resData = await proxyRes.json();
+              if (resData.ok) return true;
+            }
+          } catch (proxyErr) {
+            console.warn('[TelegramProvider] Proxy dispatch attempt warning:', proxyErr);
+          }
+        }
+
+        // 2. Direct Telegram API fallback
         const response = await fetch(
           `https://api.telegram.org/bot${botToken}/sendMessage`,
           {

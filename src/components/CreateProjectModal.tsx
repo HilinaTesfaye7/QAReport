@@ -20,6 +20,7 @@ import { Project, User, DocumentMetadata } from '../types';
 import { StorageService } from '../services/storage';
 import { ProjectService } from '../services/projectService';
 import { NotificationService } from '../services/notificationService';
+import { supabase, isSupabaseConfigured } from '../services/supabaseClient';
 
 interface CreateProjectModalProps {
   isOpen: boolean;
@@ -62,7 +63,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
   const [figmaDescription, setFigmaDescription] = useState('Includes all responsive viewports, state machines, and micro-interaction tokens.');
 
   // Step 4: QA Team Members & Notifications
-  const allUsers = StorageService.getUsers();
+  const [allUsers, setAllUsers] = useState<User[]>(StorageService.getUsers());
   const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]); // Starts empty, no forced default members
   const [allowWithoutMembers, setAllowWithoutMembers] = useState(false);
   const [memberValidationError, setMemberValidationError] = useState<string | null>(null);
@@ -72,6 +73,9 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
 
   React.useEffect(() => {
     if (isOpen) {
+      StorageService.syncUsersWithCloud().then((users) => {
+        if (users && users.length > 0) setAllUsers(users);
+      });
       setName('');
       setCode('');
       setDescription('');
@@ -195,16 +199,67 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
       const filteredDeleted = deletedIds.filter((id) => id !== newProject.id);
       localStorage.setItem('aegis_deleted_project_ids', JSON.stringify(filteredDeleted));
 
+      // Ensure Supabase cloud database receives the new project immediately
+      if (isSupabaseConfigured() && supabase) {
+        try {
+          await supabase.from('projects').upsert([{
+            id: newProject.id,
+            name: newProject.name,
+            description: newProject.description,
+            status: newProject.status,
+            start_date: newProject.startDate,
+            target_release_date: newProject.targetReleaseDate,
+            project_owner: newProject.projectOwner,
+            qa_lead_id: newProject.qaLeadId,
+            member_ids: newProject.memberIds,
+            resources: newProject.resources,
+            qa_progress: newProject.qaProgress,
+            regression_progress: newProject.regressionProgress,
+            updated_at: new Date().toISOString(),
+          }]);
+        } catch (cloudErr) {
+          console.warn('Supabase initial project upsert error:', cloudErr);
+        }
+      }
+
       // Explicitly trigger instant assignment notifications for all selected members
       if (selectedMemberIds.length > 0) {
-        selectedMemberIds.forEach((mId) => {
+        for (const mId of selectedMemberIds) {
           NotificationService.notifyProjectAssignment(
             newProject,
             mId,
             currentUser.id,
             notificationNote
           );
-        });
+
+          // Update assigned project in Supabase telegram_profiles
+          if (isSupabaseConfigured() && supabase) {
+            const memberObj = allUsers.find((u) => u.id === mId);
+            const chatId = memberObj?.telegramChatId || (mId.startsWith('usr-') ? mId.replace('usr-', '') : null);
+            if (chatId && !isNaN(Number(chatId))) {
+              supabase
+                .from('telegram_profiles')
+                .select('*')
+                .eq('chat_id', chatId)
+                .maybeSingle()
+                .then(({ data: prof }) => {
+                  if (prof) {
+                    const updatedIds = Array.from(new Set([...(prof.assigned_project_ids || []), newProject.id]));
+                    const updatedNames = Array.from(new Set([...(prof.assigned_projects || []), newProject.name]));
+                    supabase
+                      .from('telegram_profiles')
+                      .update({
+                        assigned_project_ids: updatedIds,
+                        assigned_projects: updatedNames,
+                        updated_at: new Date().toISOString(),
+                      })
+                      .eq('chat_id', chatId)
+                      .then(() => {});
+                  }
+                });
+            }
+          }
+        }
       }
 
       // Cross-component broadcast

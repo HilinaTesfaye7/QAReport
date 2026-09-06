@@ -44,6 +44,7 @@ export const App: React.FC = () => {
 
   // Initial cloud sync on mount from Supabase
   useEffect(() => {
+    StorageService.syncUsersWithCloud();
     StorageService.syncProjectsWithDisk();
     StorageService.syncDailyReportsWithCloud();
     StorageService.syncBlockersWithCloud();

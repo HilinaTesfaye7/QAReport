@@ -239,7 +239,28 @@ export const StorageService = {
           .order('created_at', { ascending: false });
 
         if (!error && data) {
+          const cloudIds = new Set(data.map((raw: any) => raw.id));
           const records = data.filter((raw: any) => !deletedProjectIds.has(raw.id));
+
+          // Retain any fresh local project that was just created and may still be saving to cloud
+          for (const lp of localProjects) {
+            if (!cloudIds.has(lp.id) && !deletedProjectIds.has(lp.id)) {
+              records.unshift({
+                id: lp.id,
+                name: lp.name,
+                description: lp.description || '',
+                status: lp.status,
+                start_date: lp.startDate,
+                target_release_date: lp.targetReleaseDate,
+                project_owner: lp.projectOwner,
+                qa_lead_id: lp.qaLeadId,
+                member_ids: lp.memberIds,
+                resources: lp.resources,
+                qa_progress: lp.qaProgress,
+                regression_progress: lp.regressionProgress,
+              });
+            }
+          }
 
           const projectMap = new Map<string, Project>();
           for (const raw of records) {
@@ -280,7 +301,6 @@ export const StorageService = {
           const cloudProjects: Project[] = Array.from(projectMap.values());
 
           localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(cloudProjects));
-          emitChange(STORAGE_KEYS.PROJECTS);
           return cloudProjects;
         }
       } catch (err) {
