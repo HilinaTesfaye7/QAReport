@@ -737,7 +737,7 @@ async function notifyMemberOfProjectAssignment({
   chatId,
   project,
   leadName = 'Sarah Jenkins',
-  _responsibility,
+  responsibility = 'Please prepare the test cases and submit them using /testcase',
 }) {
   try {
     const productOwner = project.projectOwner || project.productOwner || 'Elena Rostova';
@@ -772,7 +772,8 @@ async function notifyMemberOfProjectAssignment({
     if (project.resources?.testCaseUrl) {
       msg += `🧪 Test Cases: ${escapeHtml(project.resources.testCaseUrl)}\n`;
     }
-    msg += `\nPlease review the project resources before starting.`;
+    msg += `\nYour initial responsibility:\n`;
+    msg += `${escapeHtml(responsibility)}`;
 
     await sendMessage(chatId, msg);
     console.log(`[Notification] Dispatched project assignment alert for ${project.name} to chat ${chatId}`);

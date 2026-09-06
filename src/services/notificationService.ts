@@ -167,12 +167,12 @@ class NotificationServiceManager {
     project: Project,
     memberId: string,
     leadId: string,
-    _responsibility?: string
+    responsibility = 'Please prepare the test cases and submit them using /testcase'
   ) {
     const users = StorageService.getUsers();
     const lead = users.find((u) => u.id === leadId);
-    const leadName = lead ? lead.name : 'QA Lead';
-    const productOwner = project.projectOwner || 'Product Owner';
+    const leadName = lead ? lead.name : 'Sarah Jenkins';
+    const productOwner = project.projectOwner || 'Elena Rostova';
 
     // Format PRD link or file
     const prdDoc = project.resources?.prdDocuments?.[0];
@@ -201,7 +201,7 @@ class NotificationServiceManager {
       resourcesBlock += `\n🧪 Test Cases: ${project.resources.testCaseUrl}`;
     }
 
-    const message = `New QA Project Assignment\n\nYou have been assigned to:\n${project.name}\n\nQA Lead: ${leadName}\nProduct Owner: ${productOwner}\n\nResources:\n${resourcesBlock}\n\nPlease review the project resources before starting.`;
+    const message = `New QA Project Assignment\n\nYou have been assigned to:\n${project.name}\n\nQA Lead: ${leadName}\nProduct Owner: ${productOwner}\n\nResources:\n${resourcesBlock}\n\nYour initial responsibility:\n${responsibility}`;
 
     this.dispatch({
       recipientId: memberId,
