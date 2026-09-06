@@ -21,6 +21,7 @@ import {
   Layers,
   UserMinus,
   Trash2,
+  Copy,
 } from 'lucide-react';
 import { Project, User, DailyReport } from '../types';
 import { StorageService } from '../services/storage';
@@ -28,6 +29,7 @@ import { DailyReportService } from '../services/dailyReportService';
 import { ProjectService } from '../services/projectService';
 import { NotificationService } from '../services/notificationService';
 import { AuthService } from '../services/authService';
+import { supabase } from '../services/supabaseClient';
 import { CreateProjectModal } from './CreateProjectModal';
 
 interface ProjectDetailViewProps {
@@ -77,6 +79,11 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
   const [selectedMemberToAdd, setSelectedMemberToAdd] = useState<string>('');
   const [memberToast, setMemberToast] = useState<string | null>(null);
+
+  // Figma Link States & Handler
+  const [isEditingFigmaUrl, setIsEditingFigmaUrl] = useState(false);
+  const [editFigmaUrlVal, setEditFigmaUrlVal] = useState(project.resources?.figmaUrl || '');
+  const [isCopiedFigma, setIsCopiedFigma] = useState(false);
 
   const isLead = AuthService.isQALead(currentUser);
   const projectsList = allProjects || StorageService.getProjects();
@@ -169,6 +176,50 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
       alert(err?.message || 'Error unassigning member');
     }
   };
+
+  const handleSaveFigmaUrl = async () => {
+    const trimmed = editFigmaUrlVal.trim();
+    if (!trimmed) return;
+
+    const all = StorageService.getProjects();
+    const target = all.find((p) => p.id === currentProject.id);
+    if (target) {
+      target.resources = {
+        ...target.resources,
+        figmaUrl: trimmed,
+      };
+      StorageService.saveProjects(all);
+      setCurrentProject({ ...target });
+    }
+
+    try {
+      ProjectService.updateProject(
+        currentProject.id,
+        { resources: { ...currentProject.resources, figmaUrl: trimmed } },
+        currentUser.id
+      );
+    } catch {}
+
+    if (supabase) {
+      try {
+        await supabase
+          .from('projects')
+          .update({
+            resources: { ...currentProject.resources, figmaUrl: trimmed },
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', currentProject.id);
+      } catch (err) {
+        console.warn('Supabase figmaUrl update error:', err);
+      }
+    }
+
+    setIsEditingFigmaUrl(false);
+  };
+
+  useEffect(() => {
+    setEditFigmaUrlVal(currentProject.resources?.figmaUrl || '');
+  }, [currentProject.resources?.figmaUrl]);
 
   return (
     <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '24px' }}>
@@ -646,117 +697,322 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
         </div>
       )}
 
-      {/* SUB-TAB 2: DESIGN (FIGMA SPECS) */}
+      {/* SUB-TAB 2: DESIGN (FIGMA SPECS) - THE LINK ONLY */}
       {activeTab === 'figma' && (
         <div
           style={{
             background: 'var(--bg-card)',
             borderRadius: '12px',
             border: '1px solid var(--border-subtle)',
-            padding: '24px',
+            padding: '28px',
           }}
         >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '22px', flexWrap: 'wrap', gap: '14px' }}>
             <div>
-              <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
-                {project.resources.figmaPreviewTitle || 'Figma UI/UX Specifications'}
+              <h3 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Palette size={22} color="#c084fc" />
+                <span>Design (Figma)</span>
               </h3>
-              <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
-                Interactive prototype, design tokens, and UI state models
+              <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
+                Click or touch the Figma link below to navigate directly to the Figma file.
               </p>
             </div>
 
-            {project.resources.figmaUrl && (
+            {currentProject.resources?.figmaUrl && (
               <a
-                href={project.resources.figmaUrl}
+                href={currentProject.resources.figmaUrl}
                 target="_blank"
-                rel="noreferrer"
+                rel="noopener noreferrer"
+                title="Navigate directly to Figma"
                 style={{
-                  fontSize: '0.82rem',
-                  fontWeight: 700,
-                  color: '#c084fc',
+                  fontSize: '0.86rem',
+                  fontWeight: 800,
+                  color: '#fff',
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '6px',
+                  gap: '8px',
                   textDecoration: 'none',
-                  padding: '7px 14px',
-                  borderRadius: '8px',
-                  background: 'rgba(168, 85, 247, 0.1)',
-                  border: '1px solid rgba(168, 85, 247, 0.25)',
+                  padding: '10px 20px',
+                  borderRadius: '10px',
+                  background: 'linear-gradient(135deg, #a855f7, #6366f1)',
+                  boxShadow: '0 4px 16px rgba(168, 85, 247, 0.35)',
+                  transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+                  cursor: 'pointer',
                 }}
               >
                 <span>Open in Figma</span>
-                <ExternalLink size={13} />
+                <ExternalLink size={15} />
               </a>
             )}
           </div>
 
-          {/* Interactive Prototype Mock Container */}
-          <div
-            style={{
-              borderRadius: '10px',
-              border: '1px solid var(--border-subtle)',
-              background: '#090d16',
-              padding: '24px',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              minHeight: '260px',
-              marginBottom: '20px',
-              position: 'relative',
-              overflow: 'hidden',
-            }}
-          >
+          {/* Figma Link Card - Direct Navigation */}
+          {currentProject.resources?.figmaUrl ? (
             <div
               style={{
-                width: '56px',
-                height: '56px',
-                borderRadius: '14px',
-                background: 'linear-gradient(135deg, #a855f7, #6366f1)',
+                borderRadius: '12px',
+                border: '1px solid rgba(168, 85, 247, 0.35)',
+                background: 'rgba(15, 23, 42, 0.75)',
+                padding: '24px',
                 display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#fff',
-                marginBottom: '12px',
-                boxShadow: '0 8px 24px rgba(168, 85, 247, 0.3)',
+                flexDirection: 'column',
+                gap: '16px',
+                boxShadow: '0 6px 24px rgba(0, 0, 0, 0.3)',
               }}
             >
-              <Palette size={26} />
-            </div>
-            <div style={{ fontWeight: 800, fontSize: '1rem', color: 'var(--text-primary)', marginBottom: '4px' }}>
-              {project.resources.figmaName || `${project.name} UI Prototype`}
-            </div>
-            <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', textAlign: 'center', maxWidth: '520px', marginBottom: '16px' }}>
-              {project.resources.figmaDescription || 'Auto-layout design tokens with mobile and desktop responsive viewport specifications.'}
-            </div>
-            {project.resources.figmaUrl && (
-              <a
-                href={project.resources.figmaUrl}
-                target="_blank"
-                rel="noreferrer"
-                style={{
-                  fontSize: '0.8rem',
-                  fontWeight: 700,
-                  color: '#fff',
-                  background: 'linear-gradient(135deg, #2563eb, #38bdf8)',
-                  padding: '8px 18px',
-                  borderRadius: '8px',
-                  textDecoration: 'none',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                }}
-              >
-                <span>Launch Interactive Prototype</span>
-                <ExternalLink size={13} />
-              </a>
-            )}
-          </div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flex: 1, minWidth: '280px' }}>
+                  <a
+                    href={currentProject.resources.figmaUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title="Touch or click to navigate to Figma"
+                    style={{
+                      width: '48px',
+                      height: '48px',
+                      borderRadius: '12px',
+                      background: 'linear-gradient(135deg, #a855f7, #6366f1)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#fff',
+                      flexShrink: 0,
+                      textDecoration: 'none',
+                      boxShadow: '0 4px 12px rgba(168, 85, 247, 0.3)',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <Palette size={24} />
+                  </a>
+                  <div style={{ overflow: 'hidden' }}>
+                    <div style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Figma Link
+                    </div>
+                    <a
+                      href={currentProject.resources.figmaUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="Touch or click to navigate to Figma"
+                      style={{
+                        fontSize: '0.98rem',
+                        fontWeight: 700,
+                        color: '#38bdf8',
+                        textDecoration: 'underline',
+                        textUnderlineOffset: '3px',
+                        wordBreak: 'break-all',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        marginTop: '3px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <span>{currentProject.resources.figmaUrl}</span>
+                      <ExternalLink size={14} style={{ flexShrink: 0 }} />
+                    </a>
+                  </div>
+                </div>
 
-          <div style={{ padding: '16px', borderRadius: '8px', background: 'var(--bg-card-subtle)', border: '1px solid var(--border-subtle)', fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-            <strong>QA Design Tokens Reference:</strong> Ensure spacing matches 8pt baseline grid. All biometric auth modal flows, error states, and network disconnection banners are specified in the Figma canvas.
-          </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  <a
+                    href={currentProject.resources.figmaUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      padding: '9px 18px',
+                      borderRadius: '8px',
+                      background: 'linear-gradient(135deg, #2563eb, #38bdf8)',
+                      color: '#fff',
+                      fontSize: '0.84rem',
+                      fontWeight: 700,
+                      textDecoration: 'none',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      cursor: 'pointer',
+                      boxShadow: '0 2px 8px rgba(37, 99, 235, 0.3)',
+                    }}
+                  >
+                    <span>Go to Figma</span>
+                    <ExternalLink size={14} />
+                  </a>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (currentProject.resources?.figmaUrl) {
+                        navigator.clipboard.writeText(currentProject.resources.figmaUrl);
+                        setIsCopiedFigma(true);
+                        setTimeout(() => setIsCopiedFigma(false), 2000);
+                      }
+                    }}
+                    style={{
+                      padding: '9px 14px',
+                      borderRadius: '8px',
+                      background: 'rgba(255, 255, 255, 0.06)',
+                      border: '1px solid var(--border-subtle)',
+                      color: isCopiedFigma ? '#34d399' : 'var(--text-secondary)',
+                      fontSize: '0.82rem',
+                      fontWeight: 600,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {isCopiedFigma ? (
+                      <>
+                        <Check size={14} color="#34d399" />
+                        <span>Copied!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy size={14} />
+                        <span>Copy Link</span>
+                      </>
+                    )}
+                  </button>
+
+                  {isLead && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditFigmaUrlVal(currentProject.resources?.figmaUrl || '');
+                        setIsEditingFigmaUrl((v) => !v);
+                      }}
+                      style={{
+                        padding: '9px 14px',
+                        borderRadius: '8px',
+                        background: 'rgba(255, 255, 255, 0.06)',
+                        border: '1px solid var(--border-subtle)',
+                        color: 'var(--text-secondary)',
+                        fontSize: '0.82rem',
+                        fontWeight: 600,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <Edit3 size={14} />
+                      <span>{isEditingFigmaUrl ? 'Close' : 'Edit Link'}</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Editable Figma URL field */}
+              {isEditingFigmaUrl && (
+                <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '14px', display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <input
+                    type="url"
+                    value={editFigmaUrlVal}
+                    onChange={(e) => setEditFigmaUrlVal(e.target.value)}
+                    placeholder="https://www.figma.com/file/..."
+                    style={{
+                      flex: 1,
+                      padding: '9px 14px',
+                      background: 'var(--bg-input)',
+                      border: '1px solid rgba(168, 85, 247, 0.4)',
+                      borderRadius: '8px',
+                      color: 'var(--text-primary)',
+                      fontSize: '0.84rem',
+                      outline: 'none',
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleSaveFigmaUrl}
+                    style={{
+                      padding: '9px 18px',
+                      borderRadius: '8px',
+                      background: '#10b981',
+                      border: 'none',
+                      color: '#fff',
+                      fontSize: '0.82rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Save
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsEditingFigmaUrl(false)}
+                    style={{
+                      padding: '9px 14px',
+                      borderRadius: '8px',
+                      background: 'transparent',
+                      border: '1px solid var(--border-subtle)',
+                      color: 'var(--text-muted)',
+                      fontSize: '0.82rem',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div
+              style={{
+                borderRadius: '12px',
+                border: '1px dashed rgba(168, 85, 247, 0.4)',
+                padding: '36px 20px',
+                textAlign: 'center',
+                color: 'var(--text-muted)',
+                background: 'rgba(15, 23, 42, 0.4)',
+              }}
+            >
+              <Palette size={32} color="#c084fc" style={{ opacity: 0.7, marginBottom: '10px' }} />
+              <div style={{ fontSize: '0.94rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '6px' }}>
+                No Figma link attached yet
+              </div>
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', maxWidth: '440px', margin: '0 auto 16px' }}>
+                Paste the Figma file or prototype URL to enable 1-touch navigation for your QA team.
+              </p>
+              <div style={{ display: 'inline-flex', gap: '8px', maxWidth: '480px', width: '100%' }}>
+                <input
+                  type="url"
+                  placeholder="https://www.figma.com/file/..."
+                  value={editFigmaUrlVal}
+                  onChange={(e) => setEditFigmaUrlVal(e.target.value)}
+                  style={{
+                    flex: 1,
+                    padding: '9px 14px',
+                    borderRadius: '8px',
+                    border: '1px solid var(--border-subtle)',
+                    background: 'var(--bg-input)',
+                    color: 'var(--text-primary)',
+                    fontSize: '0.84rem',
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await handleSaveFigmaUrl();
+                    if (editFigmaUrlVal.trim()) {
+                      window.open(editFigmaUrlVal.trim(), '_blank');
+                    }
+                  }}
+                  style={{
+                    padding: '9px 18px',
+                    borderRadius: '8px',
+                    background: 'linear-gradient(135deg, #a855f7, #6366f1)',
+                    border: 'none',
+                    color: '#fff',
+                    fontWeight: 700,
+                    fontSize: '0.84rem',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  Save & Open ↗
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

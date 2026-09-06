@@ -43,6 +43,7 @@ export const AuthorizedProjectsTable: React.FC<AuthorizedProjectsTableProps> = (
   const [reports, setReports] = useState<DailyReport[]>(StorageService.getDailyReports());
   const [blockers, setBlockers] = useState<Blocker[]>(BlockerService.getBlockers());
   const [progressValues, setProgressValues] = useState<Record<string, number>>({});
+  const [statusOverrides, setStatusOverrides] = useState<Record<string, 'In Progress' | 'Blocked'>>({});
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'IN PROGRESS' | 'BLOCKED' | 'COMPLETED'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
@@ -117,8 +118,22 @@ export const AuthorizedProjectsTable: React.FC<AuthorizedProjectsTableProps> = (
     })[0];
   };
 
+  // Determine effective project status with instant override support
+  const getProjectStatus = (project: Project): 'In Progress' | 'Blocked' => {
+    if (statusOverrides[project.id]) {
+      return statusOverrides[project.id];
+    }
+    if (project.status === 'Blocked' || project.status === 'On Hold') return 'Blocked';
+    if (project.status === 'In Progress') return 'In Progress';
+
+    return isProjectBlocked(project) ? 'Blocked' : 'In Progress';
+  };
+
   // Determine if project is currently Blocked or In Progress
   const isProjectBlocked = (project: Project): boolean => {
+    if (statusOverrides[project.id]) {
+      return statusOverrides[project.id] === 'Blocked';
+    }
     if (project.status === 'Blocked' || project.status === 'On Hold') return true;
     if (project.status === 'In Progress') return false;
 
@@ -150,109 +165,156 @@ export const AuthorizedProjectsTable: React.FC<AuthorizedProjectsTableProps> = (
     });
   };
 
-  // Change project status from dropdown (In Progress or Blocked)
+  // Change project status from dropdown (In Progress or Blocked) with ZERO lag
   const handleStatusChange = async (project: Project, newStatus: string) => {
     const isNowBlocked = newStatus === 'Blocked';
-    const statusVal: any = isNowBlocked ? 'Blocked' : 'In Progress';
+    const statusVal: 'Blocked' | 'In Progress' = isNowBlocked ? 'Blocked' : 'In Progress';
 
+    // 1. INSTANT LOCAL STATE UPDATE (0ms lag, updates dropdown and colors immediately!)
+    setStatusOverrides((prev) => ({ ...prev, [project.id]: statusVal }));
+    setProjects((prev) =>
+      prev.map((p) => (p.id === project.id ? { ...p, status: statusVal } : p))
+    );
+
+    // 2. Synchronous local storage update
     try {
-      ProjectService.updateProject(project.id, { status: statusVal }, currentUser.id);
-    } catch {
       const all = StorageService.getProjects();
-      const p = all.find((x) => x.id === project.id);
-      if (p) {
-        p.status = statusVal;
+      const pIdx = all.findIndex((x) => x.id === project.id);
+      if (pIdx !== -1) {
+        all[pIdx].status = statusVal;
         StorageService.saveProjects(all);
       }
-    }
+    } catch {}
 
-    // Direct cloud sync to Supabase projects table
-    if (supabase) {
-      try {
-        await supabase
-          .from('projects')
-          .update({ status: statusVal, updated_at: new Date().toISOString() })
-          .eq('id', project.id);
-      } catch (err) {
-        console.warn('Supabase status update error:', err);
-      }
-    }
-
-    // If marked In Progress, resolve open blockers for this project
+    // 3. Optimistically reconcile blockers in state
     if (!isNowBlocked) {
-      const openBlks = blockers.filter(
-        (b) =>
-          b.status !== 'Resolved' &&
-          (b.projectId === project.id || b.projectName?.toLowerCase() === project.name.toLowerCase())
+      setBlockers((prev) =>
+        prev.map((b) =>
+          b.projectId === project.id || b.projectName?.toLowerCase() === project.name.toLowerCase()
+            ? { ...b, status: 'Resolved', resolvedAt: new Date().toISOString().split('T')[0] }
+            : b
+        )
       );
-      for (const b of openBlks) {
-        try {
-          BlockerService.updateBlockerStatus(b.id, 'Resolved', currentUser.id);
-        } catch {}
-      }
     } else {
-      // If marked Blocked, ensure there is an open blocker record
-      const openBlks = blockers.filter(
-        (b) =>
-          b.status !== 'Resolved' &&
-          (b.projectId === project.id || b.projectName?.toLowerCase() === project.name.toLowerCase())
-      );
-      if (openBlks.length === 0) {
-        try {
-          BlockerService.createBlocker(
-            {
-              title: `Project ${project.name} marked as Blocked`,
-              description: `Status changed to Blocked by ${currentUser.name}`,
-              severity: 'Critical',
-              status: 'Open',
-              projectId: project.id,
-              projectName: project.name,
-              memberId: currentUser.id,
-              reportedBy: currentUser.name,
-            },
-            currentUser.id
-          );
-        } catch {}
-      }
+      setBlockers((prev) => {
+        const hasOpen = prev.some(
+          (b) =>
+            b.status !== 'Resolved' &&
+            (b.projectId === project.id || b.projectName?.toLowerCase() === project.name.toLowerCase())
+        );
+        if (!hasOpen) {
+          const newBlk: Blocker = {
+            id: `blk-${Date.now().toString(36)}`,
+            title: `Project ${project.name} marked as Blocked`,
+            description: `Status changed to Blocked by ${currentUser.name}`,
+            severity: 'Critical',
+            status: 'Open',
+            projectId: project.id,
+            projectName: project.name,
+            memberId: currentUser.id,
+            reportedBy: currentUser.name,
+            createdAt: new Date().toISOString().split('T')[0],
+          };
+          return [newBlk, ...prev];
+        }
+        return prev;
+      });
     }
 
-    await loadData();
+    // 4. Background persistence without stalling or delaying UI
+    (async () => {
+      try {
+        ProjectService.updateProject(project.id, { status: statusVal }, currentUser.id);
+      } catch {}
+
+      if (supabase) {
+        try {
+          await supabase
+            .from('projects')
+            .update({ status: statusVal, updated_at: new Date().toISOString() })
+            .eq('id', project.id);
+        } catch (err) {
+          console.warn('Supabase status update error:', err);
+        }
+      }
+
+      if (!isNowBlocked) {
+        const openBlks = StorageService.getBlockers().filter(
+          (b) =>
+            b.status !== 'Resolved' &&
+            (b.projectId === project.id || b.projectName?.toLowerCase() === project.name.toLowerCase())
+        );
+        for (const b of openBlks) {
+          try {
+            BlockerService.updateBlockerStatus(b.id, 'Resolved', currentUser.id);
+          } catch {}
+        }
+      } else {
+        const openBlks = StorageService.getBlockers().filter(
+          (b) =>
+            b.status !== 'Resolved' &&
+            (b.projectId === project.id || b.projectName?.toLowerCase() === project.name.toLowerCase())
+        );
+        if (openBlks.length === 0) {
+          try {
+            BlockerService.createBlocker(
+              {
+                title: `Project ${project.name} marked as Blocked`,
+                description: `Status changed to Blocked by ${currentUser.name}`,
+                severity: 'Critical',
+                status: 'Open',
+                projectId: project.id,
+                projectName: project.name,
+                memberId: currentUser.id,
+                reportedBy: currentUser.name,
+              },
+              currentUser.id
+            );
+          } catch {}
+        }
+      }
+    })();
   };
 
-  // Save updated delivery progress percentage
+  // Save updated delivery progress percentage with instant feedback
   const handleProgressSave = async (project: Project, newProgress: number) => {
     const clamped = Math.max(0, Math.min(100, Math.round(newProgress)));
     setProgressValues((prev) => ({ ...prev, [project.id]: clamped }));
+    setProjects((prev) =>
+      prev.map((p) => (p.id === project.id ? { ...p, qaProgress: clamped } : p))
+    );
 
     try {
-      ProjectService.updateProject(project.id, { qaProgress: clamped }, currentUser.id);
-    } catch {
       const all = StorageService.getProjects();
       const idx = all.findIndex((p) => p.id === project.id);
       if (idx !== -1) {
         all[idx].qaProgress = clamped;
         StorageService.saveProjects(all);
       }
-    }
+    } catch {}
 
-    // Direct cloud sync to Supabase projects table
-    if (supabase) {
+    // Direct cloud sync to Supabase projects table in background
+    (async () => {
       try {
-        await supabase
-          .from('projects')
-          .update({ qa_progress: clamped, updated_at: new Date().toISOString() })
-          .eq('id', project.id);
-      } catch (err) {
-        console.warn('Supabase qa_progress update error:', err);
-      }
-    }
+        ProjectService.updateProject(project.id, { qaProgress: clamped }, currentUser.id);
+      } catch {}
 
-    await loadData();
+      if (supabase) {
+        try {
+          await supabase
+            .from('projects')
+            .update({ qa_progress: clamped, updated_at: new Date().toISOString() })
+            .eq('id', project.id);
+        } catch (err) {
+          console.warn('Supabase qa_progress update error:', err);
+        }
+      }
+    })();
   };
 
   // Filter projects by status and search
   const filteredProjects = projects.filter((project) => {
-    const isBlocked = isProjectBlocked(project);
+    const isBlocked = getProjectStatus(project) === 'Blocked';
 
     // Status filter
     if (statusFilter === 'IN PROGRESS') {
@@ -500,7 +562,8 @@ export const AuthorizedProjectsTable: React.FC<AuthorizedProjectsTableProps> = (
               {filteredProjects.map((project) => {
                 const standup = getLatestProjectStandup(project.id);
                 const memberCount = project.memberIds.length + 1; // including QA lead
-                const blocked = isProjectBlocked(project);
+                const currentStatus = getProjectStatus(project);
+                const blocked = currentStatus === 'Blocked';
 
                 return (
                   <tr
@@ -530,7 +593,7 @@ export const AuthorizedProjectsTable: React.FC<AuthorizedProjectsTableProps> = (
                     <td style={{ padding: '14px 16px', verticalAlign: 'middle' }}>
                       <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
                         <select
-                          value={blocked ? 'Blocked' : 'In Progress'}
+                          value={currentStatus}
                           onChange={(e) => handleStatusChange(project, e.target.value)}
                           title="Choose project status: In Progress or Blocked"
                           style={{
@@ -802,7 +865,8 @@ export const AuthorizedProjectsTable: React.FC<AuthorizedProjectsTableProps> = (
           {filteredProjects.map((project) => {
             const roleName = getUserRoleForProject(project);
             const standup = getLatestProjectStandup(project.id);
-            const blocked = isProjectBlocked(project);
+            const currentStatus = getProjectStatus(project);
+            const blocked = currentStatus === 'Blocked';
 
             return (
               <div
@@ -834,7 +898,7 @@ export const AuthorizedProjectsTable: React.FC<AuthorizedProjectsTableProps> = (
                     onClick={(e) => e.stopPropagation()}
                   >
                     <select
-                      value={blocked ? 'Blocked' : 'In Progress'}
+                      value={currentStatus}
                       onChange={(e) => handleStatusChange(project, e.target.value)}
                       title="Choose project status: In Progress or Blocked"
                       style={{
