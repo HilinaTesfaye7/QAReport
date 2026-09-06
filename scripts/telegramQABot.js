@@ -2143,50 +2143,119 @@ async function handleProjectSwitch(chatId, text) {
   return true;
 }
 
-async function handleTestCaseLinkStep(chatId, user, rawText) {
+async function handleTestCaseWizardStep(chatId, user, rawText) {
   const session = userSessions.get(chatId);
-  if (!session || session.type !== 'submit_testcase_link') return false;
+  if (!session || (session.type !== 'testcase_wizard' && session.type !== 'submit_testcase_link')) return false;
 
   const input = rawText.trim();
   if (input.toLowerCase() === 'cancel' || input.toLowerCase() === '/cancel') {
     userSessions.delete(chatId);
-    await sendMessage(chatId, '❌ Test case link submission cancelled.');
+    await sendMessage(chatId, '❌ Test case submission cancelled.');
     return true;
   }
 
-  // Extract URL or format it
-  const urlMatch = input.match(/https?:\/\/[^\s]+/i);
-  let testCaseUrl = urlMatch ? urlMatch[0] : input;
+  // STEP 1: User chooses project
+  if (session.step === 'choose_project') {
+    const projects = session.projects || getProjects();
+    let selected = null;
 
-  if (!testCaseUrl.startsWith('http://') && !testCaseUrl.startsWith('https://')) {
-    if (testCaseUrl.includes('.') && !testCaseUrl.includes(' ')) {
-      testCaseUrl = `https://${testCaseUrl}`;
+    const num = parseInt(input, 10);
+    if (!isNaN(num) && num >= 1 && num <= projects.length) {
+      selected = projects[num - 1];
     } else {
+      selected = projects.find(
+        (p) => p.name.toLowerCase() === input.toLowerCase() || p.id.toLowerCase() === input.toLowerCase()
+      ) || projects.find((p) => p.name.toLowerCase().includes(input.toLowerCase()));
+    }
+
+    if (!selected) {
       await sendMessage(
         chatId,
-        `⚠️ <b>Please provide a valid URL link</b>\n\n` +
-        `Example: <code>https://docs.google.com/spreadsheets/d/...</code> or Notion / TestRail / Jira link.\n\n` +
-        `<i>Reply with the link, or type <code>cancel</code> to abort.</i>`
+        `⚠️ <b>Project not recognized</b>\n\nPlease reply with a valid number (1-${projects.length}) or type the project name:\n<i>(or type <code>cancel</code> to abort)</i>`
       );
       return true;
     }
+
+    // If user already supplied a URL in the initial command
+    if (session.pendingUrl) {
+      let finalUrl = session.pendingUrl;
+      if (!finalUrl.startsWith('http://') && !finalUrl.startsWith('https://')) {
+        finalUrl = `https://${finalUrl}`;
+      }
+      const savedProj = await saveProjectTestCaseUrl(selected.id, finalUrl);
+      userSessions.delete(chatId);
+      const finalName = savedProj?.name || selected.name;
+
+      await sendMessage(
+        chatId,
+        `✅ <b>Test Cases Link Submitted!</b>\n\n` +
+        `📁 <b>Project:</b> <b>${escapeHtml(finalName)}</b>\n` +
+        `🔗 <b>Test Cases Link:</b> <a href="${escapeHtml(finalUrl)}">${escapeHtml(finalUrl)}</a>\n\n` +
+        `<i>The link has been saved and is now placed right beside PRD and Figma in the project dashboard.</i>\n\n` +
+        `💡 Type <code>/checkin</code> when you are ready to submit your daily standup.`
+      );
+      return true;
+    }
+
+    // Advance to STEP 2: Ask for the test case link
+    session.step = 'provide_link';
+    session.projectId = selected.id;
+    session.projectName = selected.name;
+    userSessions.set(chatId, session);
+
+    let currentLinkMsg = '';
+    if (selected.resources?.testCaseUrl) {
+      currentLinkMsg = `\n<i>Current link: ${escapeHtml(selected.resources.testCaseUrl)}</i>\n`;
+    }
+
+    await sendMessage(
+      chatId,
+      `🧪 <b>Submit Test Cases Link</b>\n\n` +
+      `📁 <b>Selected Project:</b> <b>${escapeHtml(selected.name)}</b>${currentLinkMsg}\n` +
+      `Please provide the link to your test cases (Google Sheets, Notion, TestRail, Jira, or Docs):\n\n` +
+      `<i>👉 Reply with the URL below, or type <code>cancel</code> to abort:</i>`
+    );
+    return true;
   }
 
-  const projectId = session.projectId;
-  const savedProj = await saveProjectTestCaseUrl(projectId, testCaseUrl);
-  userSessions.delete(chatId);
+  // STEP 2: User provides testcase link
+  if (session.step === 'provide_link' || session.type === 'submit_testcase_link') {
+    const urlMatch = input.match(/https?:\/\/[^\s]+/i);
+    let testCaseUrl = urlMatch ? urlMatch[0] : input;
 
-  const finalProjectName = savedProj?.name || session.projectName || 'Crypto Vault Wallet';
+    if (!testCaseUrl.startsWith('http://') && !testCaseUrl.startsWith('https://')) {
+      if (testCaseUrl.includes('.') && !testCaseUrl.includes(' ')) {
+        testCaseUrl = `https://${testCaseUrl}`;
+      } else {
+        await sendMessage(
+          chatId,
+          `⚠️ <b>Please provide a valid URL link</b>\n\n` +
+          `Example: <code>https://docs.google.com/spreadsheets/d/...</code> or Notion / TestRail / Jira link.\n\n` +
+          `<i>Reply with the link, or type <code>cancel</code> to abort.</i>`
+        );
+        return true;
+      }
+    }
 
-  await sendMessage(
-    chatId,
-    `✅ <b>Test Cases Link Submitted!</b>\n\n` +
-    `📁 <b>Project:</b> <b>${escapeHtml(finalProjectName)}</b>\n` +
-    `🔗 <b>Test Cases Link:</b> <a href="${escapeHtml(testCaseUrl)}">${escapeHtml(testCaseUrl)}</a>\n\n` +
-    `<i>The link has been saved and is now placed right beside PRD and Figma in the project dashboard.</i>\n\n` +
-    `💡 Type <code>/checkin</code> when you are ready to submit your daily standup.`
-  );
-  return true;
+    const projectId = session.projectId;
+    const projectName = session.projectName;
+    const savedProj = await saveProjectTestCaseUrl(projectId, testCaseUrl);
+    userSessions.delete(chatId);
+
+    const finalProjectName = savedProj?.name || projectName || 'Crypto Vault Wallet';
+
+    await sendMessage(
+      chatId,
+      `✅ <b>Test Cases Link Submitted!</b>\n\n` +
+      `📁 <b>Project:</b> <b>${escapeHtml(finalProjectName)}</b>\n` +
+      `🔗 <b>Test Cases Link:</b> <a href="${escapeHtml(testCaseUrl)}">${escapeHtml(testCaseUrl)}</a>\n\n` +
+      `<i>The link has been saved and is now placed right beside PRD and Figma in the project dashboard.</i>\n\n` +
+      `💡 Type <code>/checkin</code> when you are ready to submit your daily standup.`
+    );
+    return true;
+  }
+
+  return false;
 }
 
 // ==========================================
@@ -2264,8 +2333,8 @@ async function handleMessage(message) {
     } else if (session.type === 'switch_project') {
       const handled = await handleProjectSwitch(chatId, rawText);
       if (handled) return;
-    } else if (session.type === 'submit_testcase_link') {
-      const handled = await handleTestCaseLinkStep(chatId, user, rawText);
+    } else if (session.type === 'testcase_wizard' || session.type === 'submit_testcase_link') {
+      const handled = await handleTestCaseWizardStep(chatId, user, rawText);
       if (handled) return;
     }
   }
@@ -2356,63 +2425,78 @@ async function handleMessage(message) {
     return;
   }
 
-  // /testcase command to submit test cases link
-  if (text.startsWith('/testcase') || text === 'testcase' || text === '/testcases') {
+  // /testcase command to submit test cases link: first choose project, then provide link
+  if (text === '/testcase' || text === 'testcase' || text === '/testcases' || text.startsWith('/testcase ') || text.startsWith('/testcases ')) {
     const projects = getProjects();
-    let targetProj = null;
+    const rawArg = rawText.replace(/^\/testcases?\s*/i, '').trim();
 
-    if (profile?.projectId) {
-      targetProj = projects.find((p) => p.id === profile.projectId);
-    }
-    if (!targetProj && profile?.projectName) {
-      targetProj = projects.find(
-        (p) => p.name.toLowerCase() === profile.projectName.toLowerCase()
-      );
-    }
-    if (!targetProj) {
-      targetProj = projects.find((p) => p.memberIds?.includes(`usr-${chatId}`));
-    }
-    if (!targetProj) {
-      targetProj = projects.find((p) => p.name.toLowerCase().includes('crypto')) || projects[0];
-    }
+    // If user provided: /testcase <Project Name> - <URL>
+    if (rawArg.includes(' - ') && (rawArg.includes('http://') || rawArg.includes('https://'))) {
+      const [projPart, ...urlParts] = rawArg.split(' - ');
+      const candidateUrl = urlParts.join(' - ').trim();
+      const matchedProj = projects.find(
+        (p) => p.name.toLowerCase() === projPart.trim().toLowerCase() || p.id.toLowerCase() === projPart.trim().toLowerCase()
+      ) || projects.find((p) => p.name.toLowerCase().includes(projPart.trim().toLowerCase()));
 
-    const projectName = targetProj ? targetProj.name : (profile?.projectName || 'Crypto Vault Wallet');
-    const projectId = targetProj ? targetProj.id : (profile?.projectId || 'prj-crypto-vault');
-
-    // Check if user passed the link directly with the command: e.g. /testcase https://docs.google.com/spreadsheets/...
-    const args = rawText.replace(/^\/testcases?\s*/i, '').trim();
-    if (args.startsWith('http://') || args.startsWith('https://') || (args.includes('.') && !args.includes(' ') && args.length > 5)) {
-      let finalUrl = args;
-      if (!finalUrl.startsWith('http://') && !finalUrl.startsWith('https://')) {
-        finalUrl = `https://${finalUrl}`;
+      if (matchedProj) {
+        let finalUrl = candidateUrl;
+        if (!finalUrl.startsWith('http://') && !finalUrl.startsWith('https://')) {
+          finalUrl = `https://${finalUrl}`;
+        }
+        await saveProjectTestCaseUrl(matchedProj.id, finalUrl);
+        await sendMessage(
+          chatId,
+          `✅ <b>Test Cases Link Submitted!</b>\n\n` +
+          `📁 <b>Project:</b> <b>${escapeHtml(matchedProj.name)}</b>\n` +
+          `🔗 <b>Test Cases Link:</b> <a href="${escapeHtml(finalUrl)}">${escapeHtml(finalUrl)}</a>\n\n` +
+          `<i>The link has been saved and is now placed right beside PRD and Figma in the project dashboard.</i>\n\n` +
+          `💡 Type <code>/checkin</code> when you are ready to log your daily standup.`
+        );
+        return;
       }
-      const savedProj = await saveProjectTestCaseUrl(projectId, finalUrl);
-      const finalName = savedProj ? savedProj.name : projectName;
-
-      await sendMessage(
-        chatId,
-        `✅ <b>Test Cases Link Submitted!</b>\n\n` +
-        `📁 <b>Project:</b> <b>${escapeHtml(finalName)}</b>\n` +
-        `🔗 <b>Test Cases Link:</b> <a href="${escapeHtml(finalUrl)}">${escapeHtml(finalUrl)}</a>\n\n` +
-        `<i>The link has been saved and is now placed right beside PRD and Figma in the project dashboard.</i>\n\n` +
-        `💡 Type <code>/checkin</code> when you are ready to log your daily standup.`
-      );
-      return;
     }
 
-    // Otherwise, initiate interactive session to ask the user to provide the link
+    // Step 1: Prompt user to choose the project first!
+    let listText = '';
+    const memberId = profile ? `usr-${chatId}` : 'usr-unknown';
+
+    projects.forEach((p, idx) => {
+      const emoji = NUMBER_EMOJIS[idx] || `[${idx + 1}]`;
+      const isCurrent = profile && (profile.projectId === p.id || profile.projectName?.toLowerCase() === p.name?.toLowerCase());
+      const isAssigned =
+        (p.memberIds && (
+          p.memberIds.includes(memberId) || 
+          p.memberIds.includes('usr-coco') || 
+          p.memberIds.includes('usr-347835367') ||
+          p.memberIds.some((m) => String(m).includes(String(chatId)))
+        )) ||
+        (profile && profile.assignedProjectIds && profile.assignedProjectIds.includes(p.id)) ||
+        (profile && profile.assignedProjects && profile.assignedProjects.some((ap) => ap.toLowerCase() === p.name.toLowerCase()));
+
+      let tag = '';
+      if (isCurrent) {
+        tag = ' 🌟 <i>(Current Active)</i>';
+      } else if (isAssigned) {
+        tag = ' 🟢 <i>(Assigned)</i>';
+      }
+
+      listText += `${emoji} <b>${escapeHtml(p.name)}</b>${tag}\n`;
+    });
+
     userSessions.set(chatId, {
-      type: 'submit_testcase_link',
-      projectId,
-      projectName,
+      type: 'testcase_wizard',
+      step: 'choose_project',
+      projects,
+      pendingUrl: (rawArg.startsWith('http://') || rawArg.startsWith('https://')) ? rawArg : null,
     });
 
     await sendMessage(
       chatId,
       `🧪 <b>Submit Test Cases Link</b>\n\n` +
-      `📁 <b>Active Project:</b> <b>${escapeHtml(projectName)}</b>\n\n` +
-      `Please provide the link to your test cases (Google Sheets, Notion, TestRail, Jira, or Docs):\n\n` +
-      `<i>👉 Reply with the URL below, or type <code>cancel</code> to abort:</i>`
+      `<b>Please choose the project:</b>\n\n` +
+      listText + '\n' +
+      `<i>Reply with a number (1-${projects.length}) or type the project name:</i>\n` +
+      `<i>(or type <code>cancel</code> to abort)</i>`
     );
     return;
   }
