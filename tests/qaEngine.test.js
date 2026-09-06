@@ -1,3 +1,6 @@
+process.env.NODE_ENV = 'test';
+process.env.IS_TEST = 'true';
+
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -161,6 +164,9 @@ test('7. Project Creation with PRD, Design, and Member Notifications', async () 
   assert.ok(assignmentNotif, 'Coco must receive assignment notification for the new project');
   assert.equal(assignmentNotif.type, 'assignment');
   assert.match(assignmentNotif.message, /Crypto Vault Wallet/i);
+
+  // Cleanup test project so it does not pollute cloud database
+  await ProjectService.deleteProject(newProject.id, 'usr-sarah');
 });
 
 test('8. QA Lead /report Command Aggregation & Project Filtering', async () => {

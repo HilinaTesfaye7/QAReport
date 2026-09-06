@@ -107,14 +107,21 @@ async function refreshProjectsFromCloud() {
     try {
       const { data, error } = await supabase.from('projects').select('*').order('created_at', { ascending: false });
       if (!error && data && data.length > 0) {
-        memoryProjects = data.map((p) => ({
-          id: p.id,
-          name: p.name,
-          description: p.description || '',
-          status: p.status,
-          memberIds: p.member_ids || [],
-          resources: p.resources || {},
-        }));
+        const seenMap = new Map();
+        for (const p of data) {
+          const key = (p.name || '').trim().toLowerCase();
+          if (!seenMap.has(key)) {
+            seenMap.set(key, {
+              id: p.id,
+              name: p.name,
+              description: p.description || '',
+              status: p.status,
+              memberIds: p.member_ids || [],
+              resources: p.resources || {},
+            });
+          }
+        }
+        memoryProjects = Array.from(seenMap.values());
         fs.writeFileSync(PROJECTS_FILE, JSON.stringify(memoryProjects, null, 2), 'utf8');
         fs.writeFileSync(PUBLIC_PROJECTS_FILE, JSON.stringify(memoryProjects, null, 2), 'utf8');
         return memoryProjects;
@@ -127,18 +134,30 @@ async function refreshProjectsFromCloud() {
 }
 
 function getProjects() {
-  if (memoryProjects && memoryProjects.length > 0) return memoryProjects;
-  for (const file of [PROJECTS_FILE, PUBLIC_PROJECTS_FILE]) {
-    if (fs.existsSync(file)) {
-      try {
-        const parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
-        }
-      } catch {}
+  let list = [];
+  if (memoryProjects && memoryProjects.length > 0) {
+    list = memoryProjects;
+  } else {
+    for (const file of [PROJECTS_FILE, PUBLIC_PROJECTS_FILE]) {
+      if (fs.existsSync(file)) {
+        try {
+          const parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            list = parsed;
+            break;
+          }
+        } catch {}
+      }
     }
   }
-  return DEFAULT_PROJECTS;
+  if (!list || list.length === 0) list = DEFAULT_PROJECTS;
+
+  const seenMap = new Map();
+  for (const p of list) {
+    const key = (p.name || '').trim().toLowerCase();
+    if (!seenMap.has(key)) seenMap.set(key, p);
+  }
+  return Array.from(seenMap.values());
 }
 
 function saveProjects(projectsList) {
@@ -2427,7 +2446,7 @@ async function handleMessage(message) {
 
   // /testcase command to submit test cases link: first choose project, then provide link
   if (text === '/testcase' || text === 'testcase' || text === '/testcases' || text.startsWith('/testcase ') || text.startsWith('/testcases ')) {
-    const projects = getProjects();
+    const projects = await refreshProjectsFromCloud();
     const rawArg = rawText.replace(/^\/testcases?\s*/i, '').trim();
 
     // If user provided: /testcase <Project Name> - <URL>

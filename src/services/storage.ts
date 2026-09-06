@@ -239,41 +239,9 @@ export const StorageService = {
           .order('created_at', { ascending: false });
 
         if (!error && data) {
-          const cloudIds = new Set(data.map((p: any) => p.id));
-          const missingInCloud = localProjects.filter(
-            (lp) => !cloudIds.has(lp.id) && !deletedProjectIds.has(lp.id)
-          );
+          const records = data.filter((raw: any) => !deletedProjectIds.has(raw.id));
 
-          // If local has projects missing from cloud (e.g. 'ko'), upload them now
-          if (missingInCloud.length > 0) {
-            const rowsToUpload = missingInCloud.map((p) => ({
-              id: p.id,
-              name: p.name,
-              description: p.description || '',
-              status: p.status,
-              start_date: p.startDate,
-              target_release_date: p.targetReleaseDate,
-              project_owner: p.projectOwner,
-              qa_lead_id: p.qaLeadId,
-              member_ids: p.memberIds,
-              resources: p.resources,
-              qa_progress: p.qaProgress,
-              regression_progress: p.regressionProgress,
-              updated_at: new Date().toISOString(),
-            }));
-            await supabase.from('projects').upsert(rowsToUpload);
-          }
-
-          // Refetch final cloud list
-          const finalRes = await supabase
-            .from('projects')
-            .select('*')
-            .order('created_at', { ascending: false });
-
-          const rawRecords = (finalRes.data && finalRes.data.length > 0) ? finalRes.data : data;
-          const records = rawRecords.filter((raw: any) => !deletedProjectIds.has(raw.id));
-
-          const nameMap = new Map<string, Project>();
+          const projectMap = new Map<string, Project>();
           for (const raw of records) {
             const p: Project = {
               id: raw.id,
@@ -289,20 +257,27 @@ export const StorageService = {
               qaProgress: Number(raw.qa_progress || 0),
               regressionProgress: Number(raw.regression_progress || 0),
             };
-            const key = p.name.trim().toLowerCase();
-            if (!nameMap.has(key)) {
-              nameMap.set(key, p);
+
+            // Deduplicate exact clones (same name and identical description/resources)
+            const duplicateKey = `${p.name.trim().toLowerCase()}:::${(p.description || '').trim()}`;
+            const existingClone = Array.from(projectMap.values()).find(
+              (item) => `${item.name.trim().toLowerCase()}:::${(item.description || '').trim()}` === duplicateKey
+            );
+
+            if (!existingClone) {
+              projectMap.set(p.id, p);
             } else {
-              const existing = nameMap.get(key)!;
+              // Keep the one with more resources or latest ID
               const pCount = Object.keys(p.resources || {}).length;
-              const existCount = Object.keys(existing.resources || {}).length;
-              if (pCount > existCount || (pCount === existCount && p.id > existing.id)) {
-                nameMap.set(key, p);
+              const existCount = Object.keys(existingClone.resources || {}).length;
+              if (pCount > existCount || (pCount === existCount && p.id > existingClone.id)) {
+                projectMap.delete(existingClone.id);
+                projectMap.set(p.id, p);
               }
             }
           }
 
-          const cloudProjects: Project[] = Array.from(nameMap.values());
+          const cloudProjects: Project[] = Array.from(projectMap.values());
 
           localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(cloudProjects));
           emitChange(STORAGE_KEYS.PROJECTS);
@@ -337,8 +312,16 @@ export const StorageService = {
     localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(projects));
     emitChange(STORAGE_KEYS.PROJECTS);
 
-    // Save to Supabase Cloud Database
-    if (isSupabaseConfigured() && supabase) {
+    const proc = typeof globalThis !== 'undefined' ? (globalThis as any).process : undefined;
+    const isTestEnvironment =
+      Boolean(proc) &&
+      (Boolean(proc.env?.IS_TEST) ||
+        proc.env?.NODE_ENV === 'test' ||
+        proc.env?.VITEST === 'true' ||
+        Boolean(proc.argv?.some((arg: any) => typeof arg === 'string' && (arg.includes('test') || arg.includes('vite-node')))));
+
+    // Save to Supabase Cloud Database (skip if automated test environment)
+    if (!isTestEnvironment && isSupabaseConfigured() && supabase) {
       const rows = projects.map((p) => ({
         id: p.id,
         name: p.name,

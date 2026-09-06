@@ -37,6 +37,25 @@ function escapeHtml(text) {
     .replace(/'/g, '&#039;');
 }
 
+function deduplicateProjects(projectsList) {
+  if (!Array.isArray(projectsList)) return [];
+  const seen = new Map();
+  for (const p of projectsList) {
+    const key = (p.name || '').trim().toLowerCase();
+    if (!seen.has(key)) {
+      seen.set(key, p);
+    } else {
+      const existing = seen.get(key);
+      const pCount = Object.keys(p.resources || {}).length;
+      const existCount = Object.keys(existing.resources || {}).length;
+      if (pCount > existCount) {
+        seen.set(key, p);
+      }
+    }
+  }
+  return Array.from(seen.values());
+}
+
 function isQALead(profile) {
   if (!profile || !profile.role) return false;
   const r = String(profile.role).toLowerCase();
@@ -801,8 +820,8 @@ export default async function handler(req, res) {
     if (text === '/project' || text === '/projects') {
       let projects = [];
       if (supabase) {
-        const { data } = await supabase.from('projects').select('id, name, member_ids');
-        projects = data || [];
+        const { data } = await supabase.from('projects').select('id, name, member_ids').order('created_at', { ascending: false });
+        projects = deduplicateProjects(data || []);
       }
 
       if (projects.length === 0) {
@@ -850,8 +869,8 @@ export default async function handler(req, res) {
       const query = text.replace('/switch', '').trim();
       let projects = [];
       if (supabase) {
-        const { data } = await supabase.from('projects').select('id, name');
-        projects = data || [];
+        const { data } = await supabase.from('projects').select('id, name').order('created_at', { ascending: false });
+        projects = deduplicateProjects(data || []);
       }
 
       const num = parseInt(query, 10);
@@ -882,6 +901,94 @@ export default async function handler(req, res) {
       } else {
         await sendTelegramMessage(chatId, `⚠️ Project not found. Reply with /project to see the list.`);
       }
+      return res.status(200).json({ ok: true });
+    }
+
+    // 4b. /testcase command
+    if (text === '/testcase' || text === 'testcase' || text === '/testcases' || text.startsWith('/testcase ') || text.startsWith('/testcases ')) {
+      let projects = [];
+      if (supabase) {
+        const { data } = await supabase.from('projects').select('*').order('created_at', { ascending: false });
+        projects = deduplicateProjects(data || []);
+      }
+
+      const rawArg = text.replace(/^\/testcases?\s*/i, '').trim();
+
+      // If user provided: /testcase <Project Name> - <URL>
+      if (rawArg.includes(' - ') && (rawArg.includes('http://') || rawArg.includes('https://'))) {
+        const [projPart, ...urlParts] = rawArg.split(' - ');
+        const candidateUrl = urlParts.join(' - ').trim();
+        const matched = projects.find(
+          (p) => p.name.toLowerCase() === projPart.trim().toLowerCase() || p.id.toLowerCase() === projPart.trim().toLowerCase()
+        ) || projects.find((p) => p.name.toLowerCase().includes(projPart.trim().toLowerCase()));
+
+        if (matched) {
+          let finalUrl = candidateUrl;
+          if (!finalUrl.startsWith('http://') && !finalUrl.startsWith('https://')) finalUrl = `https://${finalUrl}`;
+          const updatedRes = { ...(matched.resources || {}), testCaseUrl: finalUrl, testCaseTitle: `${matched.name} Test Cases` };
+          if (supabase) {
+            await supabase.from('projects').update({ resources: updatedRes, updated_at: new Date().toISOString() }).eq('id', matched.id);
+          }
+          await sendTelegramMessage(
+            chatId,
+            `✅ <b>Test Cases Link Submitted!</b>\n\n` +
+            `📁 <b>Project:</b> <b>${escapeHtml(matched.name)}</b>\n` +
+            `🔗 <b>Test Cases Link:</b> <a href="${escapeHtml(finalUrl)}">${escapeHtml(finalUrl)}</a>\n\n` +
+            `<i>The link has been saved and is now placed right beside PRD and Figma in the project dashboard.</i>`
+          );
+          return res.status(200).json({ ok: true });
+        }
+      }
+
+      // If just URL provided and user is currently assigned to a project
+      if ((rawArg.startsWith('http://') || rawArg.startsWith('https://')) && profile && profile.project_id) {
+        const matched = projects.find((p) => p.id === profile.project_id) || projects[0];
+        if (matched) {
+          const finalUrl = rawArg.trim();
+          const updatedRes = { ...(matched.resources || {}), testCaseUrl: finalUrl, testCaseTitle: `${matched.name} Test Cases` };
+          if (supabase) {
+            await supabase.from('projects').update({ resources: updatedRes, updated_at: new Date().toISOString() }).eq('id', matched.id);
+          }
+          await sendTelegramMessage(
+            chatId,
+            `✅ <b>Test Cases Link Submitted!</b>\n\n` +
+            `📁 <b>Project:</b> <b>${escapeHtml(matched.name)}</b>\n` +
+            `🔗 <b>Test Cases Link:</b> <a href="${escapeHtml(finalUrl)}">${escapeHtml(finalUrl)}</a>\n\n` +
+            `<i>The link has been saved and is now placed right beside PRD and Figma in the project dashboard.</i>`
+          );
+          return res.status(200).json({ ok: true });
+        }
+      }
+
+      // Prompt to choose project first
+      const memberId = `usr-${chatId}`;
+      let listText = '';
+      projects.forEach((p, idx) => {
+        const emoji = NUMBER_EMOJIS[idx] || `[${idx + 1}]`;
+        const isCurrent = profile && (profile.project_id === p.id || profile.project_name?.toLowerCase() === p.name?.toLowerCase());
+        const isAssigned =
+          (p.member_ids && (
+            p.member_ids.includes(memberId) ||
+            p.member_ids.includes('usr-coco') ||
+            p.member_ids.includes('usr-347835367')
+          )) ||
+          (profile && profile.assigned_project_ids && profile.assigned_project_ids.includes(p.id));
+
+        let tag = '';
+        if (isCurrent) tag = ' 🌟 <i>(Current Active)</i>';
+        else if (isAssigned) tag = ' 🟢 <i>(Assigned)</i>';
+
+        listText += `${emoji} <b>${escapeHtml(p.name)}</b>${tag}\n`;
+      });
+
+      await sendTelegramMessage(
+        chatId,
+        `🧪 <b>Submit Test Cases Link</b>\n\n` +
+        `<b>Please choose the project:</b>\n\n` +
+        listText + '\n' +
+        `<i>Reply with format:</i>\n<code>/testcase &lt;Project Name&gt; - &lt;URL&gt;</code>\n\n` +
+        `<i>Example:</i> <code>/testcase Crypto Vault Wallet - https://docs.google.com/spreadsheets/d/...</code>`
+      );
       return res.status(200).json({ ok: true });
     }
 
@@ -1024,7 +1131,7 @@ export default async function handler(req, res) {
           supabase.from('daily_reports').select('*').order('submitted_at', { ascending: false }),
           supabase.from('blockers').select('*').neq('status', 'Resolved').order('created_at', { ascending: false }),
         ]);
-        projects = projRes.data || [];
+        projects = deduplicateProjects(projRes.data || []);
         allReports = repRes.data || [];
         allBlockers = blkRes.data || [];
       }
@@ -1205,7 +1312,7 @@ export default async function handler(req, res) {
           supabase.from('daily_reports').select('*').order('submitted_at', { ascending: false }),
           supabase.from('blockers').select('*').neq('status', 'Resolved').order('created_at', { ascending: false }),
         ]);
-        projects = projRes.data || [];
+        projects = deduplicateProjects(projRes.data || []);
         allReports = repRes.data || [];
         allBlockers = blkRes.data || [];
       }
@@ -1352,7 +1459,7 @@ export default async function handler(req, res) {
           supabase.from('blockers').select('*').neq('status', 'Resolved').order('created_at', { ascending: false }),
           supabase.from('qa_bugs').select('*').neq('status', 'Closed').order('created_at', { ascending: false }),
         ]);
-        projects = projRes.data || [];
+        projects = deduplicateProjects(projRes.data || []);
         allReports = repRes.data || [];
         allBlockers = blkRes.data || [];
         allBugs = bugRes.data || [];
@@ -1509,7 +1616,7 @@ export default async function handler(req, res) {
           supabase.from('blockers').select('*').neq('status', 'Resolved').order('created_at', { ascending: false }),
           supabase.from('qa_bugs').select('*').neq('status', 'Closed').order('created_at', { ascending: false }),
         ]);
-        projects = projRes.data || [];
+        projects = deduplicateProjects(projRes.data || []);
         allReports = repRes.data || [];
         allBlockers = blkRes.data || [];
         allBugs = bugRes.data || [];
