@@ -294,12 +294,15 @@ export interface DailyReport {
   role?: string;
   projectId: string;
   projectName?: string;
-  yesterdayCompleted: string;
-  todayWorkingOn: string;
+  yesterdayCompleted?: string;
+  todayWorkingOn: string; // What you worked on today
   workStatus?: string;
   statusEmoji?: string;
   isBlocked: boolean;
-  blockers: string;
+  blockers: string; // Blocker / challenges
+  risks?: string; // Risk you afraid of
+  nextPlan?: string; // Next Plan
+  majorAchievement?: string; // Major achievement today
   progressPercentage: number;
   expectedCompletion: 'Today' | 'Tomorrow' | 'Later' | string;
   notes: string;

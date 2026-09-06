@@ -758,21 +758,44 @@ export const AuthorizedProjectsTable: React.FC<AuthorizedProjectsTableProps> = (
                             </span>
                           </div>
 
-                          {/* Standup Tasks Q1/Q2 */}
-                          <div style={{ color: 'var(--text-secondary)', marginBottom: '4px', fontSize: '0.76rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            <strong style={{ color: 'var(--text-primary)' }}>Q1:</strong> {standup.yesterdayCompleted || standup.todayWorkingOn}
+                          {/* What worked on today */}
+                          <div style={{ color: 'var(--text-secondary)', marginBottom: '4px', fontSize: '0.76rem', lineHeight: 1.3 }}>
+                            <strong style={{ color: '#38bdf8' }}>Today:</strong> {standup.todayWorkingOn || standup.yesterdayCompleted}
                           </div>
 
-                          {/* Blockers Flag */}
-                          {standup.isBlocked ? (
-                            <div style={{ color: '#f87171', fontWeight: 700, fontSize: '0.74rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                              <AlertTriangle size={12} />
-                              <span>Blocker: {standup.blockers || 'Reported'}</span>
-                            </div>
-                          ) : (
-                            <div style={{ color: '#34d399', fontWeight: 600, fontSize: '0.74rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                              <span>🟢</span>
-                              <span>Blockers: None</span>
+                          {/* Blockers & Risks Badges */}
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center', marginTop: '4px' }}>
+                            {standup.isBlocked ? (
+                              <div style={{ color: '#f87171', background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)', padding: '1px 6px', borderRadius: '4px', fontWeight: 700, fontSize: '0.72rem', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                <AlertTriangle size={11} />
+                                <span>Blocker: {standup.blockers || 'Reported'}</span>
+                              </div>
+                            ) : (
+                              <div style={{ color: '#34d399', background: 'rgba(16, 185, 129, 0.12)', border: '1px solid rgba(16, 185, 129, 0.25)', padding: '1px 6px', borderRadius: '4px', fontWeight: 700, fontSize: '0.7rem', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                <span>🟢 Blocker: None</span>
+                              </div>
+                            )}
+
+                            {standup.risks && standup.risks.toLowerCase() !== 'none' && standup.risks.trim().length > 0 && (
+                              <div style={{ color: '#fbbf24', background: 'rgba(245, 158, 11, 0.15)', border: '1px solid rgba(245, 158, 11, 0.3)', padding: '1px 6px', borderRadius: '4px', fontWeight: 700, fontSize: '0.72rem', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                <span>⚠️ Risk: {standup.risks}</span>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Next Plan & Achievement snippet if present */}
+                          {(standup.nextPlan || standup.majorAchievement) && (
+                            <div style={{ marginTop: '5px', fontSize: '0.72rem', color: 'var(--text-muted)', lineHeight: 1.3, borderTop: '1px dashed rgba(255, 255, 255, 0.08)', paddingTop: '4px' }}>
+                              {standup.nextPlan && (
+                                <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  <strong style={{ color: 'var(--text-secondary)' }}>Next:</strong> {standup.nextPlan}
+                                </div>
+                              )}
+                              {standup.majorAchievement && standup.majorAchievement.toLowerCase() !== 'none' && (
+                                <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#a5b4fc' }}>
+                                  <strong>🏆 Win:</strong> {standup.majorAchievement}
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>

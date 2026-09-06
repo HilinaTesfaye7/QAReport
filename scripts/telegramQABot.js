@@ -1211,14 +1211,16 @@ function formatProjectReportText(projectName, memberReports, openBlockers = [], 
     out += `━━━━━━━━━━━━━━━━━━━━\n`;
     out += `👤 <b>${escapeHtml(r.memberName || 'QA Member')}</b> <i>(${escapeHtml(r.role || 'QA Engineer')})</i>${dateTag}\n`;
     out += `• <b>Status:</b> ${statusEmoji} ${escapeHtml(workStatus)}\n`;
-    out += `• <b>Yesterday:</b> ${escapeHtml(r.yesterdayCompleted || 'No tasks recorded')}\n`;
-    out += `• <b>Today:</b> ${escapeHtml(r.todayWorkingOn || 'In progress')}\n`;
-    if (r.bugsSummary && r.bugsSummary !== 'None') {
-      out += `• <b>Bugs:</b> ${escapeHtml(r.bugsSummary.replace(/\n/g, ', '))}\n`;
-    }
+    out += `• <b>Worked Today:</b> ${escapeHtml(r.todayWorkingOn || 'In progress')}\n`;
     out += `• ${blockerTag}\n`;
     if (r.risks && r.risks.toLowerCase() !== 'none') {
       out += `• <b>Risk:</b> <i>${escapeHtml(r.risks)}</i>\n`;
+    }
+    if (r.nextPlan) {
+      out += `• <b>Next Plan:</b> ${escapeHtml(r.nextPlan)}\n`;
+    }
+    if (r.majorAchievement && r.majorAchievement.toLowerCase() !== 'none') {
+      out += `• <b>Achievement:</b> 🏆 ${escapeHtml(r.majorAchievement)}\n`;
     }
   });
 
@@ -1699,29 +1701,32 @@ async function startCheckin(chatId, user) {
 
   userSessions.set(chatId, {
     type: 'checkin',
-    step: 'q1_yesterday',
+    step: 'q1_worked_today',
     profile,
     answers: {},
   });
 
   await sendMessage(
     chatId,
-    `👋 <b>Good morning, ${escapeHtml(profile.fullName)}!</b>\n\n` +
+    `👋 <b>Good day, ${escapeHtml(profile.fullName)}!</b>\n\n` +
     `📁 <b>Project:</b> <b>${escapeHtml(profile.projectName)}</b>\n\n` +
-    `📅 <b>What did you complete yesterday?</b>\n` +
-    `<i>(Test cases executed, regression, bugs verified, UAT, automation, test cases created/updated, etc.)</i>`
+    `🎯 <b>What you worked on today?</b>\n` +
+    `<i>(Feature, module, test cases executed, API testing, regression, bugs retested, etc.)</i>`
   );
 }
 
 async function finalizeAndSubmitCheckin(chatId, user, session) {
   const profile = session.profile;
   const answers = session.answers;
-  const isBlocked = Boolean(answers.isBlocked || answers.workStatus === 'Blocked');
-  const blockersText = (answers.blockers && answers.blockers.toLowerCase() !== 'none') ? answers.blockers : 'None';
-  const risksText = (answers.risks && answers.risks.toLowerCase() !== 'none') ? answers.risks : 'None';
-  const bugsSummary = answers.bugsSummary || 'None';
-  const statusEmoji = answers.statusEmoji || '🟢';
-  const workStatus = answers.workStatus || 'On Track';
+  const hasBlocker = Boolean(answers.isBlocked && answers.blockers && answers.blockers.toLowerCase() !== 'none' && answers.blockers.trim().length > 0);
+  const blockersText = hasBlocker ? answers.blockers : 'None';
+  const hasRisk = Boolean(answers.risks && answers.risks.toLowerCase() !== 'none' && answers.risks.trim().length > 0);
+  const risksText = hasRisk ? answers.risks : 'None';
+  const nextPlanText = answers.nextPlan || 'Continue testing';
+  const majorAchievementText = answers.majorAchievement || 'None';
+
+  const workStatus = hasBlocker ? 'Blocked' : (hasRisk ? 'At Risk' : 'On Track');
+  const statusEmoji = hasBlocker ? '🔴' : (hasRisk ? '🟡' : '🟢');
 
   const fullReport = {
     id: `tg-${Date.now().toString(36)}`,
@@ -1732,46 +1737,38 @@ async function finalizeAndSubmitCheckin(chatId, user, session) {
     role: profile.role,
     projectId: profile.projectId,
     projectName: profile.projectName,
-    yesterdayCompleted: answers.yesterdayCompleted,
     todayWorkingOn: answers.todayWorkingOn,
+    blockers: blockersText === 'None' ? '' : blockersText,
+    isBlocked: hasBlocker,
+    risks: risksText === 'None' ? '' : risksText,
+    nextPlan: nextPlanText,
+    majorAchievement: majorAchievementText,
+    yesterdayCompleted: majorAchievementText, // for backward compatibility
     workStatus: workStatus,
     statusEmoji: statusEmoji,
-    bugsFound: answers.bugs || { critical: 0, high: 0, medium: 0, low: 0, total: 0, summary: bugsSummary },
-    bugsSummary: bugsSummary,
-    blockers: blockersText === 'None' ? '' : blockersText,
-    isBlocked: isBlocked,
-    risks: risksText === 'None' ? '' : risksText,
-    expectedCompletion: `${statusEmoji} ${workStatus}`,
+    progressPercentage: 80,
+    expectedCompletion: nextPlanText,
     notes: JSON.stringify({
       workStatus,
       statusEmoji,
-      bugsSummary,
-      bugsBreakdown: answers.bugs || {},
       risks: risksText,
+      nextPlan: nextPlanText,
+      majorAchievement: majorAchievementText,
     }),
     submittedAt: new Date().toISOString(),
   };
 
   persistReport(fullReport);
 
-  const hasBlocker = isBlocked || (blockersText && blockersText !== 'None');
-  const hasRisk = workStatus === 'At Risk' || (risksText && risksText !== 'None');
-  const hasCriticalBugs = Boolean(answers.bugs && answers.bugs.critical > 0);
-
-  // If user is Blocked or reported a blocker, create blocker record so QA Lead dashboard/status reflects it immediately!
+  // If member has blocker, create blocker item so QA Lead dashboard reflects it
   if (hasBlocker) {
-    const isCritical = workStatus === 'Blocked' || (blockersText && blockersText.toLowerCase().includes('crit')) || hasCriticalBugs;
-    const blockerDesc = (blockersText && blockersText !== 'None')
-      ? blockersText
-      : `Member marked work status as ${statusEmoji} ${workStatus} on task: ${answers.todayWorkingOn || 'Active task'}`;
-
     persistBlocker({
       id: `blk-${Date.now().toString(36)}`,
       title: `Blocker: ${profile.fullName} (${workStatus})`,
-      description: blockerDesc,
+      description: blockersText,
       projectId: profile.projectId,
       projectName: profile.projectName,
-      severity: isCritical ? 'Critical' : 'High',
+      severity: 'Critical',
       status: 'Open',
       reportedBy: profile.fullName,
       chatId: String(chatId),
@@ -1779,8 +1776,8 @@ async function finalizeAndSubmitCheckin(chatId, user, session) {
     });
   }
 
-  // PROACTIVELY NOTIFY QA LEAD(S) IF THERE IS A BLOCKER, RISK, OR CRITICAL DEFECT
-  if (hasBlocker || hasRisk || hasCriticalBugs) {
+  // PROACTIVELY NOTIFY QA LEAD(S) IF THERE IS A BLOCKER OR RISK
+  if (hasBlocker || hasRisk) {
     notifyQALeadsOfStandupIssue({
       senderChatId: chatId,
       profile,
@@ -1789,32 +1786,30 @@ async function finalizeAndSubmitCheckin(chatId, user, session) {
       todayWorkingOn: answers.todayWorkingOn,
       blockersText,
       risksText,
-      bugsSummary,
       hasBlocker,
       hasRisk,
-      hasCriticalBugs,
+      nextPlanText,
+      majorAchievementText,
     }).catch((err) => console.error('[Notify Lead Error]', err.message));
   }
 
   userSessions.delete(chatId);
 
-  // AFTER SUBMISSION, show concise summary matching required template
+  // AFTER SUBMISSION, show concise confirmation matching required template
   const confirmationMsg =
     `✅ <b>Daily QA Report Submitted</b>\n\n` +
     `📁 <b>Project:</b> ${escapeHtml(profile.projectName)}\n` +
     `👤 <b>QA Member:</b> ${escapeHtml(profile.fullName)}\n\n` +
-    `📅 <b>Yesterday</b>\n` +
-    `${escapeHtml(answers.yesterdayCompleted)}\n\n` +
-    `🎯 <b>Today</b>\n` +
+    `🎯 <b>What you worked on today</b>\n` +
     `${escapeHtml(answers.todayWorkingOn)}\n\n` +
-    `📈 <b>Status</b>\n` +
-    `${statusEmoji} ${escapeHtml(workStatus)}\n\n` +
-    `🐞 <b>Bugs</b>\n` +
-    `${escapeHtml(bugsSummary)}\n\n` +
-    `🚨 <b>Blockers</b>\n` +
+    `🚨 <b>Blocker</b>\n` +
     `${escapeHtml(blockersText)}\n\n` +
-    `⚠️ <b>Risks</b>\n` +
+    `⚠️ <b>Risk</b>\n` +
     `${escapeHtml(risksText)}\n\n` +
+    `📋 <b>Next Plan</b>\n` +
+    `${escapeHtml(nextPlanText)}\n\n` +
+    `🏆 <b>Major achievement today</b>\n` +
+    `${escapeHtml(majorAchievementText)}\n\n` +
     `<i>Your report has been logged successfully.</i>`;
 
   await sendMessage(chatId, confirmationMsg);
@@ -1835,7 +1830,6 @@ async function handleCheckinStep(chatId, user, text) {
         await markBlockerResolved(b.id);
       }
 
-      // Proactively notify QA Lead(s) that member resolved blocker during standup
       const activeProj = profile ? profile.projectName : (blockersToResolve[0]?.projectName || 'QA Project');
       const activeProjId = profile ? profile.projectId : (blockersToResolve[0]?.projectId || '');
       notifyQALeadsOfBlockerResolved({
@@ -1853,185 +1847,82 @@ async function handleCheckinStep(chatId, user, text) {
         `✅ <b>${blockersToResolve.length} Blocker(s) Marked as Resolved!</b>\n` +
         `They have been removed from the blocked tasks on the QA Command Center Dashboard.\n\n` +
         `Now let's proceed with your daily standup.\n\n` +
-        `📅 <b>What did you complete yesterday?</b>\n` +
-        `<i>(Test cases executed, regression, bugs verified, UAT, automation, test cases created/updated, etc.)</i>`
+        `🎯 <b>What you worked on today?</b>\n` +
+        `<i>(Feature, module, test cases executed, API testing, regression, bugs retested, etc.)</i>`
       );
     } else {
       await sendMessage(
         chatId,
         `Understood, keeping blocker(s) active on the dashboard.\n\n` +
         `Now let's proceed with your daily standup.\n\n` +
-        `📅 <b>What did you complete yesterday?</b>\n` +
-        `<i>(Test cases executed, regression, bugs verified, UAT, automation, test cases created/updated, etc.)</i>`
+        `🎯 <b>What you worked on today?</b>\n` +
+        `<i>(Feature, module, test cases executed, API testing, regression, bugs retested, etc.)</i>`
       );
     }
-    session.step = 'q1_yesterday';
+    session.step = 'q1_worked_today';
     return true;
   }
 
   switch (session.step) {
-    case 'q1_yesterday':
+    case 'q1_worked_today':
     case 1:
-      session.answers.yesterdayCompleted = trimmed;
-      session.step = 'q2_today';
-      await sendMessage(
-        chatId,
-        `🎯 <b>What is your primary testing task today?</b>\n` +
-        `<i>(Feature, module, regression suite, API, UAT, automation, etc.)</i>`
-      );
-      return true;
-
-    case 'q2_today':
-    case 2:
       session.answers.todayWorkingOn = trimmed;
-      session.step = 'q3_status';
+      session.step = 'q2_blockers';
       await sendMessage(
         chatId,
-        `📈 <b>What is the current status of your work?</b>\n\n` +
-        `1️⃣ 🟢 On Track\n` +
-        `2️⃣ 🟡 At Risk\n` +
-        `3️⃣ 🔴 Blocked\n\n` +
-        `<i>Reply 1, 2, or 3 (or type On Track, At Risk, Blocked):</i>`
+        `🚨 <b>Any blockers/challenges?</b>\n\n` +
+        `<i>(Reply with any blockers or challenges, or type <b>None</b> if all clear):</i>`
       );
       return true;
 
-    case 'q3_status':
-    case 3: {
-      if (lower === '1' || lower.includes('track') || lower.includes('green') || lower.includes('🟢')) {
-        session.answers.workStatus = 'On Track';
-        session.answers.statusEmoji = '🟢';
-        session.answers.isBlocked = false;
-      } else if (lower === '2' || lower.includes('risk') || lower.includes('yellow') || lower.includes('🟡')) {
-        session.answers.workStatus = 'At Risk';
-        session.answers.statusEmoji = '🟡';
-        session.answers.isBlocked = false;
-      } else if (lower === '3' || lower.includes('block') || lower.includes('red') || lower.includes('🔴')) {
-        session.answers.workStatus = 'Blocked';
-        session.answers.statusEmoji = '🔴';
-        session.answers.isBlocked = true;
-      } else {
-        await sendMessage(
-          chatId,
-          `⚠️ Please select your status:\n` +
-          `1️⃣ 🟢 On Track\n` +
-          `2️⃣ 🟡 At Risk\n` +
-          `3️⃣ 🔴 Blocked\n\n` +
-          `<i>Reply 1, 2, or 3:</i>`
-        );
-        return true;
-      }
-
-      session.step = 'q4_bugs';
-      await sendMessage(
-        chatId,
-        `🐞 <b>Did you find any bugs during your testing?</b>\n\n` +
-        `1️⃣ ✅ No bugs\n` +
-        `2️⃣ 🐞 Yes\n\n` +
-        `<i>Reply 1 (No bugs) or 2 (Yes):</i>`
-      );
-      return true;
-    }
-
-    case 'q4_bugs':
-    case 4: {
-      const isNo = lower === '1' || lower.includes('no') || lower === 'none' || lower === '0' || lower.includes('clear') || lower.includes('✅');
-      const isYes = lower === '2' || lower.includes('yes') || lower.includes('found') || lower.includes('🐞') || lower.includes('bug');
-
-      if (isNo) {
-        session.answers.bugs = { critical: 0, high: 0, medium: 0, low: 0, total: 0, summary: 'None' };
-        session.answers.bugsSummary = 'None';
-        // Jump straight to Q5 without asking for bug counts
-        session.step = 'q5_blockers';
-        await sendMessage(
-          chatId,
-          `🚨 <b>Do you have any blocker or risk that the QA Lead should know about?</b>\n\n` +
-          `1️⃣ ✅ None\n` +
-          `2️⃣ ⚠️ Report a blocker/risk\n\n` +
-          `<i>Reply 1 (None) or 2 (Report):</i>`
-        );
-        return true;
-      } else if (isYes) {
-        session.step = 'q4_bug_counts';
-        await sendMessage(
-          chatId,
-          `🐞 <b>How many bugs did you find?</b>\n\n` +
-          `Please specify by severity:\n` +
-          `• Critical\n` +
-          `• High\n` +
-          `• Medium\n` +
-          `• Low\n\n` +
-          `<i>Example: <code>2 High, 1 Medium</code> or <code>1 Critical, 2 Low</code> or <code>0, 2, 1, 0</code>:</i>`
-        );
-        return true;
-      } else {
-        await sendMessage(
-          chatId,
-          `Please choose an option:\n1️⃣ ✅ No bugs\n2️⃣ 🐞 Yes\n\n<i>Reply 1 or 2:</i>`
-        );
-        return true;
-      }
-    }
-
-    case 'q4_bug_counts': {
-      const parsedBugs = parseBugCounts(trimmed);
-      session.answers.bugs = parsedBugs;
-      session.answers.bugsSummary = parsedBugs.summary;
-
-      session.step = 'q5_blockers';
-      await sendMessage(
-        chatId,
-        `🚨 <b>Do you have any blocker or risk that the QA Lead should know about?</b>\n\n` +
-        `1️⃣ ✅ None\n` +
-        `2️⃣ ⚠️ Report a blocker/risk\n\n` +
-        `<i>Reply 1 (None) or 2 (Report):</i>`
-      );
-      return true;
-    }
-
-    case 'q5_blockers':
-    case 5: {
-      const isNone = lower === '1' || lower.includes('none') || lower === 'no' || lower.includes('clear') || lower.includes('all clear') || lower.includes('✅');
-      const isReport = lower === '2' || lower.includes('report') || lower.includes('yes') || lower.includes('⚠️') || lower.includes('block') || lower.includes('risk');
-
+    case 'q2_blockers':
+    case 2: {
+      const isNone = lower === 'none' || lower === 'no' || lower === '0' || lower === 'clear' || lower === 'all clear' || lower === 'nothing' || lower === 'nil';
       if (isNone) {
-        session.answers.blockers = session.answers.workStatus === 'Blocked' ? 'Work marked as Blocked in standup' : 'None';
-        session.answers.risks = 'None';
-        session.answers.isBlocked = session.answers.workStatus === 'Blocked';
-        await finalizeAndSubmitCheckin(chatId, user, session);
-        return true;
-      } else if (isReport) {
-        session.step = 'q5_blocker_description';
-        await sendMessage(
-          chatId,
-          `⚠️ <b>Please describe the blocker or risk:</b>\n` +
-          `<i>(What is blocking you or what risk could affect the release?)</i>`
-        );
-        return true;
-      } else {
-        await sendMessage(
-          chatId,
-          `Please choose an option:\n1️⃣ ✅ None\n2️⃣ ⚠️ Report a blocker/risk\n\n<i>Reply 1 or 2:</i>`
-        );
-        return true;
-      }
-    }
-
-    case 'q5_blocker_description': {
-      const desc = trimmed;
-      if (session.answers.workStatus === 'Blocked' || lower.includes('block')) {
-        session.answers.blockers = desc;
-        session.answers.isBlocked = true;
-        session.answers.risks = lower.includes('risk') ? desc : 'None';
-      } else if (lower.includes('risk')) {
-        session.answers.risks = desc;
         session.answers.blockers = 'None';
         session.answers.isBlocked = false;
       } else {
-        session.answers.blockers = desc;
-        session.answers.risks = 'None';
+        session.answers.blockers = trimmed;
         session.answers.isBlocked = true;
       }
+      session.step = 'q3_risks';
+      await sendMessage(
+        chatId,
+        `⚠️ <b>Risk you afraid of?</b>\n\n` +
+        `<i>(Any release risks, environment instability, dependencies, or type <b>None</b> if none):</i>`
+      );
+      return true;
+    }
 
+    case 'q3_risks':
+    case 3: {
+      const isNone = lower === 'none' || lower === 'no' || lower === '0' || lower === 'clear' || lower === 'nothing' || lower === 'nil';
+      session.answers.risks = isNone ? 'None' : trimmed;
+      session.step = 'q4_next_plan';
+      await sendMessage(
+        chatId,
+        `📋 <b>Next Plan?</b>\n\n` +
+        `<i>(What is your primary testing task or plan next?):</i>`
+      );
+      return true;
+    }
+
+    case 'q4_next_plan':
+    case 4:
+      session.answers.nextPlan = trimmed;
+      session.step = 'q5_major_achievement';
+      await sendMessage(
+        chatId,
+        `🏆 <b>Major achievement today?</b>\n\n` +
+        `<i>(Key accomplishment, milestone, critical bug found/verified, or type <b>None</b>):</i>`
+      );
+      return true;
+
+    case 'q5_major_achievement':
+    case 5: {
+      const isNone = lower === 'none' || lower === 'no' || lower === '0' || lower === 'nothing' || lower === 'nil';
+      session.answers.majorAchievement = isNone ? 'None' : trimmed;
+      session.answers.yesterdayCompleted = session.answers.majorAchievement;
       await finalizeAndSubmitCheckin(chatId, user, session);
       return true;
     }

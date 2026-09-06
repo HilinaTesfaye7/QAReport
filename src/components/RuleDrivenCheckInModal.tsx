@@ -19,17 +19,15 @@ export const RuleDrivenCheckInModal: React.FC<RuleDrivenCheckInModalProps> = ({
   onReportSubmitted,
 }) => {
   const [data, setData] = useState(RuleEngine.generateRuleDrivenCheckInQuestions(currentUser.id));
-  const [yesterdayCompleted, setYesterdayCompleted] = useState(
-    'Executed 12 test cases and verified Login biometrics.'
-  );
   const [todayWorkingOn, setTodayWorkingOn] = useState(
-    'Execute Payment API endpoint test suite and retest BUG-142.'
+    'Executed Payment API endpoint test suite and retested BUG-142.'
   );
   const [isBlocked, setIsBlocked] = useState(false);
   const [blockers, setBlockers] = useState('');
-  const [progressPercentage, setProgressPercentage] = useState(65);
-  const [expectedCompletion, setExpectedCompletion] = useState<'Today' | 'Tomorrow' | 'Later'>('Today');
-  const [notes, setNotes] = useState('');
+  const [risks, setRisks] = useState('');
+  const [nextPlan, setNextPlan] = useState('Run regression suite and verify checkout flow.');
+  const [majorAchievement, setMajorAchievement] = useState('Completed 12 test cases and verified Login biometrics.');
+  const [progressPercentage, setProgressPercentage] = useState(75);
   const [isSuccess, setIsSuccess] = useState(false);
   const [activeUserBlocker, setActiveUserBlocker] = useState<Blocker | null>(null);
   const [blockerResolvedNotice, setBlockerResolvedNotice] = useState(false);
@@ -82,17 +80,27 @@ export const RuleDrivenCheckInModal: React.FC<RuleDrivenCheckInModalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const projectId = currentUser.projectAllocations[0]?.projectId || 'prj-banking';
+    const hasBlocker = Boolean(isBlocked && blockers.trim().length > 0 && blockers.toLowerCase() !== 'none');
 
     const draft = DailyReportService.saveReportDraft({
       memberId: currentUser.id,
       projectId,
-      yesterdayCompleted,
-      todayWorkingOn,
-      isBlocked,
-      blockers: isBlocked ? blockers : '',
+      todayWorkingOn: todayWorkingOn.trim(),
+      isBlocked: hasBlocker,
+      blockers: hasBlocker ? blockers.trim() : 'None',
+      risks: risks.trim() || 'None',
+      nextPlan: nextPlan.trim(),
+      majorAchievement: majorAchievement.trim() || 'None',
+      yesterdayCompleted: majorAchievement.trim() || 'None',
       progressPercentage,
-      expectedCompletion,
-      notes,
+      expectedCompletion: nextPlan.trim() || 'Today',
+      notes: JSON.stringify({
+        workStatus: hasBlocker ? 'Blocked' : (risks && risks.toLowerCase() !== 'none' ? 'At Risk' : 'On Track'),
+        statusEmoji: hasBlocker ? '🔴' : (risks && risks.toLowerCase() !== 'none' ? '🟡' : '🟢'),
+        risks: risks.trim() || 'None',
+        nextPlan: nextPlan.trim(),
+        majorAchievement: majorAchievement.trim() || 'None',
+      }),
     });
 
     DailyReportService.submitDailyReport(draft.id, currentUser.id);
@@ -245,96 +253,94 @@ export const RuleDrivenCheckInModal: React.FC<RuleDrivenCheckInModalProps> = ({
 
             {/* Structured Form */}
             <form onSubmit={handleSubmit}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '18px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '18px' }}>
+                {/* 1. What you worked on today */}
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, marginBottom: '4px' }}>
-                    1. What did you complete yesterday?
-                  </label>
-                  <textarea
-                    value={yesterdayCompleted}
-                    onChange={(e) => setYesterdayCompleted(e.target.value)}
-                    style={{ width: '100%', minHeight: '50px' }}
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, marginBottom: '4px' }}>
-                    2. What are you working on today?
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#38bdf8', marginBottom: '4px' }}>
+                    1. What you worked on today
                   </label>
                   <textarea
                     value={todayWorkingOn}
                     onChange={(e) => setTodayWorkingOn(e.target.value)}
-                    style={{ width: '100%', minHeight: '50px' }}
+                    placeholder="Describe tasks, modules, test cases executed, API endpoints tested..."
+                    style={{ width: '100%', minHeight: '52px', borderRadius: '8px', padding: '8px 12px' }}
                     required
                   />
                 </div>
 
-                {/* Blocker Toggle & Field */}
+                {/* 2. Any blockers/challenges */}
                 <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-                    <input
-                      type="checkbox"
-                      id="checkinBlocked"
-                      checked={isBlocked}
-                      onChange={(e) => setIsBlocked(e.target.checked)}
-                    />
-                    <label htmlFor="checkinBlocked" style={{ fontSize: '0.8rem', fontWeight: 700, color: isBlocked ? '#f43f5e' : 'inherit' }}>
-                      3. I have an active blocker that prevents testing
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                    <label style={{ fontSize: '0.8rem', fontWeight: 700, color: isBlocked ? '#f43f5e' : 'var(--text-primary)' }}>
+                      2. Any blockers/challenges
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.74rem', cursor: 'pointer', color: isBlocked ? '#f43f5e' : 'var(--text-muted)' }}>
+                      <input
+                        type="checkbox"
+                        checked={isBlocked}
+                        onChange={(e) => setIsBlocked(e.target.checked)}
+                      />
+                      <span>Active Blocker</span>
                     </label>
                   </div>
-                  {isBlocked && (
-                    <textarea
-                      value={blockers}
-                      onChange={(e) => setBlockers(e.target.value)}
-                      placeholder="Describe the blocker (e.g. Staging DB timeout, device farm offline)..."
-                      style={{ width: '100%', minHeight: '50px', border: '1px solid rgba(244, 63, 94, 0.4)' }}
-                      required
-                    />
-                  )}
+                  <textarea
+                    value={blockers}
+                    onChange={(e) => {
+                      setBlockers(e.target.value);
+                      if (e.target.value.trim().length > 0 && e.target.value.toLowerCase() !== 'none') {
+                        setIsBlocked(true);
+                      }
+                    }}
+                    placeholder="Specify any blockers/challenges, environment down, dependency stalled, or type None..."
+                    style={{
+                      width: '100%',
+                      minHeight: '48px',
+                      borderRadius: '8px',
+                      padding: '8px 12px',
+                      border: isBlocked ? '1px solid rgba(244, 63, 94, 0.5)' : '1px solid var(--border-input)',
+                    }}
+                  />
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, marginBottom: '4px' }}>
-                      4. Task Progress ({progressPercentage}%)
-                    </label>
-                    <input
-                      type="range"
-                      min="0"
-                      max="100"
-                      value={progressPercentage}
-                      onChange={(e) => setProgressPercentage(parseInt(e.target.value))}
-                      style={{ width: '100%', accentColor: '#38bdf8' }}
-                    />
-                  </div>
-
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, marginBottom: '4px' }}>
-                      5. Expected Completion
-                    </label>
-                    <select
-                      value={expectedCompletion}
-                      onChange={(e) => setExpectedCompletion(e.target.value as any)}
-                      style={{ width: '100%' }}
-                    >
-                      <option value="Today">Today</option>
-                      <option value="Tomorrow">Tomorrow</option>
-                      <option value="Later">Later this week</option>
-                    </select>
-                  </div>
-                </div>
-
+                {/* 3. risk you afraid of */}
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, marginBottom: '4px' }}>
-                    6. Notes / Need QA Lead Escalation?
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#fbbf24', marginBottom: '4px' }}>
+                    3. Risk you afraid of
                   </label>
                   <input
                     type="text"
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    placeholder="Optional notes or team escalation..."
-                    style={{ width: '100%' }}
+                    value={risks}
+                    onChange={(e) => setRisks(e.target.value)}
+                    placeholder="Release risks, unstable third-party API, timeline pressure, or type None..."
+                    style={{ width: '100%', borderRadius: '8px', padding: '8px 12px' }}
+                  />
+                </div>
+
+                {/* 4. Next Plan */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '4px' }}>
+                    4. Next Plan
+                  </label>
+                  <input
+                    type="text"
+                    value={nextPlan}
+                    onChange={(e) => setNextPlan(e.target.value)}
+                    placeholder="Your next testing priority, test suite, or regression plan..."
+                    style={{ width: '100%', borderRadius: '8px', padding: '8px 12px' }}
+                    required
+                  />
+                </div>
+
+                {/* 5. Major achievement today */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#34d399', marginBottom: '4px' }}>
+                    5. Major achievement today
+                  </label>
+                  <textarea
+                    value={majorAchievement}
+                    onChange={(e) => setMajorAchievement(e.target.value)}
+                    placeholder="Key milestone, critical bug caught, regression completed, or None..."
+                    style={{ width: '100%', minHeight: '48px', borderRadius: '8px', padding: '8px 12px' }}
                   />
                 </div>
               </div>

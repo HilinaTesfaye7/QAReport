@@ -1367,110 +1367,191 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
             </div>
           ) : (
             <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '850px' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '950px' }}>
                 <thead>
                   <tr style={{ background: 'rgba(15, 23, 42, 0.7)', borderBottom: '1px solid var(--border-subtle)' }}>
+                    <th style={{ padding: '12px 14px', fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', width: '200px' }}>
+                      Team Member Name
+                    </th>
+                    <th style={{ padding: '12px 14px', fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', width: '220px' }}>
+                      What you worked on today
+                    </th>
+                    <th style={{ padding: '12px 14px', fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', width: '150px' }}>
+                      Blocker
+                    </th>
+                    <th style={{ padding: '12px 14px', fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', width: '150px' }}>
+                      Risk
+                    </th>
                     <th style={{ padding: '12px 14px', fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', width: '180px' }}>
-                      Team Member
+                      Next Plan
                     </th>
-                    <th style={{ padding: '12px 14px', fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', width: '130px' }}>
-                      Source & Time
-                    </th>
-                    <th style={{ padding: '12px 14px', fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                      1. Accomplishments
-                    </th>
-                    <th style={{ padding: '12px 14px', fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                      2. Next Priorities
-                    </th>
-                    <th style={{ padding: '12px 14px', fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                      3. Blockers & Risks
+                    <th style={{ padding: '12px 14px', fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', width: '200px' }}>
+                      Major achievement today
                     </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {projectStandups.map((standup) => (
-                    <tr
-                      key={standup.id}
-                      style={{
-                        borderBottom: '1px solid var(--border-subtle)',
-                        transition: 'background 0.15s ease',
-                      }}
-                    >
-                      <td style={{ padding: '12px 14px', verticalAlign: 'top' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <div
-                            style={{
-                              width: '28px',
-                              height: '28px',
-                              borderRadius: '50%',
-                              background: 'linear-gradient(135deg, #0284c7, #2563eb)',
-                              color: '#fff',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              fontWeight: 800,
-                              fontSize: '0.75rem',
-                              flexShrink: 0,
-                            }}
-                          >
-                            {(standup.memberName || 'Q')[0].toUpperCase()}
-                          </div>
-                          <div>
-                            <div style={{ fontWeight: 800, fontSize: '0.84rem', color: 'var(--text-primary)' }}>
-                              {standup.memberName || 'QA Tester'}
+                  {projectStandups.map((standup) => {
+                    const hasBlocker = Boolean(
+                      standup.isBlocked ||
+                      (standup.blockers && standup.blockers.toLowerCase() !== 'none' && standup.blockers.trim().length > 0)
+                    );
+                    const hasRisk = Boolean(
+                      standup.risks &&
+                      standup.risks.toLowerCase() !== 'none' &&
+                      standup.risks.trim().length > 0
+                    );
+
+                    return (
+                      <tr
+                        key={standup.id}
+                        style={{
+                          borderBottom: '1px solid var(--border-subtle)',
+                          transition: 'background 0.15s ease',
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.02)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = 'transparent';
+                        }}
+                      >
+                        {/* 1. Team Member Name */}
+                        <td style={{ padding: '12px 14px', verticalAlign: 'top' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                            <div
+                              style={{
+                                width: '28px',
+                                height: '28px',
+                                borderRadius: '50%',
+                                background: 'linear-gradient(135deg, #0284c7, #2563eb)',
+                                color: '#fff',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifySelf: 'center',
+                                justifyContent: 'center',
+                                fontWeight: 800,
+                                fontSize: '0.75rem',
+                                flexShrink: 0,
+                              }}
+                            >
+                              {(standup.memberName || 'Q')[0].toUpperCase()}
                             </div>
-                            <div style={{ fontSize: '0.68rem', color: '#a5b4fc', fontWeight: 700 }}>
-                              {(standup.role || 'QA_ENGINEER').toUpperCase()}
+                            <div>
+                              <div style={{ fontWeight: 800, fontSize: '0.84rem', color: 'var(--text-primary)' }}>
+                                {standup.memberName || 'QA Tester'}
+                              </div>
+                              <div style={{ fontSize: '0.68rem', color: '#a5b4fc', fontWeight: 700 }}>
+                                {(standup.role || 'QA_ENGINEER').toUpperCase()}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      </td>
-
-                      <td style={{ padding: '12px 14px', verticalAlign: 'top' }}>
-                        <span
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '3px',
-                            padding: '2px 7px',
-                            borderRadius: '4px',
-                            fontSize: '0.68rem',
-                            fontWeight: 800,
-                            background: standup.source === 'telegram' ? 'rgba(56, 189, 248, 0.2)' : 'rgba(99, 102, 241, 0.2)',
-                            color: standup.source === 'telegram' ? '#38bdf8' : '#a5b4fc',
-                            border: standup.source === 'telegram' ? '1px solid rgba(56, 189, 248, 0.3)' : '1px solid rgba(99, 102, 241, 0.3)',
-                          }}
-                        >
-                          {standup.source === 'telegram' ? '✈️ Telegram' : '📋 In-App'}
-                        </span>
-                        <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '3px' }}>
-                          {standup.submittedAt ? new Date(standup.submittedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : standup.date}
-                        </div>
-                      </td>
-
-                      <td style={{ padding: '12px 14px', verticalAlign: 'top', fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
-                        {standup.yesterdayCompleted || '—'}
-                      </td>
-
-                      <td style={{ padding: '12px 14px', verticalAlign: 'top', fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
-                        {standup.todayWorkingOn || '—'}
-                      </td>
-
-                      <td style={{ padding: '12px 14px', verticalAlign: 'top', fontSize: '0.78rem', lineHeight: 1.4 }}>
-                        {standup.isBlocked ? (
-                          <div style={{ color: '#f87171', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            <AlertTriangle size={13} />
-                            <span>{standup.blockers || 'Blocked'}</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
+                            <span
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '3px',
+                                padding: '1px 6px',
+                                borderRadius: '4px',
+                                fontSize: '0.65rem',
+                                fontWeight: 800,
+                                background: standup.source === 'telegram' ? 'rgba(56, 189, 248, 0.2)' : 'rgba(99, 102, 241, 0.2)',
+                                color: standup.source === 'telegram' ? '#38bdf8' : '#a5b4fc',
+                                border: standup.source === 'telegram' ? '1px solid rgba(56, 189, 248, 0.3)' : '1px solid rgba(99, 102, 241, 0.3)',
+                              }}
+                            >
+                              {standup.source === 'telegram' ? '✈️ Telegram' : '📋 In-App'}
+                            </span>
+                            <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                              {standup.submittedAt ? new Date(standup.submittedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : standup.date}
+                            </span>
                           </div>
-                        ) : (
-                          <div style={{ color: '#34d399', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            <span>🟢</span>
-                            <span>None, everything is running smoothly</span>
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+
+                        {/* 2. What you worked on today */}
+                        <td style={{ padding: '12px 14px', verticalAlign: 'top', fontSize: '0.8rem', color: 'var(--text-primary)', lineHeight: 1.5 }}>
+                          {standup.todayWorkingOn || '—'}
+                        </td>
+
+                        {/* 3. Blocker */}
+                        <td style={{ padding: '12px 14px', verticalAlign: 'top', fontSize: '0.78rem' }}>
+                          {hasBlocker ? (
+                            <div
+                              style={{
+                                color: '#f87171',
+                                background: 'rgba(239, 68, 68, 0.12)',
+                                border: '1px solid rgba(239, 68, 68, 0.3)',
+                                padding: '4px 8px',
+                                borderRadius: '6px',
+                                fontWeight: 700,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '5px',
+                                lineHeight: 1.3,
+                              }}
+                            >
+                              <AlertTriangle size={13} style={{ flexShrink: 0 }} />
+                              <span>{standup.blockers || 'Blocked'}</span>
+                            </div>
+                          ) : (
+                            <div
+                              style={{
+                                color: '#34d399',
+                                background: 'rgba(16, 185, 129, 0.12)',
+                                border: '1px solid rgba(16, 185, 129, 0.25)',
+                                padding: '2px 8px',
+                                borderRadius: '6px',
+                                fontSize: '0.72rem',
+                                fontWeight: 700,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                              }}
+                            >
+                              <span>🟢</span>
+                              <span>None</span>
+                            </div>
+                          )}
+                        </td>
+
+                        {/* 4. Risk */}
+                        <td style={{ padding: '12px 14px', verticalAlign: 'top', fontSize: '0.78rem' }}>
+                          {hasRisk ? (
+                            <div
+                              style={{
+                                color: '#fbbf24',
+                                background: 'rgba(245, 158, 11, 0.12)',
+                                border: '1px solid rgba(245, 158, 11, 0.3)',
+                                padding: '4px 8px',
+                                borderRadius: '6px',
+                                fontWeight: 700,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '5px',
+                                lineHeight: 1.3,
+                              }}
+                            >
+                              <AlertTriangle size={13} style={{ flexShrink: 0 }} />
+                              <span>{standup.risks}</span>
+                            </div>
+                          ) : (
+                            <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>None</span>
+                          )}
+                        </td>
+
+                        {/* 5. Next Plan */}
+                        <td style={{ padding: '12px 14px', verticalAlign: 'top', fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                          {standup.nextPlan || standup.expectedCompletion || '—'}
+                        </td>
+
+                        {/* 6. Major achievement today */}
+                        <td style={{ padding: '12px 14px', verticalAlign: 'top', fontSize: '0.8rem', color: '#38bdf8', fontWeight: 600, lineHeight: 1.5 }}>
+                          {standup.majorAchievement || standup.yesterdayCompleted || '—'}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

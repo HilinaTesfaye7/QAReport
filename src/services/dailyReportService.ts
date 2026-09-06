@@ -35,26 +35,38 @@ export const DailyReportService = {
           .order('submitted_at', { ascending: false });
 
         if (!error && data && data.length > 0) {
-          const mapped: DailyReport[] = data.map((r: any) => ({
-            id: r.id,
-            date: r.date,
-            chatId: r.chat_id,
-            memberId: r.member_id || `usr-${r.chat_id || 'unknown'}`,
-            memberName: r.member_name,
-            role: r.role || 'QA Tester',
-            projectId: r.project_id,
-            projectName: r.project_name,
-            yesterdayCompleted: r.yesterday_completed || '',
-            todayWorkingOn: r.today_working_on || '',
-            blockers: r.blockers || '',
-            isBlocked: Boolean(r.is_blocked),
-            progressPercentage: Number(r.progress_percentage || 50),
-            expectedCompletion: (r.expected_completion as any) || 'Today',
-            notes: r.notes || '',
-            status: 'submitted' as const,
-            submittedAt: r.submitted_at || new Date().toISOString(),
-            source: 'telegram' as const,
-          }));
+          const mapped: DailyReport[] = data.map((r: any) => {
+            let parsedNotes: any = {};
+            try {
+              if (r.notes && typeof r.notes === 'string' && r.notes.startsWith('{')) {
+                parsedNotes = JSON.parse(r.notes);
+              }
+            } catch {}
+
+            return {
+              id: r.id,
+              date: r.date,
+              chatId: r.chat_id,
+              memberId: r.member_id || `usr-${r.chat_id || 'unknown'}`,
+              memberName: r.member_name,
+              role: r.role || 'QA Tester',
+              projectId: r.project_id,
+              projectName: r.project_name,
+              yesterdayCompleted: r.yesterday_completed || parsedNotes.majorAchievement || '',
+              todayWorkingOn: r.today_working_on || '',
+              blockers: r.blockers || '',
+              isBlocked: Boolean(r.is_blocked),
+              risks: r.risks || parsedNotes.risks || '',
+              nextPlan: r.next_plan || parsedNotes.nextPlan || r.expected_completion || '',
+              majorAchievement: r.major_achievement || parsedNotes.majorAchievement || r.yesterday_completed || '',
+              progressPercentage: Number(r.progress_percentage || 50),
+              expectedCompletion: (r.expected_completion as any) || 'Today',
+              notes: r.notes || '',
+              status: 'submitted' as const,
+              submittedAt: r.submitted_at || new Date().toISOString(),
+              source: 'telegram' as const,
+            };
+          });
 
           StorageService.saveDailyReports(mapped);
           return mapped;
@@ -84,10 +96,13 @@ export const DailyReportService = {
           role: tg.role || 'tester',
           projectId: tg.projectId || 'prj-banking',
           projectName: tg.projectName || 'Banking SuperApp',
-          yesterdayCompleted: tg.yesterdayCompleted || '',
+          yesterdayCompleted: tg.yesterdayCompleted || tg.majorAchievement || '',
           todayWorkingOn: tg.todayWorkingOn || '',
           isBlocked: Boolean(tg.isBlocked),
           blockers: tg.blockers || '',
+          risks: tg.risks || '',
+          nextPlan: tg.nextPlan || tg.expectedCompletion || '',
+          majorAchievement: tg.majorAchievement || tg.yesterdayCompleted || '',
           progressPercentage: 75,
           expectedCompletion: tg.expectedCompletion || 'Today',
           notes: tg.notes || '',
@@ -119,7 +134,7 @@ export const DailyReportService = {
     const today = new Date().toISOString().split('T')[0];
 
     const existingIdx = reports.findIndex(
-      (r) => r.memberId === reportData.memberId && r.date === today
+      (r) => r.memberId === reportData.memberId && r.projectId === reportData.projectId && r.date === today
     );
 
     const report: DailyReport = {
@@ -127,10 +142,13 @@ export const DailyReportService = {
       date: today,
       memberId: reportData.memberId,
       projectId: reportData.projectId,
-      yesterdayCompleted: reportData.yesterdayCompleted || '',
+      yesterdayCompleted: reportData.yesterdayCompleted || reportData.majorAchievement || '',
       todayWorkingOn: reportData.todayWorkingOn || '',
       isBlocked: reportData.isBlocked ?? false,
       blockers: reportData.blockers || '',
+      risks: reportData.risks || '',
+      nextPlan: reportData.nextPlan || '',
+      majorAchievement: reportData.majorAchievement || '',
       progressPercentage: reportData.progressPercentage || 50,
       expectedCompletion: reportData.expectedCompletion || 'Today',
       notes: reportData.notes || '',
@@ -176,6 +194,40 @@ export const DailyReportService = {
         type: 'blocker_created',
         actionUrl: 'daily-report',
       });
+    }
+
+    if (supabase) {
+      const projects = StorageService.getProjects();
+      const project = projects.find((p) => p.id === report.projectId);
+      const projectName = project ? project.name : (report.projectName || 'General QA');
+      const notesObj = {
+        workStatus: report.isBlocked ? 'Blocked' : 'On Track',
+        statusEmoji: report.isBlocked ? '🔴' : '🟢',
+        risks: report.risks || '',
+        nextPlan: report.nextPlan || report.expectedCompletion || '',
+        majorAchievement: report.majorAchievement || report.yesterdayCompleted || '',
+      };
+      supabase
+        .from('daily_reports')
+        .upsert({
+          id: report.id,
+          date: report.date,
+          member_id: report.memberId,
+          member_name: memberName,
+          role: member ? member.role : 'qa_engineer',
+          project_id: report.projectId,
+          project_name: projectName,
+          today_working_on: report.todayWorkingOn,
+          yesterday_completed: report.majorAchievement || report.yesterdayCompleted,
+          blockers: report.blockers,
+          is_blocked: report.isBlocked,
+          expected_completion: report.nextPlan || report.expectedCompletion,
+          notes: JSON.stringify(notesObj),
+          submitted_at: report.submittedAt || new Date().toISOString(),
+        })
+        .then(({ error }) => {
+          if (error) console.warn('[Supabase] Daily report upsert error:', error.message);
+        });
     }
 
     return report;
