@@ -63,7 +63,9 @@ export type ProjectStatus =
   | 'Released'
   | 'On Hold'
   | 'Completed'
-  | 'Archived';
+  | 'Archived'
+  | 'Blocked'
+  | 'In Progress';
 
 export interface TestCredential {
   role: string;
@@ -294,6 +296,8 @@ export interface DailyReport {
   projectName?: string;
   yesterdayCompleted: string;
   todayWorkingOn: string;
+  workStatus?: string;
+  statusEmoji?: string;
   isBlocked: boolean;
   blockers: string;
   progressPercentage: number;

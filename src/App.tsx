@@ -20,6 +20,7 @@ import { GlobalSearchModal } from './components/GlobalSearchModal';
 import { WorkloadAssignmentModal } from './components/WorkloadAssignmentModal';
 import { AuthService } from './services/authService';
 import { StorageService } from './services/storage';
+import { CreateProjectModal } from './components/CreateProjectModal';
 import { User } from './types';
 
 export const App: React.FC = () => {
@@ -35,6 +36,7 @@ export const App: React.FC = () => {
   const [isSearchOpen, setIsSearchOpen] = useState<boolean>(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState<boolean>(false);
   const [isWorkloadAssignOpen, setIsWorkloadAssignOpen] = useState<boolean>(false);
+  const [isCreateProjectOpen, setIsCreateProjectOpen] = useState<boolean>(false);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -70,6 +72,7 @@ export const App: React.FC = () => {
         collapsed={sidebarCollapsed}
         onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
         onUserChange={handleUserChange}
+        onOpenCreateProject={() => setIsCreateProjectOpen(true)}
       />
 
       {/* Main Content View with Top Header */}
@@ -81,6 +84,7 @@ export const App: React.FC = () => {
           onOpenCheckIn={() => setIsCheckInOpen(true)}
           onOpenNotifications={() => setIsNotificationsOpen(true)}
           onOpenOnboarding={() => setIsOnboardingOpen(true)}
+          onOpenCreateProject={() => setIsCreateProjectOpen(true)}
           theme={theme}
           onToggleTheme={toggleTheme}
         />
@@ -185,6 +189,18 @@ export const App: React.FC = () => {
         onClose={() => setIsWorkloadAssignOpen(false)}
         leadId={currentUser.id}
       />
+
+      {/* Create QA Project Modal (Accessible via Top Header & Sidebar icons) */}
+      {isCreateProjectOpen && (
+        <CreateProjectModal
+          isOpen={isCreateProjectOpen}
+          onClose={() => setIsCreateProjectOpen(false)}
+          currentUser={currentUser}
+          onProjectCreated={(newProject) => {
+            handleNavigateToProject(newProject.id);
+          }}
+        />
+      )}
     </div>
   );
 };

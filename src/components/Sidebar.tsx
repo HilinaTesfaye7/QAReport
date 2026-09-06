@@ -6,9 +6,11 @@ import {
   ChevronLeft,
   ChevronRight,
   Shield,
+  Plus,
 } from 'lucide-react';
 import { User } from '../types';
 import { StorageService } from '../services/storage';
+import { AuthService } from '../services/authService';
 
 interface SidebarProps {
   currentUser: User;
@@ -17,6 +19,7 @@ interface SidebarProps {
   collapsed: boolean;
   onToggleCollapse: () => void;
   onUserChange?: (user: User) => void;
+  onOpenCreateProject?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -26,8 +29,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
   collapsed,
   onToggleCollapse,
   onUserChange,
+  onOpenCreateProject,
 }) => {
   const users = StorageService.getUsers();
+  const isLead = AuthService.isQALead(currentUser);
 
   const navItems = [
     { id: 'command-center', label: 'Dashboard', icon: LayoutDashboard },
@@ -171,7 +176,44 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 }}
               >
                 <Icon size={19} color={isActive ? '#38bdf8' : 'currentColor'} />
-                {!collapsed && <span>{item.label}</span>}
+                {!collapsed && (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flex: 1 }}>
+                    <span>{item.label}</span>
+                    {item.id === 'projects' && isLead && onOpenCreateProject && (
+                      <span
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onOpenCreateProject();
+                        }}
+                        title="Create New Project"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          width: '20px',
+                          height: '20px',
+                          borderRadius: '5px',
+                          background: 'rgba(56, 189, 248, 0.18)',
+                          color: '#38bdf8',
+                          fontSize: '0.75rem',
+                          fontWeight: 800,
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease',
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = 'rgba(56, 189, 248, 0.35)';
+                          e.currentTarget.style.transform = 'scale(1.15)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = 'rgba(56, 189, 248, 0.18)';
+                          e.currentTarget.style.transform = 'scale(1)';
+                        }}
+                      >
+                        <Plus size={13} />
+                      </span>
+                    )}
+                  </div>
+                )}
               </button>
             );
           })}

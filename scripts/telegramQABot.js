@@ -446,6 +446,246 @@ function persistBlocker(blocker) {
   }
 }
 
+// Helper to look up QA Leads registered in local store or Supabase
+async function findQALeadsForProject(projectId, projectName) {
+  const leads = new Map();
+
+  // 1. Local profiles (telegram_profiles.json)
+  const profiles = loadProfiles();
+  for (const [cId, prof] of Object.entries(profiles)) {
+    if (isQALead(prof) && cId) {
+      leads.set(String(cId), {
+        chatId: String(cId),
+        fullName: prof.fullName || 'QA Lead',
+        role: prof.role || 'QA Lead',
+        projectId: prof.projectId || '',
+        projectName: prof.projectName || '',
+        assignedProjectIds: prof.assignedProjectIds || [],
+        assignedProjects: prof.assignedProjects || [],
+      });
+    }
+  }
+
+  // 2. Supabase cloud profiles
+  if (supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('telegram_profiles')
+        .select('*');
+      if (!error && Array.isArray(data)) {
+        for (const row of data) {
+          if (isQALead(row) && row.chat_id) {
+            const strChatId = String(row.chat_id);
+            if (!leads.has(strChatId)) {
+              leads.set(strChatId, {
+                chatId: strChatId,
+                fullName: row.full_name || 'QA Lead',
+                role: row.role || 'QA Lead',
+                projectId: row.project_id || '',
+                projectName: row.project_name || '',
+                assignedProjectIds: row.assigned_project_ids || [],
+                assignedProjects: row.assigned_projects || [],
+              });
+            }
+          }
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  const allLeads = Array.from(leads.values());
+  if (allLeads.length === 0) return [];
+
+  const pId = projectId ? String(projectId).toLowerCase() : '';
+  const pName = projectName ? String(projectName).toLowerCase() : '';
+
+  const matchedLeads = allLeads.filter((lead) => {
+    if (!pId && !pName) return true;
+    const lPId = lead.projectId ? String(lead.projectId).toLowerCase() : '';
+    const lPName = lead.projectName ? String(lead.projectName).toLowerCase() : '';
+    const assignedIds = (lead.assignedProjectIds || []).map((x) => String(x).toLowerCase());
+    const assignedNames = (lead.assignedProjects || []).map((x) => String(x).toLowerCase());
+
+    return (
+      (pId && lPId === pId) ||
+      (pName && lPName === pName) ||
+      (pId && assignedIds.includes(pId)) ||
+      (pName && assignedNames.includes(pName))
+    );
+  });
+
+  return matchedLeads.length > 0 ? matchedLeads : allLeads;
+}
+
+// Proactive Telegram Alert to QA Lead when a blocker is filed via /blocker
+async function notifyQALeadsOfBlocker({
+  senderChatId,
+  memberName,
+  username,
+  projectName,
+  projectId,
+  reason,
+  severity = 'Critical',
+  createdAt,
+}) {
+  try {
+    const leads = await findQALeadsForProject(projectId, projectName);
+    const targetLeads = leads.filter((l) => String(l.chatId) !== String(senderChatId));
+
+    if (targetLeads.length === 0) {
+      console.log(`[Notification] No QA Leads to notify for blocker on ${projectName}`);
+      return;
+    }
+
+    const timeStr = new Date(createdAt || Date.now()).toLocaleTimeString();
+    let msg = `🚨 <b>QA LEAD ALERT — URGENT BLOCKER FILED</b>\n\n`;
+    msg += `📁 <b>Project:</b> <b>${escapeHtml(projectName)}</b>\n`;
+    msg += `👤 <b>Reported by:</b> <b>${escapeHtml(memberName)}</b> (@${escapeHtml(username || 'unknown')})\n`;
+    msg += `⚠️ <b>Severity:</b> <b>${escapeHtml(severity)}</b>\n`;
+    msg += `🕒 <b>Time:</b> <code>${escapeHtml(timeStr)}</code>\n\n`;
+    msg += `🚨 <b>Blocker Issue:</b>\n`;
+    msg += `<i>"${escapeHtml(reason)}"</i>\n\n`;
+    msg += `━━━━━━━━━━━━━━━━━━━━\n`;
+    msg += `💡 <b>Quick Lead Actions:</b>\n`;
+    msg += `• View status: <code>/status</code>\n`;
+    msg += `• Resolve blocker: <code>/resolve</code>\n`;
+    msg += `• View risks: <code>/risks</code>`;
+
+    for (const lead of targetLeads) {
+      console.log(`[Notification] Dispatching Blocker alert to QA Lead ${lead.fullName} (${lead.chatId})...`);
+      await sendMessage(lead.chatId, msg);
+    }
+  } catch (err) {
+    console.error('[Notification Error] Blocker notification failed:', err.message);
+  }
+}
+
+// Proactive Telegram Alert to QA Lead when a blocker is resolved
+async function notifyQALeadsOfBlockerResolved({
+  senderChatId,
+  memberName,
+  username,
+  projectName,
+  projectId,
+  resolvedBlockers = [],
+  resolvedAt,
+}) {
+  try {
+    const leads = await findQALeadsForProject(projectId, projectName);
+    const targetLeads = leads.filter((l) => String(l.chatId) !== String(senderChatId));
+
+    if (targetLeads.length === 0) {
+      console.log(`[Notification] No QA Leads to notify for resolved blocker on ${projectName}`);
+      return;
+    }
+
+    const timeStr = new Date(resolvedAt || Date.now()).toLocaleTimeString();
+    let msg = `✅ <b>QA LEAD ALERT — BLOCKER RESOLVED</b>\n\n`;
+    msg += `📁 <b>Project:</b> <b>${escapeHtml(projectName || 'QA Project')}</b>\n`;
+    msg += `👤 <b>Resolved by:</b> <b>${escapeHtml(memberName)}</b> (@${escapeHtml(username || 'unknown')})\n`;
+    msg += `🛡️ <b>Status:</b> <b>Resolved</b>\n`;
+    msg += `🕒 <b>Time:</b> <code>${escapeHtml(timeStr)}</code>\n\n`;
+
+    msg += `✅ <b>Resolved Blocker(s):</b>\n`;
+    if (resolvedBlockers.length > 0) {
+      resolvedBlockers.forEach((b, i) => {
+        msg += `${i + 1}. <b>${escapeHtml(b.title || 'Blocker')}</b>\n`;
+        if (b.description && b.description !== b.title) {
+          msg += `   <i>"${escapeHtml(b.description)}"</i>\n`;
+        }
+      });
+    } else {
+      msg += `• Blocker issue marked as resolved.\n`;
+    }
+    msg += `\n`;
+
+    msg += `━━━━━━━━━━━━━━━━━━━━\n`;
+    msg += `💡 <b>Quick Lead Actions:</b>\n`;
+    msg += `• View updated status: <code>/status</code>\n`;
+    msg += `• Team progress: <code>/team</code>\n`;
+    msg += `• Project risks: <code>/risks</code>`;
+
+    for (const lead of targetLeads) {
+      console.log(`[Notification] Dispatching Blocker Resolved alert to QA Lead ${lead.fullName} (${lead.chatId})...`);
+      await sendMessage(lead.chatId, msg);
+    }
+  } catch (err) {
+    console.error('[Notification Error] Blocker resolved notification failed:', err.message);
+  }
+}
+
+// Proactive Telegram Alert to QA Lead when a member mentions a Blocker, Risk, or Critical Bug in Standup
+async function notifyQALeadsOfStandupIssue({
+  senderChatId,
+  profile,
+  workStatus,
+  statusEmoji,
+  todayWorkingOn,
+  blockersText,
+  risksText,
+  bugsSummary,
+  hasBlocker,
+  hasRisk,
+  hasCriticalBugs,
+}) {
+  try {
+    const leads = await findQALeadsForProject(profile.projectId, profile.projectName);
+    const targetLeads = leads.filter((l) => String(l.chatId) !== String(senderChatId));
+
+    if (targetLeads.length === 0) {
+      console.log(`[Notification] No QA Leads to notify for standup issue on ${profile.projectName}`);
+      return;
+    }
+
+    let alertHeader = `🚨 <b>QA LEAD ALERT — URGENT BLOCKER IN STANDUP</b>`;
+    if (!hasBlocker && hasRisk) {
+      alertHeader = `⚠️ <b>QA LEAD ALERT — QA RISK REPORTED IN STANDUP</b>`;
+    } else if (!hasBlocker && hasCriticalBugs) {
+      alertHeader = `🐞 <b>QA LEAD ALERT — CRITICAL BUG REPORTED IN STANDUP</b>`;
+    }
+
+    let msg = `${alertHeader}\n\n`;
+    msg += `📁 <b>Project:</b> <b>${escapeHtml(profile.projectName)}</b>\n`;
+    msg += `👤 <b>QA Member:</b> <b>${escapeHtml(profile.fullName)}</b> (${escapeHtml(profile.role || 'Tester')})\n`;
+    msg += `📈 <b>Status:</b> <b>${statusEmoji} ${escapeHtml(workStatus)}</b>\n\n`;
+
+    if (todayWorkingOn) {
+      msg += `🎯 <b>Today's Task:</b>\n${escapeHtml(todayWorkingOn)}\n\n`;
+    }
+
+    if (hasBlocker) {
+      const bText = (blockersText && blockersText !== 'None')
+        ? blockersText
+        : `Member marked work status as ${statusEmoji} ${workStatus}.`;
+      msg += `🚨 <b>Blocker Details:</b>\n<i>"${escapeHtml(bText)}"</i>\n\n`;
+    }
+
+    if (hasRisk && risksText && risksText !== 'None') {
+      msg += `⚠️ <b>Risk Details:</b>\n<i>"${escapeHtml(risksText)}"</i>\n\n`;
+    }
+
+    if (bugsSummary && bugsSummary !== 'None') {
+      msg += `🐞 <b>Bugs Found:</b>\n${escapeHtml(bugsSummary)}\n\n`;
+    }
+
+    msg += `━━━━━━━━━━━━━━━━━━━━\n`;
+    msg += `💡 <b>Quick Lead Actions:</b>\n`;
+    msg += `• View team status: <code>/status</code>\n`;
+    msg += `• Team progress: <code>/team</code>\n`;
+    if (hasBlocker) msg += `• Resolve blocker: <code>/resolve</code>\n`;
+    if (hasRisk) msg += `• Project risks: <code>/risks</code>\n`;
+
+    for (const lead of targetLeads) {
+      console.log(`[Notification] Dispatching Standup alert to QA Lead ${lead.fullName} (${lead.chatId})...`);
+      await sendMessage(lead.chatId, msg);
+    }
+  } catch (err) {
+    console.error('[Notification Error] Standup issue notification failed:', err.message);
+  }
+}
+
 // ==========================================
 // 1. ONBOARDING WIZARD (Name, Role, Project)
 // ==========================================
@@ -1514,13 +1754,21 @@ async function finalizeAndSubmitCheckin(chatId, user, session) {
 
   persistReport(fullReport);
 
+  const hasBlocker = isBlocked || (blockersText && blockersText !== 'None');
+  const hasRisk = workStatus === 'At Risk' || (risksText && risksText !== 'None');
+  const hasCriticalBugs = Boolean(answers.bugs && answers.bugs.critical > 0);
+
   // If user is Blocked or reported a blocker, create blocker record so QA Lead dashboard/status reflects it immediately!
-  if (isBlocked && blockersText !== 'None') {
-    const isCritical = workStatus === 'Blocked' || blockersText.toLowerCase().includes('crit') || (answers.bugs && answers.bugs.critical > 0);
+  if (hasBlocker) {
+    const isCritical = workStatus === 'Blocked' || (blockersText && blockersText.toLowerCase().includes('crit')) || hasCriticalBugs;
+    const blockerDesc = (blockersText && blockersText !== 'None')
+      ? blockersText
+      : `Member marked work status as ${statusEmoji} ${workStatus} on task: ${answers.todayWorkingOn || 'Active task'}`;
+
     persistBlocker({
       id: `blk-${Date.now().toString(36)}`,
       title: `Blocker: ${profile.fullName} (${workStatus})`,
-      description: blockersText,
+      description: blockerDesc,
       projectId: profile.projectId,
       projectName: profile.projectName,
       severity: isCritical ? 'Critical' : 'High',
@@ -1529,6 +1777,23 @@ async function finalizeAndSubmitCheckin(chatId, user, session) {
       chatId: String(chatId),
       createdAt: new Date().toISOString(),
     });
+  }
+
+  // PROACTIVELY NOTIFY QA LEAD(S) IF THERE IS A BLOCKER, RISK, OR CRITICAL DEFECT
+  if (hasBlocker || hasRisk || hasCriticalBugs) {
+    notifyQALeadsOfStandupIssue({
+      senderChatId: chatId,
+      profile,
+      workStatus,
+      statusEmoji,
+      todayWorkingOn: answers.todayWorkingOn,
+      blockersText,
+      risksText,
+      bugsSummary,
+      hasBlocker,
+      hasRisk,
+      hasCriticalBugs,
+    }).catch((err) => console.error('[Notify Lead Error]', err.message));
   }
 
   userSessions.delete(chatId);
@@ -1569,6 +1834,20 @@ async function handleCheckinStep(chatId, user, text) {
       for (const b of blockersToResolve) {
         await markBlockerResolved(b.id);
       }
+
+      // Proactively notify QA Lead(s) that member resolved blocker during standup
+      const activeProj = profile ? profile.projectName : (blockersToResolve[0]?.projectName || 'QA Project');
+      const activeProjId = profile ? profile.projectId : (blockersToResolve[0]?.projectId || '');
+      notifyQALeadsOfBlockerResolved({
+        senderChatId: chatId,
+        memberName: profile ? profile.fullName : (user.first_name || 'QA Member'),
+        username: user.username || user.first_name,
+        projectName: activeProj,
+        projectId: activeProjId,
+        resolvedBlockers: blockersToResolve,
+        resolvedAt: new Date().toISOString(),
+      }).catch((err) => console.error('[Notify Lead Error]', err.message));
+
       await sendMessage(
         chatId,
         `✅ <b>${blockersToResolve.length} Blocker(s) Marked as Resolved!</b>\n` +
@@ -2066,6 +2345,18 @@ async function handleMessage(message) {
 
     persistBlocker(blockerItem);
 
+    // Proactively notify QA Lead(s) directly in Telegram!
+    notifyQALeadsOfBlocker({
+      senderChatId: chatId,
+      memberName,
+      username: user.username || user.first_name,
+      projectName,
+      projectId,
+      reason,
+      severity: 'Critical',
+      createdAt: blockerItem.createdAt,
+    }).catch((err) => console.error('[Notify Lead Error]', err.message));
+
     await sendMessage(
       chatId,
       `🚨 <b>CRITICAL BLOCKER LOGGED</b>\n\n` +
@@ -2106,6 +2397,19 @@ async function handleMessage(message) {
     for (const b of openBlockers) {
       await markBlockerResolved(b.id);
     }
+
+    // Proactively notify QA Lead(s) of resolved blocker(s)
+    const activeProj = profile ? profile.projectName : (openBlockers[0]?.projectName || 'QA Project');
+    const activeProjId = profile ? profile.projectId : (openBlockers[0]?.projectId || '');
+    notifyQALeadsOfBlockerResolved({
+      senderChatId: chatId,
+      memberName: profile ? profile.fullName : (user.first_name || 'QA Member'),
+      username: user.username || user.first_name,
+      projectName: activeProj,
+      projectId: activeProjId,
+      resolvedBlockers: openBlockers,
+      resolvedAt: new Date().toISOString(),
+    }).catch((err) => console.error('[Notify Lead Error]', err.message));
 
     await sendMessage(
       chatId,
@@ -2762,4 +3066,8 @@ export {
   makeProgressBar,
   sendLongMessage,
   syncTelegramCommands,
+  findQALeadsForProject,
+  notifyQALeadsOfBlocker,
+  notifyQALeadsOfStandupIssue,
+  notifyQALeadsOfBlockerResolved,
 };

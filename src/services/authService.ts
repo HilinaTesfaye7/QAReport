@@ -21,12 +21,14 @@ export const AuthService = {
 
   isQALead: (user?: User): boolean => {
     const u = user || AuthService.getCurrentUser();
-    return u.role === 'qa_lead';
+    if (!u || !u.role) return false;
+    const r = String(u.role).toLowerCase();
+    return r === 'qa_lead' || r.includes('lead') || r.includes('manager') || r === 'admin';
   },
 
   isQAEngineer: (user?: User): boolean => {
     const u = user || AuthService.getCurrentUser();
-    return u.role === 'qa_engineer';
+    return !AuthService.isQALead(u);
   },
 
   // RBAC Permission Guard
@@ -35,7 +37,7 @@ export const AuthService = {
       ? StorageService.getUsers().find((u) => u.id === actorId)
       : AuthService.getCurrentUser();
 
-    if (!current || current.role !== 'qa_lead') {
+    if (!current || !AuthService.isQALead(current)) {
       throw new Error('FORBIDDEN: This operation requires QA Lead administration permissions.');
     }
   },

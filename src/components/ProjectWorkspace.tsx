@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Project, User } from '../types';
 import { StorageService } from '../services/storage';
+import { AuthService } from '../services/authService';
 import { AuthorizedProjectsTable } from './AuthorizedProjectsTable';
 import { ProjectDetailView } from './ProjectDetailView';
 import { CreateProjectModal } from './CreateProjectModal';
@@ -41,7 +42,7 @@ export const ProjectWorkspace: React.FC<ProjectWorkspaceProps> = ({
   }, [activeProjectId]);
 
   const currentProject = projects.find((p) => p.id === selectedId) || projects[0];
-  const isLead = currentUser.role === 'qa_lead';
+  const isLead = AuthService.isQALead(currentUser);
 
   if (!currentProject && projects.length === 0) {
     return <div style={{ padding: '24px' }}>No projects available.</div>;

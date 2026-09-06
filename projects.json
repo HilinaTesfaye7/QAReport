@@ -1,5 +1,329 @@
 [
   {
+    "id": "prj-mtouzb3y",
+    "name": "Crypto Vault Wallet",
+    "description": "QA security audit and regression for multi-sig wallet",
+    "status": "Testing",
+    "memberIds": [
+      "usr-347835367",
+      "usr-hana"
+    ],
+    "resources": {
+      "prdUrl": "https://docs.crypto.internal/prd",
+      "repoUrl": "https://github.com/crypto/vault",
+      "figmaUrl": "https://www.figma.com/file/crypto-vault/spec",
+      "prdTitle": "Crypto Vault Wallet PRD v1.2",
+      "apiDocUrl": "https://api.crypto.internal/docs",
+      "prdContent": "# Crypto Vault Acceptance Criteria\n- 100% test pass rate on signature verifications",
+      "testEnvUrl": "https://staging-wallet.internal",
+      "releaseInfo": "Audited release candidate",
+      "requirements": [
+        "REQ-01: Multi-sig auth",
+        "REQ-02: Biometric unlock"
+      ],
+      "importantNotes": "Verify secure enclave simulation",
+      "testCredentials": [],
+      "figmaPreviewTitle": "Crypto Vault UI Specs"
+    }
+  },
+  {
+    "id": "prj-mtouxmlv",
+    "name": "Crypto Vault Wallet",
+    "description": "QA security audit and regression for multi-sig wallet",
+    "status": "Testing",
+    "memberIds": [
+      "usr-347835367",
+      "usr-hana"
+    ],
+    "resources": {
+      "prdUrl": "https://docs.crypto.internal/prd",
+      "repoUrl": "https://github.com/crypto/vault",
+      "figmaUrl": "https://www.figma.com/file/crypto-vault/spec",
+      "prdTitle": "Crypto Vault Wallet PRD v1.2",
+      "apiDocUrl": "https://api.crypto.internal/docs",
+      "prdContent": "# Crypto Vault Acceptance Criteria\n- 100% test pass rate on signature verifications",
+      "testEnvUrl": "https://staging-wallet.internal",
+      "releaseInfo": "Audited release candidate",
+      "requirements": [
+        "REQ-01: Multi-sig auth",
+        "REQ-02: Biometric unlock"
+      ],
+      "importantNotes": "Verify secure enclave simulation",
+      "testCredentials": [],
+      "figmaPreviewTitle": "Crypto Vault UI Specs"
+    }
+  },
+  {
+    "id": "prj-mtoux8kj",
+    "name": "Crypto Vault Wallet",
+    "description": "QA security audit and regression for multi-sig wallet",
+    "status": "Testing",
+    "memberIds": [
+      "usr-347835367",
+      "usr-hana"
+    ],
+    "resources": {
+      "prdUrl": "https://docs.crypto.internal/prd",
+      "repoUrl": "https://github.com/crypto/vault",
+      "figmaUrl": "https://www.figma.com/file/crypto-vault/spec",
+      "prdTitle": "Crypto Vault Wallet PRD v1.2",
+      "apiDocUrl": "https://api.crypto.internal/docs",
+      "prdContent": "# Crypto Vault Acceptance Criteria\n- 100% test pass rate on signature verifications",
+      "testEnvUrl": "https://staging-wallet.internal",
+      "releaseInfo": "Audited release candidate",
+      "requirements": [
+        "REQ-01: Multi-sig auth",
+        "REQ-02: Biometric unlock"
+      ],
+      "importantNotes": "Verify secure enclave simulation",
+      "testCredentials": [],
+      "figmaPreviewTitle": "Crypto Vault UI Specs"
+    }
+  },
+  {
+    "id": "prj-mtouki16",
+    "name": "Crypto Vault Wallet",
+    "description": "QA security audit and regression for multi-sig wallet",
+    "status": "Testing",
+    "memberIds": [
+      "usr-347835367",
+      "usr-hana"
+    ],
+    "resources": {
+      "prdUrl": "https://docs.crypto.internal/prd",
+      "repoUrl": "https://github.com/crypto/vault",
+      "figmaUrl": "https://www.figma.com/file/crypto-vault/spec",
+      "prdTitle": "Crypto Vault Wallet PRD v1.2",
+      "apiDocUrl": "https://api.crypto.internal/docs",
+      "prdContent": "# Crypto Vault Acceptance Criteria\n- 100% test pass rate on signature verifications",
+      "testEnvUrl": "https://staging-wallet.internal",
+      "releaseInfo": "Audited release candidate",
+      "requirements": [
+        "REQ-01: Multi-sig auth",
+        "REQ-02: Biometric unlock"
+      ],
+      "importantNotes": "Verify secure enclave simulation",
+      "testCredentials": [],
+      "figmaPreviewTitle": "Crypto Vault UI Specs"
+    }
+  },
+  {
+    "id": "prj-mtoujl5v",
+    "name": "Crypto Vault Wallet",
+    "description": "QA security audit and regression for multi-sig wallet",
+    "status": "Testing",
+    "memberIds": [
+      "usr-347835367",
+      "usr-hana"
+    ],
+    "resources": {
+      "prdUrl": "https://docs.crypto.internal/prd",
+      "repoUrl": "https://github.com/crypto/vault",
+      "figmaUrl": "https://www.figma.com/file/crypto-vault/spec",
+      "prdTitle": "Crypto Vault Wallet PRD v1.2",
+      "apiDocUrl": "https://api.crypto.internal/docs",
+      "prdContent": "# Crypto Vault Acceptance Criteria\n- 100% test pass rate on signature verifications",
+      "testEnvUrl": "https://staging-wallet.internal",
+      "releaseInfo": "Audited release candidate",
+      "requirements": [
+        "REQ-01: Multi-sig auth",
+        "REQ-02: Biometric unlock"
+      ],
+      "importantNotes": "Verify secure enclave simulation",
+      "testCredentials": [],
+      "figmaPreviewTitle": "Crypto Vault UI Specs"
+    }
+  },
+  {
+    "id": "prj-mtoud4zt",
+    "name": "Crypto Vault Wallet",
+    "description": "QA security audit and regression for multi-sig wallet",
+    "status": "Testing",
+    "memberIds": [
+      "usr-347835367",
+      "usr-hana"
+    ],
+    "resources": {
+      "prdUrl": "https://docs.crypto.internal/prd",
+      "repoUrl": "https://github.com/crypto/vault",
+      "figmaUrl": "https://www.figma.com/file/crypto-vault/spec",
+      "prdTitle": "Crypto Vault Wallet PRD v1.2",
+      "apiDocUrl": "https://api.crypto.internal/docs",
+      "prdContent": "# Crypto Vault Acceptance Criteria\n- 100% test pass rate on signature verifications",
+      "testEnvUrl": "https://staging-wallet.internal",
+      "releaseInfo": "Audited release candidate",
+      "requirements": [
+        "REQ-01: Multi-sig auth",
+        "REQ-02: Biometric unlock"
+      ],
+      "importantNotes": "Verify secure enclave simulation",
+      "testCredentials": [],
+      "figmaPreviewTitle": "Crypto Vault UI Specs"
+    }
+  },
+  {
+    "id": "prj-mtoubxe3",
+    "name": "Crypto Vault Wallet",
+    "description": "QA security audit and regression for multi-sig wallet",
+    "status": "Testing",
+    "memberIds": [
+      "usr-347835367",
+      "usr-hana"
+    ],
+    "resources": {
+      "prdUrl": "https://docs.crypto.internal/prd",
+      "repoUrl": "https://github.com/crypto/vault",
+      "figmaUrl": "https://www.figma.com/file/crypto-vault/spec",
+      "prdTitle": "Crypto Vault Wallet PRD v1.2",
+      "apiDocUrl": "https://api.crypto.internal/docs",
+      "prdContent": "# Crypto Vault Acceptance Criteria\n- 100% test pass rate on signature verifications",
+      "testEnvUrl": "https://staging-wallet.internal",
+      "releaseInfo": "Audited release candidate",
+      "requirements": [
+        "REQ-01: Multi-sig auth",
+        "REQ-02: Biometric unlock"
+      ],
+      "importantNotes": "Verify secure enclave simulation",
+      "testCredentials": [],
+      "figmaPreviewTitle": "Crypto Vault UI Specs"
+    }
+  },
+  {
+    "id": "prj-mtou8o92",
+    "name": "Crypto Vault Wallet",
+    "description": "QA security audit and regression for multi-sig wallet",
+    "status": "Testing",
+    "memberIds": [
+      "usr-347835367",
+      "usr-hana"
+    ],
+    "resources": {
+      "prdUrl": "https://docs.crypto.internal/prd",
+      "repoUrl": "https://github.com/crypto/vault",
+      "figmaUrl": "https://www.figma.com/file/crypto-vault/spec",
+      "prdTitle": "Crypto Vault Wallet PRD v1.2",
+      "apiDocUrl": "https://api.crypto.internal/docs",
+      "prdContent": "# Crypto Vault Acceptance Criteria\n- 100% test pass rate on signature verifications",
+      "testEnvUrl": "https://staging-wallet.internal",
+      "releaseInfo": "Audited release candidate",
+      "requirements": [
+        "REQ-01: Multi-sig auth",
+        "REQ-02: Biometric unlock"
+      ],
+      "importantNotes": "Verify secure enclave simulation",
+      "testCredentials": [],
+      "figmaPreviewTitle": "Crypto Vault UI Specs"
+    }
+  },
+  {
+    "id": "prj-mtou80qx",
+    "name": "Crypto Vault Wallet",
+    "description": "QA security audit and regression for multi-sig wallet",
+    "status": "Testing",
+    "memberIds": [
+      "usr-347835367",
+      "usr-hana"
+    ],
+    "resources": {
+      "prdUrl": "https://docs.crypto.internal/prd",
+      "repoUrl": "https://github.com/crypto/vault",
+      "figmaUrl": "https://www.figma.com/file/crypto-vault/spec",
+      "prdTitle": "Crypto Vault Wallet PRD v1.2",
+      "apiDocUrl": "https://api.crypto.internal/docs",
+      "prdContent": "# Crypto Vault Acceptance Criteria\n- 100% test pass rate on signature verifications",
+      "testEnvUrl": "https://staging-wallet.internal",
+      "releaseInfo": "Audited release candidate",
+      "requirements": [
+        "REQ-01: Multi-sig auth",
+        "REQ-02: Biometric unlock"
+      ],
+      "importantNotes": "Verify secure enclave simulation",
+      "testCredentials": [],
+      "figmaPreviewTitle": "Crypto Vault UI Specs"
+    }
+  },
+  {
+    "id": "prj-mtou2xti",
+    "name": "Crypto Vault Wallet",
+    "description": "QA security audit and regression for multi-sig wallet",
+    "status": "Testing",
+    "memberIds": [
+      "usr-347835367",
+      "usr-hana"
+    ],
+    "resources": {
+      "prdUrl": "https://docs.crypto.internal/prd",
+      "repoUrl": "https://github.com/crypto/vault",
+      "figmaUrl": "https://www.figma.com/file/crypto-vault/spec",
+      "prdTitle": "Crypto Vault Wallet PRD v1.2",
+      "apiDocUrl": "https://api.crypto.internal/docs",
+      "prdContent": "# Crypto Vault Acceptance Criteria\n- 100% test pass rate on signature verifications",
+      "testEnvUrl": "https://staging-wallet.internal",
+      "releaseInfo": "Audited release candidate",
+      "requirements": [
+        "REQ-01: Multi-sig auth",
+        "REQ-02: Biometric unlock"
+      ],
+      "importantNotes": "Verify secure enclave simulation",
+      "testCredentials": [],
+      "figmaPreviewTitle": "Crypto Vault UI Specs"
+    }
+  },
+  {
+    "id": "prj-mtotyz2j",
+    "name": "Crypto Vault Wallet",
+    "description": "QA security audit and regression for multi-sig wallet",
+    "status": "Testing",
+    "memberIds": [
+      "usr-347835367",
+      "usr-hana"
+    ],
+    "resources": {
+      "prdUrl": "https://docs.crypto.internal/prd",
+      "repoUrl": "https://github.com/crypto/vault",
+      "figmaUrl": "https://www.figma.com/file/crypto-vault/spec",
+      "prdTitle": "Crypto Vault Wallet PRD v1.2",
+      "apiDocUrl": "https://api.crypto.internal/docs",
+      "prdContent": "# Crypto Vault Acceptance Criteria\n- 100% test pass rate on signature verifications",
+      "testEnvUrl": "https://staging-wallet.internal",
+      "releaseInfo": "Audited release candidate",
+      "requirements": [
+        "REQ-01: Multi-sig auth",
+        "REQ-02: Biometric unlock"
+      ],
+      "importantNotes": "Verify secure enclave simulation",
+      "testCredentials": [],
+      "figmaPreviewTitle": "Crypto Vault UI Specs"
+    }
+  },
+  {
+    "id": "prj-mtotskwl",
+    "name": "Crypto Vault Wallet",
+    "description": "QA security audit and regression for multi-sig wallet",
+    "status": "Testing",
+    "memberIds": [
+      "usr-347835367",
+      "usr-hana"
+    ],
+    "resources": {
+      "prdUrl": "https://docs.crypto.internal/prd",
+      "repoUrl": "https://github.com/crypto/vault",
+      "figmaUrl": "https://www.figma.com/file/crypto-vault/spec",
+      "prdTitle": "Crypto Vault Wallet PRD v1.2",
+      "apiDocUrl": "https://api.crypto.internal/docs",
+      "prdContent": "# Crypto Vault Acceptance Criteria\n- 100% test pass rate on signature verifications",
+      "testEnvUrl": "https://staging-wallet.internal",
+      "releaseInfo": "Audited release candidate",
+      "requirements": [
+        "REQ-01: Multi-sig auth",
+        "REQ-02: Biometric unlock"
+      ],
+      "importantNotes": "Verify secure enclave simulation",
+      "testCredentials": [],
+      "figmaPreviewTitle": "Crypto Vault UI Specs"
+    }
+  },
+  {
     "id": "prj-mtote6re",
     "name": "Crypto Vault Wallet",
     "description": "QA security audit and regression for multi-sig wallet",
@@ -561,45 +885,6 @@
     }
   },
   {
-    "id": "prj-mobile",
-    "name": "Mobile Banking iOS & Android",
-    "description": "Cross-platform native mobile client focusing on card management, contactless NFC payments, and push security tokens.",
-    "status": "UAT",
-    "memberIds": [
-      "usr-hana",
-      "usr-sara"
-    ],
-    "resources": {
-      "prdUrl": "https://docs.bankcorp.internal/prd/mobile-v3.1",
-      "repoUrl": "https://github.com/bankcorp/mobile-native",
-      "figmaUrl": "https://www.figma.com/file/aegis-mobile-cards/v3.1",
-      "prdTitle": "PRD Mobile v3.1: Virtual Card Issuance & NFC",
-      "apiDocUrl": "https://api-docs.bankcorp.internal/mobile/v3",
-      "figmaName": "Mobile Cards & Wallet Flow v3.1",
-      "prdContent": "# Mobile Banking v3.1 Specifications\nSupport Apple Pay and Google Wallet instant push provisioning. Card freeze/unfreeze toggle with sub-second feedback.",
-      "testEnvUrl": "https://mobile-stage.bankingsuperapp.internal",
-      "releaseInfo": "TestFlight build #412 / Internal App Distribution #208.",
-      "buildVersion": "build-412",
-      "figmaVersion": "3.1.0",
-      "requirements": [
-        "REQ-M01: Virtual card generation within 2 seconds",
-        "REQ-M02: Apple Wallet / Google Wallet provisioning",
-        "REQ-M03: Instant card locking and geo-fencing controls"
-      ],
-      "importantNotes": "Test specifically on iOS 18.0 and Android 15 developer previews.",
-      "testCredentials": [
-        {
-          "pass": "Mob@2026Safe",
-          "role": "Mobile Beta User",
-          "user": "qa.mobile.tester@bank.internal",
-          "notes": "Enrolled in NFC pilot sandbox"
-        }
-      ],
-      "figmaDescription": "Native iOS & Android card views with encrypted CVV reveal.",
-      "figmaPreviewTitle": "Mobile Native Components & Virtual Card Flow"
-    }
-  },
-  {
     "id": "prj-banking",
     "name": "Banking SuperApp",
     "description": "Next-generation retail banking application with instant payments, multi-currency wallets, and biometric authentication.",
@@ -673,6 +958,45 @@
       ],
       "figmaDescription": "Full mobile and responsive web frames with auto-layout padding tokens.",
       "figmaPreviewTitle": "SuperApp UI Kit & Interactive Transfer Flows (Figma v2.4)"
+    }
+  },
+  {
+    "id": "prj-mobile",
+    "name": "Mobile Banking iOS & Android",
+    "description": "Cross-platform native mobile client focusing on card management, contactless NFC payments, and push security tokens.",
+    "status": "UAT",
+    "memberIds": [
+      "usr-hana",
+      "usr-sara"
+    ],
+    "resources": {
+      "prdUrl": "https://docs.bankcorp.internal/prd/mobile-v3.1",
+      "repoUrl": "https://github.com/bankcorp/mobile-native",
+      "figmaUrl": "https://www.figma.com/file/aegis-mobile-cards/v3.1",
+      "prdTitle": "PRD Mobile v3.1: Virtual Card Issuance & NFC",
+      "apiDocUrl": "https://api-docs.bankcorp.internal/mobile/v3",
+      "figmaName": "Mobile Cards & Wallet Flow v3.1",
+      "prdContent": "# Mobile Banking v3.1 Specifications\nSupport Apple Pay and Google Wallet instant push provisioning. Card freeze/unfreeze toggle with sub-second feedback.",
+      "testEnvUrl": "https://mobile-stage.bankingsuperapp.internal",
+      "releaseInfo": "TestFlight build #412 / Internal App Distribution #208.",
+      "buildVersion": "build-412",
+      "figmaVersion": "3.1.0",
+      "requirements": [
+        "REQ-M01: Virtual card generation within 2 seconds",
+        "REQ-M02: Apple Wallet / Google Wallet provisioning",
+        "REQ-M03: Instant card locking and geo-fencing controls"
+      ],
+      "importantNotes": "Test specifically on iOS 18.0 and Android 15 developer previews.",
+      "testCredentials": [
+        {
+          "pass": "Mob@2026Safe",
+          "role": "Mobile Beta User",
+          "user": "qa.mobile.tester@bank.internal",
+          "notes": "Enrolled in NFC pilot sandbox"
+        }
+      ],
+      "figmaDescription": "Native iOS & Android card views with encrypted CVV reveal.",
+      "figmaPreviewTitle": "Mobile Native Components & Virtual Card Flow"
     }
   }
 ]

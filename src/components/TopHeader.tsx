@@ -10,9 +10,11 @@ import {
   ChevronRight,
   Shield,
   Plane,
+  FolderPlus,
 } from 'lucide-react';
 import { User, AppNotification } from '../types';
 import { StorageService } from '../services/storage';
+import { AuthService } from '../services/authService';
 
 interface TopHeaderProps {
   currentUser: User;
@@ -21,6 +23,7 @@ interface TopHeaderProps {
   onOpenCheckIn: () => void;
   onOpenNotifications: () => void;
   onOpenOnboarding?: () => void;
+  onOpenCreateProject?: () => void;
   theme: 'dark' | 'light';
   onToggleTheme: () => void;
 }
@@ -32,11 +35,13 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
   onOpenCheckIn,
   onOpenNotifications,
   onOpenOnboarding,
+  onOpenCreateProject,
   theme,
   onToggleTheme,
 }) => {
   const notifications = StorageService.getNotifications();
   const unreadCount = notifications.filter((n) => !n.read).length;
+  const isLead = AuthService.isQALead(currentUser);
 
   const getTabBreadcrumb = () => {
     switch (activeTab) {
@@ -140,6 +145,42 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
 
       {/* Right: Quick Actions & Profile */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        {/* Create New QA Project Action Button */}
+        {isLead && onOpenCreateProject && (
+          <button
+            onClick={onOpenCreateProject}
+            title="Create New QA Project (PRD, Specs, Team Assignment)"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '7px 14px',
+              borderRadius: '8px',
+              background: 'linear-gradient(135deg, rgba(56, 189, 248, 0.15), rgba(37, 99, 235, 0.25))',
+              border: '1px solid rgba(56, 189, 248, 0.4)',
+              color: '#38bdf8',
+              fontSize: '0.82rem',
+              fontWeight: 800,
+              cursor: 'pointer',
+              boxShadow: '0 2px 10px rgba(56, 189, 248, 0.15)',
+              transition: 'all 0.15s ease',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'linear-gradient(135deg, rgba(56, 189, 248, 0.28), rgba(37, 99, 235, 0.4))';
+              e.currentTarget.style.borderColor = '#38bdf8';
+              e.currentTarget.style.transform = 'translateY(-1px)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'linear-gradient(135deg, rgba(56, 189, 248, 0.15), rgba(37, 99, 235, 0.25))';
+              e.currentTarget.style.borderColor = 'rgba(56, 189, 248, 0.4)';
+              e.currentTarget.style.transform = 'translateY(0)';
+            }}
+          >
+            <FolderPlus size={15} />
+            <span>+ New Project</span>
+          </button>
+        )}
+
         {/* Daily Check-In Button */}
         <button
           onClick={onOpenCheckIn}

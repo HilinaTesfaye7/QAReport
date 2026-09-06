@@ -61,17 +61,47 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
 
   // Step 4: QA Team Members & Notifications
   const allUsers = StorageService.getUsers();
-  const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>(['usr-sara', 'usr-347835367']); // Default include Sarah and Coco
+  const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]); // Starts empty, no forced default members
+  const [allowWithoutMembers, setAllowWithoutMembers] = useState(false);
+  const [memberValidationError, setMemberValidationError] = useState<string | null>(null);
   const [notificationNote, setNotificationNote] = useState('Please review the attached PRD and Figma design tokens before commencing test authoring.');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [feedbackMsg, setFeedbackMsg] = useState<string | null>(null);
 
+  React.useEffect(() => {
+    if (isOpen) {
+      setName('');
+      setCode('');
+      setDescription('');
+      setStatus('Testing');
+      setSelectedMemberIds([]);
+      setAllowWithoutMembers(false);
+      setMemberValidationError(null);
+      setFeedbackMsg(null);
+      setIsSubmitting(false);
+      setActiveTab('info');
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const toggleMember = (memberId: string) => {
-    setSelectedMemberIds((prev) =>
-      prev.includes(memberId) ? prev.filter((id) => id !== memberId) : [...prev, memberId]
-    );
+    setSelectedMemberIds((prev) => {
+      const updated = prev.includes(memberId) ? prev.filter((id) => id !== memberId) : [...prev, memberId];
+      if (updated.length > 0) {
+        setMemberValidationError(null);
+      }
+      return updated;
+    });
+  };
+
+  const selectAllMembers = () => {
+    setSelectedMemberIds(allUsers.map((u) => u.id));
+    setMemberValidationError(null);
+  };
+
+  const clearAllMembers = () => {
+    setSelectedMemberIds([]);
   };
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -81,6 +111,21 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
       return;
     }
 
+    // If submitted while on an earlier tab (e.g. pressing Enter in an input), advance tab instead of closing
+    if (activeTab !== 'members') {
+      if (activeTab === 'info') setActiveTab('prd');
+      else if (activeTab === 'prd') setActiveTab('design');
+      else if (activeTab === 'design') setActiveTab('members');
+      return;
+    }
+
+    // On final members tab: do not silently assign default or close without member selection
+    if (selectedMemberIds.length === 0 && !allowWithoutMembers) {
+      setMemberValidationError('⚠️ Please select at least one QA member below, or check "Create without assigning members".');
+      return;
+    }
+
+    setMemberValidationError(null);
     setIsSubmitting(true);
 
     try {
@@ -147,19 +192,25 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
       localStorage.setItem('aegis_deleted_project_ids', JSON.stringify(filteredDeleted));
 
       // Explicitly trigger instant assignment notifications for all selected members
-      selectedMemberIds.forEach((mId) => {
-        NotificationService.notifyProjectAssignment(
-          newProject,
-          mId,
-          currentUser.id,
-          notificationNote
-        );
-      });
+      if (selectedMemberIds.length > 0) {
+        selectedMemberIds.forEach((mId) => {
+          NotificationService.notifyProjectAssignment(
+            newProject,
+            mId,
+            currentUser.id,
+            notificationNote
+          );
+        });
+      }
 
       // Cross-component broadcast
       window.dispatchEvent(new CustomEvent('aegis_storage_change', { detail: { key: 'aegis_projects' } }));
 
-      setFeedbackMsg(`Project "${newProject.name}" created! ${selectedMemberIds.length} members assigned & notified.`);
+      setFeedbackMsg(
+        selectedMemberIds.length > 0
+          ? `Project "${newProject.name}" created! ${selectedMemberIds.length} member(s) assigned & notified.`
+          : `Project "${newProject.name}" created (0 members assigned).`
+      );
 
       setTimeout(() => {
         onProjectCreated(newProject);
@@ -694,10 +745,81 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                   </div>
                 </div>
 
+                {memberValidationError && (
+                  <div
+                    style={{
+                      padding: '10px 14px',
+                      borderRadius: '8px',
+                      background: 'rgba(239, 68, 68, 0.12)',
+                      border: '1px solid rgba(239, 68, 68, 0.35)',
+                      fontSize: '0.8rem',
+                      color: '#f87171',
+                      fontWeight: 600,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                    }}
+                  >
+                    <Info size={16} />
+                    <span>{memberValidationError}</span>
+                  </div>
+                )}
+
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '8px', color: 'var(--text-secondary)' }}>
-                    Select QA Team Members to Assign ({selectedMemberIds.length} selected):
-                  </label>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                    <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
+                      Select QA Team Members to Assign ({selectedMemberIds.length} selected):
+                    </label>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button
+                        type="button"
+                        onClick={selectAllMembers}
+                        style={{
+                          padding: '2px 8px',
+                          borderRadius: '4px',
+                          background: 'rgba(56, 189, 248, 0.1)',
+                          border: '1px solid rgba(56, 189, 248, 0.3)',
+                          color: '#38bdf8',
+                          fontSize: '0.72rem',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Select All
+                      </button>
+                      <button
+                        type="button"
+                        onClick={clearAllMembers}
+                        style={{
+                          padding: '2px 8px',
+                          borderRadius: '4px',
+                          background: 'rgba(255, 255, 255, 0.05)',
+                          border: '1px solid var(--border-subtle)',
+                          color: 'var(--text-muted)',
+                          fontSize: '0.72rem',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Clear All
+                      </button>
+                    </div>
+                  </div>
+
+                  <div style={{ marginBottom: '12px' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                      <input
+                        type="checkbox"
+                        checked={allowWithoutMembers}
+                        onChange={(e) => {
+                          setAllowWithoutMembers(e.target.checked);
+                          if (e.target.checked) setMemberValidationError(null);
+                        }}
+                        style={{ width: '15px', height: '15px', cursor: 'pointer' }}
+                      />
+                      <span>Create project without assigning team members now (Draft / Planning mode)</span>
+                    </label>
+                  </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '10px' }}>
                     {allUsers.map((user) => {
@@ -880,7 +1002,13 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                   }}
                 >
                   <Send size={15} />
-                  <span>{isSubmitting ? 'Creating & Notifying...' : 'Create Project & Notify Members'}</span>
+                  <span>
+                    {isSubmitting
+                      ? 'Creating...'
+                      : selectedMemberIds.length > 0
+                      ? `Create Project & Notify (${selectedMemberIds.length})`
+                      : 'Create Project (No Members)'}
+                  </span>
                 </button>
               )}
             </div>

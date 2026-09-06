@@ -5,6 +5,7 @@ import {
   LayoutGrid,
   Table as TableIcon,
   ArrowRight,
+  Eye,
   Users,
   AlertTriangle,
   CheckCircle2,
@@ -14,10 +15,11 @@ import {
   Sparkles,
   Trash2,
 } from 'lucide-react';
-import { Project, User, DailyReport } from '../types';
+import { Project, User, DailyReport, Blocker } from '../types';
 import { StorageService } from '../services/storage';
 import { DailyReportService } from '../services/dailyReportService';
 import { ProjectService } from '../services/projectService';
+import { BlockerService } from '../services/blockerService';
 
 interface AuthorizedProjectsTableProps {
   currentUser: User;
@@ -36,7 +38,8 @@ export const AuthorizedProjectsTable: React.FC<AuthorizedProjectsTableProps> = (
 }) => {
   const [projects, setProjects] = useState<Project[]>(StorageService.getProjects());
   const [reports, setReports] = useState<DailyReport[]>(StorageService.getDailyReports());
-  const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'PLANNING' | 'COMPLETED'>('ALL');
+  const [blockers, setBlockers] = useState<Blocker[]>(BlockerService.getBlockers());
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'IN PROGRESS' | 'BLOCKED' | 'COMPLETED'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
   const [lastSyncTime, setLastSyncTime] = useState<Date>(new Date());
@@ -50,6 +53,8 @@ export const AuthorizedProjectsTable: React.FC<AuthorizedProjectsTableProps> = (
     setProjects(cloudProjects);
     const synced = await DailyReportService.syncTelegramReports();
     setReports(synced);
+    const cloudBlockers = await BlockerService.syncBlockers();
+    setBlockers(cloudBlockers);
     setLastSyncTime(new Date());
   };
 
@@ -70,7 +75,7 @@ export const AuthorizedProjectsTable: React.FC<AuthorizedProjectsTableProps> = (
   useEffect(() => {
     loadData();
 
-    // Poll for live Telegram reports every 8 seconds
+    // Poll for live Telegram reports and blockers every 8 seconds
     const interval = setInterval(() => {
       loadData();
     }, 8000);
@@ -84,15 +89,82 @@ export const AuthorizedProjectsTable: React.FC<AuthorizedProjectsTableProps> = (
     };
   }, []);
 
+  // Get latest daily standup for a project (merged in-app + Telegram)
+  const getLatestProjectStandup = (projectId: string): DailyReport | undefined => {
+    const projectReports = reports.filter(
+      (r) => r.projectId === projectId || r.projectName?.toLowerCase() === projects.find((p) => p.id === projectId)?.name.toLowerCase()
+    );
+    if (!projectReports || projectReports.length === 0) return undefined;
+
+    // Sort by submittedAt descending
+    return [...projectReports].sort((a, b) => {
+      const dateA = a.submittedAt ? new Date(a.submittedAt).getTime() : 0;
+      const dateB = b.submittedAt ? new Date(b.submittedAt).getTime() : 0;
+      return dateB - dateA;
+    })[0];
+  };
+
+  // Determine if project is currently Blocked or In Progress
+  const isProjectBlocked = (project: Project): boolean => {
+    if (project.status === 'Blocked' || project.status === 'On Hold') return true;
+
+    // Check open blockers recorded in blocker service
+    const hasActiveBlockers = blockers.some(
+      (b) =>
+        b.status !== 'Resolved' &&
+        (b.projectId === project.id || b.projectName?.toLowerCase() === project.name.toLowerCase())
+    );
+    if (hasActiveBlockers) return true;
+
+    // Check latest standup report
+    const standup = getLatestProjectStandup(project.id);
+    if (standup) {
+      if (standup.isBlocked) return true;
+      if (standup.workStatus && standup.workStatus.toLowerCase().includes('block')) return true;
+      if (standup.blockers && standup.blockers.toLowerCase() !== 'none' && standup.blockers.trim().length > 0) return true;
+    }
+
+    // Check any report for this project
+    const projectReports = reports.filter(
+      (r) => r.projectId === project.id || r.projectName?.toLowerCase() === project.name.toLowerCase()
+    );
+    return projectReports.some((r) => {
+      if (r.isBlocked) return true;
+      if (r.workStatus && r.workStatus.toLowerCase().includes('block')) return true;
+      if (r.blockers && r.blockers.toLowerCase() !== 'none' && r.blockers.trim().length > 0) return true;
+      return false;
+    });
+  };
+
+  // Toggle project status between In Progress and Blocked
+  const handleToggleProjectStatus = async (project: Project, currentBlocked: boolean, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const newStatus: any = currentBlocked ? 'In Progress' : 'Blocked';
+    try {
+      ProjectService.updateProject(project.id, { status: newStatus }, currentUser.id);
+    } catch {
+      const all = StorageService.getProjects();
+      const p = all.find((x) => x.id === project.id);
+      if (p) {
+        p.status = newStatus;
+        StorageService.saveProjects(all);
+      }
+    }
+    await loadData();
+  };
+
   // Filter projects by status and search
   const filteredProjects = projects.filter((project) => {
+    const isBlocked = isProjectBlocked(project);
+
     // Status filter
-    if (statusFilter === 'ACTIVE') {
-      if (project.status !== 'Active' && project.status !== 'Testing') return false;
-    } else if (statusFilter === 'PLANNING') {
-      if (project.status !== 'Planning') return false;
+    if (statusFilter === 'IN PROGRESS') {
+      if (isBlocked) return false;
+      if (project.status === 'Completed' || project.status === 'Ready for Release') return false;
+    } else if (statusFilter === 'BLOCKED') {
+      if (!isBlocked) return false;
     } else if (statusFilter === 'COMPLETED') {
-      if (project.status !== 'Ready for Release' && project.status !== 'UAT') return false;
+      if (project.status !== 'Ready for Release' && project.status !== 'UAT' && project.status !== 'Completed') return false;
     }
 
     // Search query
@@ -114,21 +186,6 @@ export const AuthorizedProjectsTable: React.FC<AuthorizedProjectsTableProps> = (
       return currentUser.role === 'qa_engineer' ? 'QA ENGINEER' : 'TESTER';
     }
     return currentUser.role === 'qa_lead' ? 'QA LEAD' : 'PROJECT MANAGER';
-  };
-
-  // Get latest daily standup for a project (merged in-app + Telegram)
-  const getLatestProjectStandup = (projectId: string): DailyReport | undefined => {
-    const projectReports = reports.filter(
-      (r) => r.projectId === projectId || r.projectName?.toLowerCase() === projects.find((p) => p.id === projectId)?.name.toLowerCase()
-    );
-    if (!projectReports || projectReports.length === 0) return undefined;
-
-    // Sort by submittedAt descending
-    return [...projectReports].sort((a, b) => {
-      const dateA = a.submittedAt ? new Date(a.submittedAt).getTime() : 0;
-      const dateB = b.submittedAt ? new Date(b.submittedAt).getTime() : 0;
-      return dateB - dateA;
-    })[0];
   };
 
   return (
@@ -196,7 +253,7 @@ export const AuthorizedProjectsTable: React.FC<AuthorizedProjectsTableProps> = (
       >
         {/* Status Filter Pills */}
         <div style={{ display: 'flex', gap: '6px', background: 'var(--bg-app)', padding: '4px', borderRadius: '8px' }}>
-          {(['ALL', 'ACTIVE', 'PLANNING', 'COMPLETED'] as const).map((filter) => {
+          {(['ALL', 'IN PROGRESS', 'BLOCKED', 'COMPLETED'] as const).map((filter) => {
             const isActive = statusFilter === filter;
             return (
               <button
@@ -322,34 +379,31 @@ export const AuthorizedProjectsTable: React.FC<AuthorizedProjectsTableProps> = (
                   borderBottom: '1px solid var(--border-subtle)',
                 }}
               >
-                <th style={{ padding: '14px 16px', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                <th style={{ padding: '14px 16px', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>
                   Project
                 </th>
-                <th style={{ padding: '14px 16px', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                  Status
+                <th style={{ padding: '14px 16px', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>
+                  Project Status(inprogress,blocked)
                 </th>
-                <th style={{ padding: '14px 16px', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                  Your Role
+                <th style={{ padding: '14px 16px', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>
+                  Delivery Progress
                 </th>
-                <th style={{ padding: '14px 16px', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                  Velocity / QA
-                </th>
-                <th style={{ padding: '14px 16px', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                <th style={{ padding: '14px 16px', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>
                   Members
                 </th>
-                <th style={{ padding: '14px 16px', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                  Latest Daily Standup / Update
+                <th style={{ padding: '14px 16px', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>
+                  daily standup update
                 </th>
-                <th style={{ padding: '14px 16px', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', textAlign: 'right' }}>
-                  Action
+                <th style={{ padding: '14px 16px', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textAlign: 'right' }}>
+                  Action (view,delete)
                 </th>
               </tr>
             </thead>
             <tbody>
               {filteredProjects.map((project) => {
-                const roleName = getUserRoleForProject(project);
                 const standup = getLatestProjectStandup(project.id);
                 const memberCount = project.memberIds.length + 1; // including QA lead
+                const blocked = isProjectBlocked(project);
 
                 return (
                   <tr
@@ -365,7 +419,7 @@ export const AuthorizedProjectsTable: React.FC<AuthorizedProjectsTableProps> = (
                       e.currentTarget.style.backgroundColor = 'transparent';
                     }}
                   >
-                    {/* Project Column */}
+                    {/* 1. Project */}
                     <td style={{ padding: '14px 16px', verticalAlign: 'middle' }}>
                       <div style={{ fontWeight: 800, fontSize: '0.94rem', color: 'var(--text-primary)', marginBottom: '2px' }}>
                         {project.name}
@@ -375,61 +429,76 @@ export const AuthorizedProjectsTable: React.FC<AuthorizedProjectsTableProps> = (
                       </div>
                     </td>
 
-                    {/* Status Column */}
+                    {/* 2. Project Status(inprogress,blocked) */}
                     <td style={{ padding: '14px 16px', verticalAlign: 'middle' }}>
-                      <span
-                        style={{
-                          display: 'inline-block',
-                          padding: '3px 10px',
-                          borderRadius: '12px',
-                          fontSize: '0.72rem',
-                          fontWeight: 800,
-                          letterSpacing: '0.04em',
-                          textTransform: 'uppercase',
-                          background:
-                            project.status === 'Testing' || project.status === 'Active'
-                              ? 'rgba(16, 185, 129, 0.15)'
-                              : project.status === 'Planning'
-                              ? 'rgba(245, 158, 11, 0.15)'
-                              : 'rgba(56, 189, 248, 0.15)',
-                          color:
-                            project.status === 'Testing' || project.status === 'Active'
-                              ? '#34d399'
-                              : project.status === 'Planning'
-                              ? '#fbbf24'
-                              : '#38bdf8',
-                          border:
-                            project.status === 'Testing' || project.status === 'Active'
-                              ? '1px solid rgba(16, 185, 129, 0.3)'
-                              : project.status === 'Planning'
-                              ? '1px solid rgba(245, 158, 11, 0.3)'
-                              : '1px solid rgba(56, 189, 248, 0.3)',
-                        }}
-                      >
-                        {project.status === 'Testing' ? 'ACTIVE' : project.status.toUpperCase()}
-                      </span>
+                      {blocked ? (
+                        <button
+                          type="button"
+                          onClick={(e) => handleToggleProjectStatus(project, true, e)}
+                          title="Status: Blocked (Click to switch to In Progress)"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: '4px 12px',
+                            borderRadius: '12px',
+                            fontSize: '0.72rem',
+                            fontWeight: 800,
+                            letterSpacing: '0.04em',
+                            textTransform: 'uppercase',
+                            background: 'rgba(239, 68, 68, 0.15)',
+                            color: '#f87171',
+                            border: '1px solid rgba(239, 68, 68, 0.35)',
+                            boxShadow: '0 0 10px rgba(239, 68, 68, 0.15)',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease',
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.background = 'rgba(239, 68, 68, 0.25)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = 'rgba(239, 68, 68, 0.15)';
+                          }}
+                        >
+                          <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#ef4444' }} />
+                          <span>BLOCKED</span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={(e) => handleToggleProjectStatus(project, false, e)}
+                          title="Status: In Progress (Click to switch to Blocked)"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: '4px 12px',
+                            borderRadius: '12px',
+                            fontSize: '0.72rem',
+                            fontWeight: 800,
+                            letterSpacing: '0.04em',
+                            textTransform: 'uppercase',
+                            background: 'rgba(16, 185, 129, 0.15)',
+                            color: '#34d399',
+                            border: '1px solid rgba(16, 185, 129, 0.35)',
+                            boxShadow: '0 0 10px rgba(16, 185, 129, 0.15)',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease',
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.background = 'rgba(16, 185, 129, 0.25)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = 'rgba(16, 185, 129, 0.15)';
+                          }}
+                        >
+                          <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981' }} />
+                          <span>IN PROGRESS</span>
+                        </button>
+                      )}
                     </td>
 
-                    {/* Your Role Column */}
-                    <td style={{ padding: '14px 16px', verticalAlign: 'middle' }}>
-                      <span
-                        style={{
-                          display: 'inline-block',
-                          padding: '4px 10px',
-                          borderRadius: '12px',
-                          fontSize: '0.7rem',
-                          fontWeight: 700,
-                          letterSpacing: '0.04em',
-                          background: 'rgba(99, 102, 241, 0.12)',
-                          color: '#a5b4fc',
-                          border: '1px solid rgba(99, 102, 241, 0.3)',
-                        }}
-                      >
-                        {roleName}
-                      </span>
-                    </td>
-
-                    {/* Velocity / QA Progress Column */}
+                    {/* 3. Delivery Progress */}
                     <td style={{ padding: '14px 16px', verticalAlign: 'middle', minWidth: '160px' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.74rem', marginBottom: '4px' }}>
                         <span style={{ color: 'var(--text-secondary)' }}>Delivery Progress</span>
@@ -439,7 +508,7 @@ export const AuthorizedProjectsTable: React.FC<AuthorizedProjectsTableProps> = (
                         <div
                           style={{
                             height: '100%',
-                            width: `${project.qaProgress}%`,
+                            width: `${Math.min(100, Math.max(0, project.qaProgress))}%`,
                             background: 'linear-gradient(90deg, #2563eb, #38bdf8)',
                             borderRadius: '3px',
                           }}
@@ -447,21 +516,21 @@ export const AuthorizedProjectsTable: React.FC<AuthorizedProjectsTableProps> = (
                       </div>
                     </td>
 
-                    {/* Members Column */}
+                    {/* 4. Members */}
                     <td style={{ padding: '14px 16px', verticalAlign: 'middle' }}>
                       <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
                         <Users size={14} color="#38bdf8" />
-                        <span>{memberCount}</span>
+                        <span style={{ fontWeight: 600 }}>{memberCount}</span>
                       </div>
                     </td>
 
-                    {/* Latest Daily Standup / Update Column (Live Telegram & In-App integration) */}
+                    {/* 5. daily standup update */}
                     <td style={{ padding: '14px 16px', verticalAlign: 'middle', minWidth: '320px', maxWidth: '420px' }}>
                       {standup ? (
                         <div
                           style={{
                             background: 'rgba(15, 23, 42, 0.85)',
-                            border: '1px solid rgba(56, 189, 248, 0.25)',
+                            border: standup.isBlocked ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid rgba(56, 189, 248, 0.25)',
                             borderRadius: '8px',
                             padding: '10px 12px',
                             fontSize: '0.78rem',
@@ -519,7 +588,7 @@ export const AuthorizedProjectsTable: React.FC<AuthorizedProjectsTableProps> = (
                       )}
                     </td>
 
-                    {/* Action Column */}
+                    {/* 6. Action (view,delete) */}
                     <td style={{ padding: '14px 16px', verticalAlign: 'middle', textAlign: 'right' }}>
                       <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
                         <button
@@ -532,25 +601,24 @@ export const AuthorizedProjectsTable: React.FC<AuthorizedProjectsTableProps> = (
                             borderRadius: '6px',
                             fontSize: '0.78rem',
                             fontWeight: 700,
-                            background: 'rgba(255, 255, 255, 0.05)',
-                            color: 'var(--text-primary)',
-                            border: '1px solid var(--border-subtle)',
+                            background: 'rgba(56, 189, 248, 0.1)',
+                            color: '#38bdf8',
+                            border: '1px solid rgba(56, 189, 248, 0.25)',
                             cursor: 'pointer',
                             transition: 'all 0.15s ease',
                           }}
                           onMouseEnter={(e) => {
-                            e.currentTarget.style.background = 'rgba(56, 189, 248, 0.15)';
+                            e.currentTarget.style.background = 'rgba(56, 189, 248, 0.2)';
                             e.currentTarget.style.borderColor = '#38bdf8';
-                            e.currentTarget.style.color = '#38bdf8';
                           }}
                           onMouseLeave={(e) => {
-                            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
-                            e.currentTarget.style.borderColor = 'var(--border-subtle)';
-                            e.currentTarget.style.color = 'var(--text-primary)';
+                            e.currentTarget.style.background = 'rgba(56, 189, 248, 0.1)';
+                            e.currentTarget.style.borderColor = 'rgba(56, 189, 248, 0.25)';
                           }}
+                          title={`View ${project.name}`}
                         >
-                          <span>Open</span>
-                          <ArrowRight size={13} />
+                          <Eye size={13} />
+                          <span>View</span>
                         </button>
 
                         <button
@@ -561,10 +629,11 @@ export const AuthorizedProjectsTable: React.FC<AuthorizedProjectsTableProps> = (
                           style={{
                             display: 'inline-flex',
                             alignItems: 'center',
-                            justifyContent: 'center',
-                            width: '32px',
-                            height: '32px',
+                            gap: '5px',
+                            padding: '6px 12px',
                             borderRadius: '6px',
+                            fontSize: '0.78rem',
+                            fontWeight: 700,
                             background: 'rgba(239, 68, 68, 0.1)',
                             color: '#f87171',
                             border: '1px solid rgba(239, 68, 68, 0.25)',
@@ -584,7 +653,8 @@ export const AuthorizedProjectsTable: React.FC<AuthorizedProjectsTableProps> = (
                           title={`Delete ${project.name}`}
                           aria-label={`Delete ${project.name}`}
                         >
-                          <Trash2 size={14} />
+                          <Trash2 size={13} />
+                          <span>Delete</span>
                         </button>
                       </div>
                     </td>
@@ -600,6 +670,7 @@ export const AuthorizedProjectsTable: React.FC<AuthorizedProjectsTableProps> = (
           {filteredProjects.map((project) => {
             const roleName = getUserRoleForProject(project);
             const standup = getLatestProjectStandup(project.id);
+            const blocked = isProjectBlocked(project);
 
             return (
               <div
@@ -625,19 +696,35 @@ export const AuthorizedProjectsTable: React.FC<AuthorizedProjectsTableProps> = (
                       Target: {project.targetReleaseDate}
                     </span>
                   </div>
-                  <span
-                    style={{
-                      padding: '2px 8px',
-                      borderRadius: '10px',
-                      fontSize: '0.7rem',
-                      fontWeight: 800,
-                      background: 'rgba(16, 185, 129, 0.15)',
-                      color: '#34d399',
-                      border: '1px solid rgba(16, 185, 129, 0.3)',
-                    }}
-                  >
-                    {project.status.toUpperCase()}
-                  </span>
+                  {blocked ? (
+                    <span
+                      style={{
+                        padding: '2px 8px',
+                        borderRadius: '10px',
+                        fontSize: '0.7rem',
+                        fontWeight: 800,
+                        background: 'rgba(239, 68, 68, 0.15)',
+                        color: '#f87171',
+                        border: '1px solid rgba(239, 68, 68, 0.3)',
+                      }}
+                    >
+                      BLOCKED
+                    </span>
+                  ) : (
+                    <span
+                      style={{
+                        padding: '2px 8px',
+                        borderRadius: '10px',
+                        fontSize: '0.7rem',
+                        fontWeight: 800,
+                        background: 'rgba(16, 185, 129, 0.15)',
+                        color: '#34d399',
+                        border: '1px solid rgba(16, 185, 129, 0.3)',
+                      }}
+                    >
+                      IN PROGRESS
+                    </span>
+                  )}
                 </div>
 
                 {/* Progress bar */}
@@ -714,10 +801,11 @@ export const AuthorizedProjectsTable: React.FC<AuthorizedProjectsTableProps> = (
                       style={{
                         display: 'inline-flex',
                         alignItems: 'center',
-                        justifyContent: 'center',
-                        width: '28px',
-                        height: '28px',
+                        gap: '4px',
+                        padding: '4px 8px',
                         borderRadius: '6px',
+                        fontSize: '0.74rem',
+                        fontWeight: 700,
                         background: 'rgba(239, 68, 68, 0.1)',
                         color: '#f87171',
                         border: '1px solid rgba(239, 68, 68, 0.25)',
@@ -736,11 +824,12 @@ export const AuthorizedProjectsTable: React.FC<AuthorizedProjectsTableProps> = (
                       }}
                       title={`Delete ${project.name}`}
                     >
-                      <Trash2 size={13} />
+                      <Trash2 size={12} />
+                      <span>Delete</span>
                     </button>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.78rem', color: '#38bdf8', fontWeight: 700 }}>
-                      <span>Open</span>
-                      <ArrowRight size={13} />
+                      <Eye size={13} />
+                      <span>View</span>
                     </div>
                   </div>
                 </div>

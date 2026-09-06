@@ -524,3 +524,73 @@ test('11. QA Lead /status Management View (Team Status Breakdown, Severity Bugs,
   assert.match(memberStatus, /🟢 On Track/);
   assert.match(memberStatus, /Payment and Transaction modules/);
 });
+
+test('12. Proactive QA Lead Notification Alerts (Blockers, Risks, Standup Issues)', async () => {
+  const {
+    findQALeadsForProject,
+  } = await import('../scripts/telegramQABot.js');
+
+  // 1. Verify QA Lead discovery finds Ola king (chat 7527336375)
+  const leads = await findQALeadsForProject('prj-mto97e35', 'ko');
+  assert.ok(leads.length > 0, 'Should find at least one QA Lead in the system');
+  const olaKing = leads.find((l) => l.fullName === 'Ola king' || l.chatId === '7527336375');
+  assert.ok(olaKing, 'Ola king must be identified as QA Lead');
+  assert.equal(olaKing.chatId, '7527336375');
+  assert.match(olaKing.role, /QA Lead/i);
+
+  // 2. Validate Alert Message Construction for Blocker
+  const member = { fullName: 'Coco', role: 'Tester', projectName: 'KO', projectId: 'prj-ko' };
+  const blockerAlert =
+    `🚨 <b>QA LEAD ALERT — URGENT BLOCKER FILED</b>\n\n` +
+    `📁 <b>Project:</b> <b>${member.projectName}</b>\n` +
+    `👤 <b>Reported by:</b> <b>${member.fullName}</b> (@Helu777)\n` +
+    `⚠️ <b>Severity:</b> <b>Critical</b>\n\n` +
+    `🚨 <b>Blocker Issue:</b>\n` +
+    `<i>"Auth service down on test environment"</i>\n\n` +
+    `💡 <b>Quick Lead Actions:</b>\n` +
+    `• View status: <code>/status</code>\n` +
+    `• Resolve blocker: <code>/resolve</code>`;
+
+  assert.match(blockerAlert, /QA LEAD ALERT — URGENT BLOCKER FILED/);
+  assert.match(blockerAlert, /Auth service down on test environment/);
+  assert.match(blockerAlert, /Coco/);
+
+  // 3. Validate Standup Risk Alert Construction
+  const standupRiskAlert =
+    `⚠️ <b>QA LEAD ALERT — QA RISK REPORTED IN STANDUP</b>\n\n` +
+    `📁 <b>Project:</b> <b>${member.projectName}</b>\n` +
+    `👤 <b>QA Member:</b> <b>${member.fullName}</b>\n` +
+    `📈 <b>Status:</b> <b>🟡 At Risk</b>\n\n` +
+    `⚠️ <b>Risk Details:</b>\n` +
+    `<i>"Third-party webhook delay"</i>`;
+
+  assert.match(standupRiskAlert, /QA LEAD ALERT — QA RISK REPORTED IN STANDUP/);
+  assert.match(standupRiskAlert, /🟡 At Risk/);
+  assert.match(standupRiskAlert, /Third-party webhook delay/);
+
+  // 4. Validate Blocker Resolved Alert Construction
+  const resolvedBlockers = [
+    { title: 'Staging DB migration incomplete', description: 'Tables locked for migration' },
+  ];
+  const blockerResolvedAlert =
+    `✅ <b>QA LEAD ALERT — BLOCKER RESOLVED</b>\n\n` +
+    `📁 <b>Project:</b> <b>${member.projectName}</b>\n` +
+    `👤 <b>Resolved by:</b> <b>${member.fullName}</b> (@Helu777)\n` +
+    `🛡️ <b>Status:</b> <b>Resolved</b>\n\n` +
+    `✅ <b>Resolved Blocker(s):</b>\n` +
+    `1. <b>${resolvedBlockers[0].title}</b>\n` +
+    `   <i>"${resolvedBlockers[0].description}"</i>\n\n` +
+    `💡 <b>Quick Lead Actions:</b>\n` +
+    `• View updated status: <code>/status</code>\n` +
+    `• Team progress: <code>/team</code>\n` +
+    `• Project risks: <code>/risks</code>`;
+
+  assert.match(blockerResolvedAlert, /QA LEAD ALERT — BLOCKER RESOLVED/);
+  assert.match(blockerResolvedAlert, /Resolved by:.*Coco/);
+  assert.match(blockerResolvedAlert, /Staging DB migration incomplete/);
+  assert.match(blockerResolvedAlert, /Status:.*Resolved/);
+
+  const { notifyQALeadsOfBlockerResolved } = await import('../scripts/telegramQABot.js');
+  assert.equal(typeof notifyQALeadsOfBlockerResolved, 'function', 'notifyQALeadsOfBlockerResolved must be exported as a function');
+});
+

@@ -582,6 +582,109 @@ async function sendTelegramMessage(chatId, text) {
   }
 }
 
+async function notifyQALeadsOfBlockerWebhook({
+  senderChatId,
+  memberName,
+  username,
+  projectName,
+  projectId,
+  reason,
+  severity = 'Critical',
+}) {
+  if (!supabase) return;
+  try {
+    const { data: leadProfiles } = await supabase
+      .from('telegram_profiles')
+      .select('*');
+    if (!leadProfiles || leadProfiles.length === 0) return;
+
+    const leads = leadProfiles.filter((p) => {
+      const isLead = isQALead(p);
+      const notSender = String(p.chat_id) !== String(senderChatId);
+      return isLead && notSender;
+    });
+
+    if (leads.length === 0) return;
+
+    const timeStr = new Date().toLocaleTimeString();
+    let msg = `🚨 <b>QA LEAD ALERT — URGENT BLOCKER FILED</b>\n\n`;
+    msg += `📁 <b>Project:</b> <b>${escapeHtml(projectName)}</b>\n`;
+    msg += `👤 <b>Reported by:</b> <b>${escapeHtml(memberName)}</b> (@${escapeHtml(username || 'unknown')})\n`;
+    msg += `⚠️ <b>Severity:</b> <b>${escapeHtml(severity)}</b>\n`;
+    msg += `🕒 <b>Time:</b> <code>${escapeHtml(timeStr)}</code>\n\n`;
+    msg += `🚨 <b>Blocker Issue:</b>\n`;
+    msg += `<i>"${escapeHtml(reason)}"</i>\n\n`;
+    msg += `━━━━━━━━━━━━━━━━━━━━\n`;
+    msg += `💡 <b>Quick Lead Actions:</b>\n`;
+    msg += `• View status: <code>/status</code>\n`;
+    msg += `• Resolve blocker: <code>/resolve</code>\n`;
+    msg += `• View risks: <code>/risks</code>`;
+
+    for (const lead of leads) {
+      await sendTelegramMessage(lead.chat_id, msg);
+    }
+  } catch (err) {
+    console.error('Error notifying QA Leads of blocker:', err);
+  }
+}
+
+async function notifyQALeadsOfBlockerResolvedWebhook({
+  senderChatId,
+  memberName,
+  username,
+  projectName,
+  projectId,
+  resolvedBlockers = [],
+}) {
+  if (!supabase) return;
+  try {
+    const { data: leadProfiles } = await supabase
+      .from('telegram_profiles')
+      .select('*');
+    if (!leadProfiles || leadProfiles.length === 0) return;
+
+    const leads = leadProfiles.filter((p) => {
+      const isLead = isQALead(p);
+      const notSender = String(p.chat_id) !== String(senderChatId);
+      return isLead && notSender;
+    });
+
+    if (leads.length === 0) return;
+
+    const timeStr = new Date().toLocaleTimeString();
+    let msg = `✅ <b>QA LEAD ALERT — BLOCKER RESOLVED</b>\n\n`;
+    msg += `📁 <b>Project:</b> <b>${escapeHtml(projectName || 'QA Project')}</b>\n`;
+    msg += `👤 <b>Resolved by:</b> <b>${escapeHtml(memberName)}</b> (@${escapeHtml(username || 'unknown')})\n`;
+    msg += `🛡️ <b>Status:</b> <b>Resolved</b>\n`;
+    msg += `🕒 <b>Time:</b> <code>${escapeHtml(timeStr)}</code>\n\n`;
+
+    msg += `✅ <b>Resolved Blocker(s):</b>\n`;
+    if (resolvedBlockers.length > 0) {
+      resolvedBlockers.forEach((b, i) => {
+        msg += `${i + 1}. <b>${escapeHtml(b.title || 'Blocker')}</b>\n`;
+        if (b.description && b.description !== b.title) {
+          msg += `   <i>"${escapeHtml(b.description)}"</i>\n`;
+        }
+      });
+    } else {
+      msg += `• Blocker issue marked as resolved.\n`;
+    }
+    msg += `\n`;
+
+    msg += `━━━━━━━━━━━━━━━━━━━━\n`;
+    msg += `💡 <b>Quick Lead Actions:</b>\n`;
+    msg += `• View updated status: <code>/status</code>\n`;
+    msg += `• Team progress: <code>/team</code>\n`;
+    msg += `• Project risks: <code>/risks</code>`;
+
+    for (const lead of leads) {
+      await sendTelegramMessage(lead.chat_id, msg);
+    }
+  } catch (err) {
+    console.error('Error notifying QA Leads of resolved blocker:', err);
+  }
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(200).json({
@@ -809,6 +912,17 @@ export default async function handler(req, res) {
         });
       }
 
+      // Proactively notify QA Lead(s)
+      notifyQALeadsOfBlockerWebhook({
+        senderChatId: chatId,
+        memberName,
+        username: fromUser.username || fromUser.first_name,
+        projectName,
+        projectId,
+        reason,
+        severity: 'Critical',
+      }).catch((err) => console.error('Blocker notification error:', err));
+
       await sendTelegramMessage(
         chatId,
         `🚨 <b>CRITICAL BLOCKER LOGGED IN CLOUD DB</b>\n\n` +
@@ -855,6 +969,16 @@ export default async function handler(req, res) {
           })
           .eq('chat_id', String(chatId))
           .neq('status', 'Resolved');
+
+        // Proactively notify QA Lead(s) of resolved blocker(s)
+        notifyQALeadsOfBlockerResolvedWebhook({
+          senderChatId: chatId,
+          memberName: profile ? profile.full_name : (fromUser.first_name || 'QA Member'),
+          username: fromUser.username || fromUser.first_name,
+          projectName: profile ? profile.project_name : (openBlockers[0]?.project_name || 'QA Project'),
+          projectId: profile ? profile.project_id : (openBlockers[0]?.project_id || ''),
+          resolvedBlockers: openBlockers,
+        }).catch((err) => console.error('Blocker resolved notification error:', err));
 
         await sendTelegramMessage(
           chatId,

@@ -27,6 +27,7 @@ import { StorageService } from '../services/storage';
 import { DailyReportService } from '../services/dailyReportService';
 import { ProjectService } from '../services/projectService';
 import { NotificationService } from '../services/notificationService';
+import { AuthService } from '../services/authService';
 import { CreateProjectModal } from './CreateProjectModal';
 
 interface ProjectDetailViewProps {
@@ -77,7 +78,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
   const [selectedMemberToAdd, setSelectedMemberToAdd] = useState<string>('');
   const [memberToast, setMemberToast] = useState<string | null>(null);
 
-  const isLead = currentUser.role === 'qa_lead';
+  const isLead = AuthService.isQALead(currentUser);
   const projectsList = allProjects || StorageService.getProjects();
   const allUsers = StorageService.getUsers();
   const projectMembers = allUsers.filter((u) => currentProject.memberIds.includes(u.id));
