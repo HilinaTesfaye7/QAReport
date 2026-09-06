@@ -16,22 +16,44 @@ export class InAppProvider implements NotificationProvider {
   }
 }
 
+function escapeTelegramHtml(text: string): string {
+  return (text || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
 export class TelegramProvider implements NotificationProvider {
   name = 'Telegram';
   async send(notification: AppNotification): Promise<boolean> {
     const config = StorageService.getChannelsConfig();
     if (!config.telegram?.enabled) return false;
 
-    if (config.telegram?.botToken && config.telegram?.chatId) {
+    // Check if recipient has their own telegramChatId or is Coco
+    const users = StorageService.getUsers();
+    const recipient = users.find((u) => u.id === notification.recipientId);
+    let targetChatId = recipient?.telegramChatId;
+    if (!targetChatId && recipient && (recipient.name.toLowerCase() === 'coco' || recipient.id.includes('347835367'))) {
+      targetChatId = '347835367';
+    }
+    if (!targetChatId) {
+      targetChatId = config.telegram?.chatId || '347835367';
+    }
+
+    const botToken = config.telegram?.botToken || '8976092354:AAGROrwSrscf27zGsH5zRaXv2OCSwES8CA8';
+
+    if (botToken && targetChatId) {
       try {
-        const text = `<b>${notification.title}</b>\n\n${notification.message}`;
+        const safeTitle = escapeTelegramHtml(notification.title);
+        const safeMessage = escapeTelegramHtml(notification.message);
+        const text = `<b>${safeTitle}</b>\n\n${safeMessage}`;
         const response = await fetch(
-          `https://api.telegram.org/bot${config.telegram.botToken}/sendMessage`,
+          `https://api.telegram.org/bot${botToken}/sendMessage`,
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              chat_id: config.telegram.chatId,
+              chat_id: targetChatId,
               text,
               parse_mode: 'HTML',
             }),
@@ -46,7 +68,7 @@ export class TelegramProvider implements NotificationProvider {
     }
 
     console.log(
-      `[Telegram Bot -> ${config.telegram.botUsername || '@AegisQABot'}] Dispatching: ${notification.title} - ${notification.message}`
+      `[Telegram Bot -> ${config.telegram?.botUsername || '@QAEaglebot'}] Dispatching: ${notification.title} - ${notification.message}`
     );
     return true;
   }
@@ -145,13 +167,38 @@ class NotificationServiceManager {
     project: Project,
     memberId: string,
     leadId: string,
-    responsibility = 'General QA & Feature Testing'
+    responsibility = 'You have been added to the QA Squad for this project.'
   ) {
     const users = StorageService.getUsers();
     const lead = users.find((u) => u.id === leadId);
     const leadName = lead ? lead.name : 'QA Lead';
+    const productOwner = project.projectOwner || 'Product Owner';
 
-    const message = `New QA Project Assignment\n\nYou have been assigned to:\n${project.name}\n\nQA Lead: ${leadName}\n\nResources:\n📄 PRD: ${project.resources.prdTitle}\n🎨 Figma: Available\n🌐 Environment: ${project.resources.testEnvUrl}\n\nYour initial responsibility:\n${responsibility}\n\nPlease review the project resources before starting.`;
+    // Format PRD link or file
+    const prdDoc = project.resources?.prdDocuments?.[0];
+    let prdText = '';
+    if (project.resources?.prdUrl) {
+      prdText = project.resources?.prdTitle
+        ? `${project.resources.prdTitle} - ${project.resources.prdUrl}`
+        : project.resources.prdUrl;
+      if (prdDoc?.fileName) {
+        prdText += ` | File: ${prdDoc.fileName}`;
+      }
+    } else if (prdDoc?.fileName) {
+      prdText = project.resources?.prdTitle
+        ? `${project.resources.prdTitle} (File: ${prdDoc.fileName})`
+        : `File: ${prdDoc.fileName}`;
+    } else {
+      prdText = project.resources?.prdTitle || 'Available in PRD & Specs';
+    }
+
+    // Format Figma link
+    const figmaText = project.resources?.figmaUrl || 'Available in Design (Figma) tab';
+
+    // Format Environment
+    const envText = project.resources?.testEnvUrl || 'https://staging-wallet.internal';
+
+    const message = `New QA Project Assignment\n\nYou have been assigned to:\n${project.name}\n\nQA Lead: ${leadName}\nProduct Owner: ${productOwner}\n\nResources:\n📄 PRD: ${prdText}\n🎨 Figma: ${figmaText}\n🌐 Environment: ${envText}\n\nYour initial responsibility:\n${responsibility}\n\nPlease review the project resources before starting.`;
 
     this.dispatch({
       recipientId: memberId,

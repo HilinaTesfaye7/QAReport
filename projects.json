@@ -1,5 +1,374 @@
 [
   {
+    "id": "prj-mtpzewy8",
+    "name": "Crypto Vault Wallet",
+    "description": "QA security audit and regression for multi-sig wallet",
+    "status": "Testing",
+    "memberIds": [
+      "usr-347835367",
+      "usr-7527336375"
+    ],
+    "resources": {
+      "prdUrl": "https://docs.crypto.internal/prd",
+      "repoUrl": "https://github.com/crypto/vault",
+      "figmaUrl": "https://www.figma.com/file/crypto-vault/spec",
+      "prdTitle": "Crypto Vault Wallet PRD v1.2",
+      "apiDocUrl": "https://api.crypto.internal/docs",
+      "prdContent": "# Crypto Vault Acceptance Criteria\n- 100% test pass rate on signature verifications",
+      "testEnvUrl": "https://staging-wallet.internal",
+      "releaseInfo": "Audited release candidate",
+      "requirements": [
+        "REQ-01: Multi-sig auth",
+        "REQ-02: Biometric unlock"
+      ],
+      "importantNotes": "Verify secure enclave simulation",
+      "testCredentials": [],
+      "figmaPreviewTitle": "Crypto Vault UI Specs"
+    }
+  },
+  {
+    "id": "prj-mtpyvgg3",
+    "name": "wallet",
+    "description": "nfmnfmd",
+    "status": "Planning",
+    "memberIds": [
+      "usr-347835367",
+      "usr-7527336375"
+    ],
+    "resources": {
+      "prdUrl": "https://docs.bank.internal/prd/spec-v1",
+      "repoUrl": "https://github.com/company/wallet",
+      "figmaUrl": "https://www.figma.com/design/SXuKgynpoGVdraJIhkCYgE/Dashen-Hybrid-Wallet-CPS?node-id=156-31093&p=f&t=Ed15ac4j62vBslnf-0",
+      "prdTitle": "wallet prd",
+      "apiDocUrl": "uat / https://uat-dashen-super-app-branch-portal.vercel.app//swagger-ui",
+      "figmaName": "wallet UI Prototype",
+      "prdContent": "# Functional Requirements & Acceptance Criteria\n\n## 1. Overview\nComprehensive QA validation of all feature modules and API services.\n\n## 2. Acceptance Criteria\n- Pass 100% of P0 smoke test cases before release.\n- 0 critical or blocker severity defects open in regression cycle.\n- API response time < 250ms for 95th percentile.\n- Figma layout tokens and responsive breakpoints verified.",
+      "testEnvUrl": "uat / https://uat-dashen-super-app-branch-portal.vercel.app/",
+      "releaseInfo": "Sprint candidate validation window closes prior to release deployment.",
+      "buildVersion": "v1.0.0-rc1",
+      "figmaVersion": "v2.4",
+      "prdDocuments": [
+        {
+          "id": "doc-1788708526850",
+          "name": "wallet prd",
+          "version": "v1.0-RC",
+          "fileName": "wallet-prd.pdf",
+          "fileSize": "2.4 MB",
+          "uploadedAt": "2026-09-06",
+          "uploadedBy": "Sarah Jenkins",
+          "downloadUrl": "https://docs.bank.internal/prd/spec-v1"
+        }
+      ],
+      "requirements": [
+        "REQ-01: Authentication & Token Lifecycle",
+        "REQ-02: Core Feature Flow and Business Logic Validation",
+        "REQ-03: Responsive Design Breakpoints Verification"
+      ],
+      "importantNotes": "Review all Figma auto-layout padding specs before marking UI tickets complete.",
+      "testCredentials": [
+        {
+          "pass": "AegisPass#2026",
+          "role": "QA Automation Engineer",
+          "user": "qa.test@company.internal",
+          "notes": "Staging environment pre-loaded test data profile"
+        }
+      ],
+      "figmaDescription": "Includes all responsive viewports, state machines, and micro-interaction tokens.",
+      "figmaPreviewTitle": "wallet design"
+    }
+  },
+  {
+    "id": "prj-mtpy7gvz",
+    "name": "Crypto Vault Wallet",
+    "description": "QA security audit and regression for multi-sig wallet",
+    "status": "In Progress",
+    "memberIds": [
+      "usr-347835367",
+      "usr-hana"
+    ],
+    "resources": {
+      "prdUrl": "https://docs.crypto.internal/prd",
+      "repoUrl": "https://github.com/crypto/vault",
+      "figmaUrl": "https://www.figma.com/file/crypto-vault/spec",
+      "prdTitle": "Crypto Vault Wallet PRD v1.2",
+      "apiDocUrl": "https://api.crypto.internal/docs",
+      "prdContent": "# Crypto Vault Acceptance Criteria\n- 100% test pass rate on signature verifications",
+      "testEnvUrl": "https://staging-wallet.internal",
+      "releaseInfo": "Audited release candidate",
+      "requirements": [
+        "REQ-01: Multi-sig auth",
+        "REQ-02: Biometric unlock"
+      ],
+      "importantNotes": "Verify secure enclave simulation",
+      "testCredentials": [],
+      "figmaPreviewTitle": "Crypto Vault UI Specs"
+    }
+  },
+  {
+    "id": "prj-mtpxn3pl",
+    "name": "Crypto Vault Wallet",
+    "description": "QA security audit and regression for multi-sig wallet",
+    "status": "In Progress",
+    "memberIds": [
+      "usr-347835367",
+      "usr-hana"
+    ],
+    "resources": {
+      "prdUrl": "https://docs.crypto.internal/prd",
+      "repoUrl": "https://github.com/crypto/vault",
+      "figmaUrl": "https://www.figma.com/file/crypto-vault/spec",
+      "prdTitle": "Crypto Vault Wallet PRD v1.2",
+      "apiDocUrl": "https://api.crypto.internal/docs",
+      "prdContent": "# Crypto Vault Acceptance Criteria\n- 100% test pass rate on signature verifications",
+      "testEnvUrl": "https://staging-wallet.internal",
+      "releaseInfo": "Audited release candidate",
+      "requirements": [
+        "REQ-01: Multi-sig auth",
+        "REQ-02: Biometric unlock"
+      ],
+      "importantNotes": "Verify secure enclave simulation",
+      "testCredentials": [],
+      "figmaPreviewTitle": "Crypto Vault UI Specs"
+    }
+  },
+  {
+    "id": "prj-mtptmuid",
+    "name": "Crypto Vault Wallet",
+    "description": "QA security audit and regression for multi-sig wallet",
+    "status": "Testing",
+    "memberIds": [
+      "usr-347835367",
+      "usr-hana"
+    ],
+    "resources": {
+      "prdUrl": "https://docs.crypto.internal/prd",
+      "repoUrl": "https://github.com/crypto/vault",
+      "figmaUrl": "https://www.figma.com/file/crypto-vault/spec",
+      "prdTitle": "Crypto Vault Wallet PRD v1.2",
+      "apiDocUrl": "https://api.crypto.internal/docs",
+      "prdContent": "# Crypto Vault Acceptance Criteria\n- 100% test pass rate on signature verifications",
+      "testEnvUrl": "https://staging-wallet.internal",
+      "releaseInfo": "Audited release candidate",
+      "requirements": [
+        "REQ-01: Multi-sig auth",
+        "REQ-02: Biometric unlock"
+      ],
+      "importantNotes": "Verify secure enclave simulation",
+      "testCredentials": [],
+      "figmaPreviewTitle": "Crypto Vault UI Specs"
+    }
+  },
+  {
+    "id": "prj-mtptklyx",
+    "name": "Crypto Vault Wallet",
+    "description": "QA security audit and regression for multi-sig wallet",
+    "status": "Testing",
+    "memberIds": [
+      "usr-347835367",
+      "usr-hana"
+    ],
+    "resources": {
+      "prdUrl": "https://docs.crypto.internal/prd",
+      "repoUrl": "https://github.com/crypto/vault",
+      "figmaUrl": "https://www.figma.com/file/crypto-vault/spec",
+      "prdTitle": "Crypto Vault Wallet PRD v1.2",
+      "apiDocUrl": "https://api.crypto.internal/docs",
+      "prdContent": "# Crypto Vault Acceptance Criteria\n- 100% test pass rate on signature verifications",
+      "testEnvUrl": "https://staging-wallet.internal",
+      "releaseInfo": "Audited release candidate",
+      "requirements": [
+        "REQ-01: Multi-sig auth",
+        "REQ-02: Biometric unlock"
+      ],
+      "importantNotes": "Verify secure enclave simulation",
+      "testCredentials": [],
+      "figmaPreviewTitle": "Crypto Vault UI Specs"
+    }
+  },
+  {
+    "id": "prj-mtovv2jf",
+    "name": "Crypto Vault Wallet",
+    "description": "QA security audit and regression for multi-sig wallet",
+    "status": "Testing",
+    "memberIds": [
+      "usr-347835367",
+      "usr-hana"
+    ],
+    "resources": {
+      "prdUrl": "https://docs.crypto.internal/prd",
+      "repoUrl": "https://github.com/crypto/vault",
+      "figmaUrl": "https://www.figma.com/file/crypto-vault/spec",
+      "prdTitle": "Crypto Vault Wallet PRD v1.2",
+      "apiDocUrl": "https://api.crypto.internal/docs",
+      "prdContent": "# Crypto Vault Acceptance Criteria\n- 100% test pass rate on signature verifications",
+      "testEnvUrl": "https://staging-wallet.internal",
+      "releaseInfo": "Audited release candidate",
+      "requirements": [
+        "REQ-01: Multi-sig auth",
+        "REQ-02: Biometric unlock"
+      ],
+      "importantNotes": "Verify secure enclave simulation",
+      "testCredentials": [],
+      "figmaPreviewTitle": "Crypto Vault UI Specs"
+    }
+  },
+  {
+    "id": "prj-mtovgkuj",
+    "name": "Crypto Vault Wallet",
+    "description": "QA security audit and regression for multi-sig wallet",
+    "status": "Testing",
+    "memberIds": [
+      "usr-347835367",
+      "usr-hana"
+    ],
+    "resources": {
+      "prdUrl": "https://docs.crypto.internal/prd",
+      "repoUrl": "https://github.com/crypto/vault",
+      "figmaUrl": "https://www.figma.com/file/crypto-vault/spec",
+      "prdTitle": "Crypto Vault Wallet PRD v1.2",
+      "apiDocUrl": "https://api.crypto.internal/docs",
+      "prdContent": "# Crypto Vault Acceptance Criteria\n- 100% test pass rate on signature verifications",
+      "testEnvUrl": "https://staging-wallet.internal",
+      "releaseInfo": "Audited release candidate",
+      "requirements": [
+        "REQ-01: Multi-sig auth",
+        "REQ-02: Biometric unlock"
+      ],
+      "importantNotes": "Verify secure enclave simulation",
+      "testCredentials": [],
+      "figmaPreviewTitle": "Crypto Vault UI Specs"
+    }
+  },
+  {
+    "id": "prj-mtovdw5i",
+    "name": "n n n",
+    "description": " nbmbm",
+    "status": "Testing",
+    "memberIds": [
+      "usr-sara",
+      "usr-347835367"
+    ],
+    "resources": {
+      "prdUrl": "https://docs.bank.internal/prd/spec-v1",
+      "repoUrl": "https://github.com/company/n n n",
+      "figmaUrl": "https://www.figma.com/file/aegis-design-system/prototype",
+      "prdTitle": "n n n Functional Specifications",
+      "apiDocUrl": "https://staging-app.internal/swagger-ui",
+      "figmaName": "n n n UI Prototype",
+      "prdContent": "# Functional Requirements & Acceptance Criteria\n\n## 1. Overview\nComprehensive QA validation of all feature modules and API services.\n\n## 2. Acceptance Criteria\n- Pass 100% of P0 smoke test cases before release.\n- 0 critical or blocker severity defects open in regression cycle.\n- API response time < 250ms for 95th percentile.\n- Figma layout tokens and responsive breakpoints verified.",
+      "testEnvUrl": "https://staging-app.internal",
+      "releaseInfo": "Sprint candidate validation window closes prior to release deployment.",
+      "buildVersion": "v1.0.0-rc1",
+      "figmaVersion": "v2.4",
+      "prdDocuments": [
+        {
+          "id": "doc-1788642202374",
+          "name": "n n n PRD Specification",
+          "version": "v1.0-RC",
+          "fileName": "n n n-prd.pdf",
+          "fileSize": "2.4 MB",
+          "uploadedAt": "2026-09-05",
+          "uploadedBy": "Sarah Jenkins",
+          "downloadUrl": "https://docs.bank.internal/prd/spec-v1"
+        }
+      ],
+      "requirements": [
+        "REQ-01: Authentication & Token Lifecycle",
+        "REQ-02: Core Feature Flow and Business Logic Validation",
+        "REQ-03: Responsive Design Breakpoints Verification"
+      ],
+      "importantNotes": "Review all Figma auto-layout padding specs before marking UI tickets complete.",
+      "testCredentials": [
+        {
+          "pass": "AegisPass#2026",
+          "role": "QA Automation Engineer",
+          "user": "qa.test@company.internal",
+          "notes": "Staging environment pre-loaded test data profile"
+        }
+      ],
+      "figmaDescription": "Includes all responsive viewports, state machines, and micro-interaction tokens.",
+      "figmaPreviewTitle": "Mobile & Web UI Design Specs"
+    }
+  },
+  {
+    "id": "prj-mtov7jbp",
+    "name": "Crypto Vault Wallet",
+    "description": "QA security audit and regression for multi-sig wallet",
+    "status": "Testing",
+    "memberIds": [
+      "usr-347835367",
+      "usr-hana"
+    ],
+    "resources": {
+      "prdUrl": "https://docs.crypto.internal/prd",
+      "repoUrl": "https://github.com/crypto/vault",
+      "figmaUrl": "https://www.figma.com/file/crypto-vault/spec",
+      "prdTitle": "Crypto Vault Wallet PRD v1.2",
+      "apiDocUrl": "https://api.crypto.internal/docs",
+      "prdContent": "# Crypto Vault Acceptance Criteria\n- 100% test pass rate on signature verifications",
+      "testEnvUrl": "https://staging-wallet.internal",
+      "releaseInfo": "Audited release candidate",
+      "requirements": [
+        "REQ-01: Multi-sig auth",
+        "REQ-02: Biometric unlock"
+      ],
+      "importantNotes": "Verify secure enclave simulation",
+      "testCredentials": [],
+      "figmaPreviewTitle": "Crypto Vault UI Specs"
+    }
+  },
+  {
+    "id": "prj-mtov3ge4",
+    "name": "alias",
+    "description": "creat and transfer",
+    "status": "Testing",
+    "memberIds": [
+      "usr-sara",
+      "usr-347835367"
+    ],
+    "resources": {
+      "prdUrl": "https://docs.google.com/spreadsheets/d/1wsKxsdnKU8cReL8eg6JupRdMNC1LnoSZ/edit?usp=sharing&ouid=113417423607610500678&rtpof=true&sd=true",
+      "repoUrl": "https://github.com/company/alias",
+      "figmaUrl": "https://www.figma.com/file/aegis-design-system/prototype",
+      "prdTitle": "alias prd",
+      "apiDocUrl": "https://uat-dashen-super-app-branch-portal.vercel.app//swagger-ui",
+      "figmaName": "alias UI Prototype",
+      "prdContent": "# Functional Requirements & Acceptance Criteria\n\n## 1. Overview\nComprehensive QA validation of all feature modules and API services.\n\n## 2. Acceptance Criteria\n- Pass 100% of P0 smoke test cases before release.\n- 0 critical or blocker severity defects open in regression cycle.\n- API response time < 250ms for 95th percentile.\n- Figma layout tokens and responsive breakpoints verified.",
+      "testEnvUrl": "https://uat-dashen-super-app-branch-portal.vercel.app/",
+      "releaseInfo": "Sprint candidate validation window closes prior to release deployment.",
+      "buildVersion": "v1.0.0-rc1",
+      "figmaVersion": "v2.4",
+      "prdDocuments": [
+        {
+          "id": "doc-1788641715387",
+          "name": "alias prd",
+          "version": "v1.0-RC",
+          "fileName": "alias-prd.pdf",
+          "fileSize": "2.4 MB",
+          "uploadedAt": "2026-09-05",
+          "uploadedBy": "Sarah Jenkins",
+          "downloadUrl": "https://docs.google.com/spreadsheets/d/1wsKxsdnKU8cReL8eg6JupRdMNC1LnoSZ/edit?usp=sharing&ouid=113417423607610500678&rtpof=true&sd=true"
+        }
+      ],
+      "requirements": [
+        "REQ-01: Authentication & Token Lifecycle",
+        "REQ-02: Core Feature Flow and Business Logic Validation",
+        "REQ-03: Responsive Design Breakpoints Verification"
+      ],
+      "importantNotes": "Review all Figma auto-layout padding specs before marking UI tickets complete.",
+      "testCredentials": [
+        {
+          "pass": "AegisPass#2026",
+          "role": "QA Automation Engineer",
+          "user": "qa.test@company.internal",
+          "notes": "Staging environment pre-loaded test data profile"
+        }
+      ],
+      "figmaDescription": "Includes all responsive viewports, state machines, and micro-interaction tokens.",
+      "figmaPreviewTitle": "Mobile & Web UI Design Specs"
+    }
+  },
+  {
     "id": "prj-mtouzb3y",
     "name": "Crypto Vault Wallet",
     "description": "QA security audit and regression for multi-sig wallet",
@@ -711,26 +1080,6 @@
     }
   },
   {
-    "id": "prj-ko",
-    "name": "ko",
-    "description": "QA project ko created from Vercel platform",
-    "status": "Active",
-    "memberIds": [
-      "usr-347835367",
-      "usr-sarah",
-      "usr-7527336375"
-    ],
-    "resources": {
-      "prdUrl": "",
-      "figmaUrl": "",
-      "prdTitle": "ko Functional Specifications",
-      "figmaName": "ko Prototype",
-      "prdContent": "# Project ko Acceptance Criteria\n- Complete verification",
-      "requirements": [],
-      "figmaPreviewTitle": "ko UI Specifications"
-    }
-  },
-  {
     "id": "prj-mtoc9qs0",
     "name": "Crypto Vault Wallet",
     "description": "QA security audit and regression for multi-sig wallet",
@@ -755,6 +1104,26 @@
       "importantNotes": "Verify secure enclave simulation",
       "testCredentials": [],
       "figmaPreviewTitle": "Crypto Vault UI Specs"
+    }
+  },
+  {
+    "id": "prj-ko",
+    "name": "ko",
+    "description": "QA project ko created from Vercel platform",
+    "status": "Active",
+    "memberIds": [
+      "usr-347835367",
+      "usr-sarah",
+      "usr-7527336375"
+    ],
+    "resources": {
+      "prdUrl": "",
+      "figmaUrl": "",
+      "prdTitle": "ko Functional Specifications",
+      "figmaName": "ko Prototype",
+      "prdContent": "# Project ko Acceptance Criteria\n- Complete verification",
+      "requirements": [],
+      "figmaPreviewTitle": "ko UI Specifications"
     }
   },
   {
@@ -811,7 +1180,7 @@
     "id": "prj-mto97e35",
     "name": "ko",
     "description": "cxcx",
-    "status": "Testing",
+    "status": "In Progress",
     "memberIds": [
       "usr-347835367"
     ],

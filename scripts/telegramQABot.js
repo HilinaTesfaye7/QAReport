@@ -686,6 +686,58 @@ async function notifyQALeadsOfStandupIssue({
   }
 }
 
+// Proactive Telegram Alert to QA Member when assigned to a project squad
+async function notifyMemberOfProjectAssignment({
+  chatId,
+  project,
+  leadName = 'Sarah Jenkins',
+  responsibility = 'You have been added to the QA Squad for this project.',
+}) {
+  try {
+    const productOwner = project.projectOwner || project.productOwner || 'Product Owner';
+    const prdDoc = project.resources?.prdDocuments?.[0];
+    let prdText = '';
+    if (project.resources?.prdUrl) {
+      prdText = project.resources?.prdTitle
+        ? `${project.resources.prdTitle} - ${project.resources.prdUrl}`
+        : project.resources.prdUrl;
+      if (prdDoc?.fileName) {
+        prdText += ` | File: ${prdDoc.fileName}`;
+      }
+    } else if (prdDoc?.fileName) {
+      prdText = project.resources?.prdTitle
+        ? `${project.resources.prdTitle} (File: ${prdDoc.fileName})`
+        : `File: ${prdDoc.fileName}`;
+    } else {
+      prdText = project.resources?.prdTitle || 'Available in PRD & Specs';
+    }
+
+    const figmaText = project.resources?.figmaUrl || 'Available in Design (Figma) tab';
+    const envText = project.resources?.testEnvUrl || 'https://staging-wallet.internal';
+
+    let msg = `<b>Assigned to ${escapeHtml(project.name)}</b>\n\n`;
+    msg += `New QA Project Assignment\n\n`;
+    msg += `You have been assigned to:\n`;
+    msg += `<b>${escapeHtml(project.name)}</b>\n\n`;
+    msg += `QA Lead: <b>${escapeHtml(leadName)}</b>\n`;
+    msg += `Product Owner: <b>${escapeHtml(productOwner)}</b>\n\n`;
+    msg += `Resources:\n`;
+    msg += `📄 PRD: ${escapeHtml(prdText)}\n`;
+    msg += `🎨 Figma: ${escapeHtml(figmaText)}\n`;
+    msg += `🌐 Environment: ${escapeHtml(envText)}\n\n`;
+    msg += `Your initial responsibility:\n`;
+    msg += `${escapeHtml(responsibility)}\n\n`;
+    msg += `Please review the project resources before starting.`;
+
+    await sendMessage(chatId, msg);
+    console.log(`[Notification] Dispatched project assignment alert for ${project.name} to chat ${chatId}`);
+    return true;
+  } catch (err) {
+    console.error('[Notification Error] Project assignment notification failed:', err.message);
+    return false;
+  }
+}
+
 // ==========================================
 // 1. ONBOARDING WIZARD (Name, Role, Project)
 // ==========================================
@@ -2961,4 +3013,5 @@ export {
   notifyQALeadsOfBlocker,
   notifyQALeadsOfStandupIssue,
   notifyQALeadsOfBlockerResolved,
+  notifyMemberOfProjectAssignment,
 };
