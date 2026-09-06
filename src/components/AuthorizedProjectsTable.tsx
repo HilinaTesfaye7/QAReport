@@ -14,12 +14,15 @@ import {
   Send,
   Sparkles,
   Trash2,
+  ChevronDown,
+  Edit3,
 } from 'lucide-react';
 import { Project, User, DailyReport, Blocker } from '../types';
 import { StorageService } from '../services/storage';
 import { DailyReportService } from '../services/dailyReportService';
 import { ProjectService } from '../services/projectService';
 import { BlockerService } from '../services/blockerService';
+import { supabase } from '../services/supabaseClient';
 
 interface AuthorizedProjectsTableProps {
   currentUser: User;
@@ -39,6 +42,7 @@ export const AuthorizedProjectsTable: React.FC<AuthorizedProjectsTableProps> = (
   const [projects, setProjects] = useState<Project[]>(StorageService.getProjects());
   const [reports, setReports] = useState<DailyReport[]>(StorageService.getDailyReports());
   const [blockers, setBlockers] = useState<Blocker[]>(BlockerService.getBlockers());
+  const [progressValues, setProgressValues] = useState<Record<string, number>>({});
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'IN PROGRESS' | 'BLOCKED' | 'COMPLETED'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
@@ -51,6 +55,15 @@ export const AuthorizedProjectsTable: React.FC<AuthorizedProjectsTableProps> = (
   const loadData = async () => {
     const cloudProjects = await StorageService.syncProjectsWithDisk();
     setProjects(cloudProjects);
+    setProgressValues((prev) => {
+      const next = { ...prev };
+      cloudProjects.forEach((p) => {
+        if (next[p.id] === undefined) {
+          next[p.id] = p.qaProgress ?? 0;
+        }
+      });
+      return next;
+    });
     const synced = await DailyReportService.syncTelegramReports();
     setReports(synced);
     const cloudBlockers = await BlockerService.syncBlockers();
@@ -107,6 +120,7 @@ export const AuthorizedProjectsTable: React.FC<AuthorizedProjectsTableProps> = (
   // Determine if project is currently Blocked or In Progress
   const isProjectBlocked = (project: Project): boolean => {
     if (project.status === 'Blocked' || project.status === 'On Hold') return true;
+    if (project.status === 'In Progress') return false;
 
     // Check open blockers recorded in blocker service
     const hasActiveBlockers = blockers.some(
@@ -136,20 +150,103 @@ export const AuthorizedProjectsTable: React.FC<AuthorizedProjectsTableProps> = (
     });
   };
 
-  // Toggle project status between In Progress and Blocked
-  const handleToggleProjectStatus = async (project: Project, currentBlocked: boolean, e: React.MouseEvent) => {
-    e.stopPropagation();
-    const newStatus: any = currentBlocked ? 'In Progress' : 'Blocked';
+  // Change project status from dropdown (In Progress or Blocked)
+  const handleStatusChange = async (project: Project, newStatus: string) => {
+    const isNowBlocked = newStatus === 'Blocked';
+    const statusVal: any = isNowBlocked ? 'Blocked' : 'In Progress';
+
     try {
-      ProjectService.updateProject(project.id, { status: newStatus }, currentUser.id);
+      ProjectService.updateProject(project.id, { status: statusVal }, currentUser.id);
     } catch {
       const all = StorageService.getProjects();
       const p = all.find((x) => x.id === project.id);
       if (p) {
-        p.status = newStatus;
+        p.status = statusVal;
         StorageService.saveProjects(all);
       }
     }
+
+    // Direct cloud sync to Supabase projects table
+    if (supabase) {
+      try {
+        await supabase
+          .from('projects')
+          .update({ status: statusVal, updated_at: new Date().toISOString() })
+          .eq('id', project.id);
+      } catch (err) {
+        console.warn('Supabase status update error:', err);
+      }
+    }
+
+    // If marked In Progress, resolve open blockers for this project
+    if (!isNowBlocked) {
+      const openBlks = blockers.filter(
+        (b) =>
+          b.status !== 'Resolved' &&
+          (b.projectId === project.id || b.projectName?.toLowerCase() === project.name.toLowerCase())
+      );
+      for (const b of openBlks) {
+        try {
+          BlockerService.updateBlockerStatus(b.id, 'Resolved', currentUser.id);
+        } catch {}
+      }
+    } else {
+      // If marked Blocked, ensure there is an open blocker record
+      const openBlks = blockers.filter(
+        (b) =>
+          b.status !== 'Resolved' &&
+          (b.projectId === project.id || b.projectName?.toLowerCase() === project.name.toLowerCase())
+      );
+      if (openBlks.length === 0) {
+        try {
+          BlockerService.createBlocker(
+            {
+              title: `Project ${project.name} marked as Blocked`,
+              description: `Status changed to Blocked by ${currentUser.name}`,
+              severity: 'Critical',
+              status: 'Open',
+              projectId: project.id,
+              projectName: project.name,
+              memberId: currentUser.id,
+              reportedBy: currentUser.name,
+            },
+            currentUser.id
+          );
+        } catch {}
+      }
+    }
+
+    await loadData();
+  };
+
+  // Save updated delivery progress percentage
+  const handleProgressSave = async (project: Project, newProgress: number) => {
+    const clamped = Math.max(0, Math.min(100, Math.round(newProgress)));
+    setProgressValues((prev) => ({ ...prev, [project.id]: clamped }));
+
+    try {
+      ProjectService.updateProject(project.id, { qaProgress: clamped }, currentUser.id);
+    } catch {
+      const all = StorageService.getProjects();
+      const idx = all.findIndex((p) => p.id === project.id);
+      if (idx !== -1) {
+        all[idx].qaProgress = clamped;
+        StorageService.saveProjects(all);
+      }
+    }
+
+    // Direct cloud sync to Supabase projects table
+    if (supabase) {
+      try {
+        await supabase
+          .from('projects')
+          .update({ qa_progress: clamped, updated_at: new Date().toISOString() })
+          .eq('id', project.id);
+      } catch (err) {
+        console.warn('Supabase qa_progress update error:', err);
+      }
+    }
+
     await loadData();
   };
 
@@ -429,88 +526,123 @@ export const AuthorizedProjectsTable: React.FC<AuthorizedProjectsTableProps> = (
                       </div>
                     </td>
 
-                    {/* 2. Project Status(inprogress,blocked) */}
+                    {/* 2. Project Status(inprogress,blocked) - Dropdown Selector */}
                     <td style={{ padding: '14px 16px', verticalAlign: 'middle' }}>
-                      {blocked ? (
-                        <button
-                          type="button"
-                          onClick={(e) => handleToggleProjectStatus(project, true, e)}
-                          title="Status: Blocked (Click to switch to In Progress)"
+                      <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+                        <select
+                          value={blocked ? 'Blocked' : 'In Progress'}
+                          onChange={(e) => handleStatusChange(project, e.target.value)}
+                          title="Choose project status: In Progress or Blocked"
                           style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            padding: '4px 12px',
+                            appearance: 'none',
+                            WebkitAppearance: 'none',
+                            MozAppearance: 'none',
+                            padding: '5px 28px 5px 12px',
                             borderRadius: '12px',
                             fontSize: '0.72rem',
                             fontWeight: 800,
                             letterSpacing: '0.04em',
                             textTransform: 'uppercase',
-                            background: 'rgba(239, 68, 68, 0.15)',
-                            color: '#f87171',
-                            border: '1px solid rgba(239, 68, 68, 0.35)',
-                            boxShadow: '0 0 10px rgba(239, 68, 68, 0.15)',
                             cursor: 'pointer',
+                            background: blocked
+                              ? 'rgba(239, 68, 68, 0.15)'
+                              : 'rgba(16, 185, 129, 0.15)',
+                            color: blocked ? '#f87171' : '#34d399',
+                            border: blocked
+                              ? '1px solid rgba(239, 68, 68, 0.4)'
+                              : '1px solid rgba(16, 185, 129, 0.4)',
+                            boxShadow: blocked
+                              ? '0 0 10px rgba(239, 68, 68, 0.15)'
+                              : '0 0 10px rgba(16, 185, 129, 0.15)',
+                            outline: 'none',
                             transition: 'all 0.15s ease',
                           }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.background = 'rgba(239, 68, 68, 0.25)';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.background = 'rgba(239, 68, 68, 0.15)';
-                          }}
                         >
-                          <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#ef4444' }} />
-                          <span>BLOCKED</span>
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={(e) => handleToggleProjectStatus(project, false, e)}
-                          title="Status: In Progress (Click to switch to Blocked)"
+                          <option
+                            value="In Progress"
+                            style={{ background: '#0f172a', color: '#34d399', fontWeight: 700 }}
+                          >
+                            🟢 IN PROGRESS
+                          </option>
+                          <option
+                            value="Blocked"
+                            style={{ background: '#0f172a', color: '#f87171', fontWeight: 700 }}
+                          >
+                            🔴 BLOCKED
+                          </option>
+                        </select>
+                        <ChevronDown
+                          size={12}
                           style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            padding: '4px 12px',
-                            borderRadius: '12px',
-                            fontSize: '0.72rem',
-                            fontWeight: 800,
-                            letterSpacing: '0.04em',
-                            textTransform: 'uppercase',
-                            background: 'rgba(16, 185, 129, 0.15)',
-                            color: '#34d399',
-                            border: '1px solid rgba(16, 185, 129, 0.35)',
-                            boxShadow: '0 0 10px rgba(16, 185, 129, 0.15)',
-                            cursor: 'pointer',
-                            transition: 'all 0.15s ease',
+                            position: 'absolute',
+                            right: '9px',
+                            pointerEvents: 'none',
+                            color: blocked ? '#f87171' : '#34d399',
                           }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.background = 'rgba(16, 185, 129, 0.25)';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.background = 'rgba(16, 185, 129, 0.15)';
-                          }}
-                        >
-                          <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981' }} />
-                          <span>IN PROGRESS</span>
-                        </button>
-                      )}
+                        />
+                      </div>
                     </td>
 
-                    {/* 3. Delivery Progress */}
+                    {/* 3. Delivery Progress - Editable */}
                     <td style={{ padding: '14px 16px', verticalAlign: 'middle', minWidth: '160px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.74rem', marginBottom: '4px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.74rem', marginBottom: '4px' }}>
                         <span style={{ color: 'var(--text-secondary)' }}>Delivery Progress</span>
-                        <strong style={{ color: '#38bdf8' }}>{project.qaProgress}%</strong>
+                        <div
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '2px',
+                            background: 'rgba(15, 23, 42, 0.6)',
+                            border: '1px solid rgba(56, 189, 248, 0.3)',
+                            borderRadius: '6px',
+                            padding: '1px 5px',
+                            transition: 'border-color 0.15s ease',
+                          }}
+                          title="Click to edit progress percentage (0 - 100)"
+                        >
+                          <input
+                            type="number"
+                            min={0}
+                            max={100}
+                            value={progressValues[project.id] ?? project.qaProgress ?? 0}
+                            onChange={(e) => {
+                              const raw = e.target.value;
+                              const val = raw === '' ? 0 : parseInt(raw, 10);
+                              const clamped = isNaN(val) ? 0 : Math.max(0, Math.min(100, val));
+                              setProgressValues((prev) => ({ ...prev, [project.id]: clamped }));
+                            }}
+                            onBlur={() => {
+                              const finalVal = progressValues[project.id] ?? project.qaProgress ?? 0;
+                              handleProgressSave(project, finalVal);
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                (e.target as HTMLInputElement).blur();
+                              }
+                            }}
+                            style={{
+                              width: '38px',
+                              padding: '1px 2px',
+                              fontSize: '0.78rem',
+                              fontWeight: 800,
+                              color: '#38bdf8',
+                              background: 'transparent',
+                              border: 'none',
+                              outline: 'none',
+                              textAlign: 'right',
+                            }}
+                          />
+                          <span style={{ fontSize: '0.74rem', fontWeight: 800, color: '#38bdf8' }}>%</span>
+                        </div>
                       </div>
-                      <div style={{ height: '6px', width: '100%', borderRadius: '3px', background: 'rgba(255, 255, 255, 0.08)' }}>
+                      <div style={{ height: '6px', width: '100%', borderRadius: '3px', background: 'rgba(255, 255, 255, 0.08)', overflow: 'hidden' }}>
                         <div
                           style={{
                             height: '100%',
-                            width: `${Math.min(100, Math.max(0, project.qaProgress))}%`,
+                            width: `${Math.min(100, Math.max(0, progressValues[project.id] ?? project.qaProgress ?? 0))}%`,
                             background: 'linear-gradient(90deg, #2563eb, #38bdf8)',
                             borderRadius: '3px',
+                            transition: 'width 0.2s ease',
                           }}
                         />
                       </div>
@@ -696,50 +828,114 @@ export const AuthorizedProjectsTable: React.FC<AuthorizedProjectsTableProps> = (
                       Target: {project.targetReleaseDate}
                     </span>
                   </div>
-                  {blocked ? (
-                    <span
+                  {/* Status Dropdown in Grid */}
+                  <div
+                    style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <select
+                      value={blocked ? 'Blocked' : 'In Progress'}
+                      onChange={(e) => handleStatusChange(project, e.target.value)}
+                      title="Choose project status: In Progress or Blocked"
                       style={{
-                        padding: '2px 8px',
+                        appearance: 'none',
+                        WebkitAppearance: 'none',
+                        MozAppearance: 'none',
+                        padding: '3px 22px 3px 8px',
                         borderRadius: '10px',
-                        fontSize: '0.7rem',
+                        fontSize: '0.68rem',
                         fontWeight: 800,
-                        background: 'rgba(239, 68, 68, 0.15)',
-                        color: '#f87171',
-                        border: '1px solid rgba(239, 68, 68, 0.3)',
+                        letterSpacing: '0.04em',
+                        textTransform: 'uppercase',
+                        cursor: 'pointer',
+                        background: blocked
+                          ? 'rgba(239, 68, 68, 0.15)'
+                          : 'rgba(16, 185, 129, 0.15)',
+                        color: blocked ? '#f87171' : '#34d399',
+                        border: blocked
+                          ? '1px solid rgba(239, 68, 68, 0.35)'
+                          : '1px solid rgba(16, 185, 129, 0.35)',
+                        outline: 'none',
                       }}
                     >
-                      BLOCKED
-                    </span>
-                  ) : (
-                    <span
+                      <option value="In Progress" style={{ background: '#0f172a', color: '#34d399', fontWeight: 700 }}>
+                        🟢 IN PROGRESS
+                      </option>
+                      <option value="Blocked" style={{ background: '#0f172a', color: '#f87171', fontWeight: 700 }}>
+                        🔴 BLOCKED
+                      </option>
+                    </select>
+                    <ChevronDown
+                      size={11}
                       style={{
-                        padding: '2px 8px',
-                        borderRadius: '10px',
-                        fontSize: '0.7rem',
-                        fontWeight: 800,
-                        background: 'rgba(16, 185, 129, 0.15)',
-                        color: '#34d399',
-                        border: '1px solid rgba(16, 185, 129, 0.3)',
+                        position: 'absolute',
+                        right: '6px',
+                        pointerEvents: 'none',
+                        color: blocked ? '#f87171' : '#34d399',
                       }}
-                    >
-                      IN PROGRESS
-                    </span>
-                  )}
+                    />
+                  </div>
                 </div>
 
-                {/* Progress bar */}
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.74rem', marginBottom: '3px' }}>
+                {/* Progress bar - Editable in Grid */}
+                <div onClick={(e) => e.stopPropagation()}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.74rem', marginBottom: '3px' }}>
                     <span style={{ color: 'var(--text-secondary)' }}>Delivery Progress</span>
-                    <strong style={{ color: '#38bdf8' }}>{project.qaProgress}%</strong>
+                    <div
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '2px',
+                        background: 'rgba(15, 23, 42, 0.6)',
+                        border: '1px solid rgba(56, 189, 248, 0.3)',
+                        borderRadius: '4px',
+                        padding: '1px 4px',
+                      }}
+                      title="Edit progress (0-100)"
+                    >
+                      <input
+                        type="number"
+                        min={0}
+                        max={100}
+                        value={progressValues[project.id] ?? project.qaProgress ?? 0}
+                        onChange={(e) => {
+                          const raw = e.target.value;
+                          const val = raw === '' ? 0 : parseInt(raw, 10);
+                          const clamped = isNaN(val) ? 0 : Math.max(0, Math.min(100, val));
+                          setProgressValues((prev) => ({ ...prev, [project.id]: clamped }));
+                        }}
+                        onBlur={() => {
+                          const finalVal = progressValues[project.id] ?? project.qaProgress ?? 0;
+                          handleProgressSave(project, finalVal);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            (e.target as HTMLInputElement).blur();
+                          }
+                        }}
+                        style={{
+                          width: '32px',
+                          padding: '1px',
+                          fontSize: '0.74rem',
+                          fontWeight: 800,
+                          color: '#38bdf8',
+                          background: 'transparent',
+                          border: 'none',
+                          outline: 'none',
+                          textAlign: 'right',
+                        }}
+                      />
+                      <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#38bdf8' }}>%</span>
+                    </div>
                   </div>
-                  <div style={{ height: '5px', borderRadius: '3px', background: 'rgba(255, 255, 255, 0.08)' }}>
+                  <div style={{ height: '5px', borderRadius: '3px', background: 'rgba(255, 255, 255, 0.08)', overflow: 'hidden' }}>
                     <div
                       style={{
                         height: '100%',
-                        width: `${project.qaProgress}%`,
+                        width: `${Math.min(100, Math.max(0, progressValues[project.id] ?? project.qaProgress ?? 0))}%`,
                         background: 'linear-gradient(90deg, #2563eb, #38bdf8)',
                         borderRadius: '3px',
+                        transition: 'width 0.2s ease',
                       }}
                     />
                   </div>
