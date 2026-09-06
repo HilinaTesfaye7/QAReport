@@ -64,7 +64,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
   const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]); // Starts empty, no forced default members
   const [allowWithoutMembers, setAllowWithoutMembers] = useState(false);
   const [memberValidationError, setMemberValidationError] = useState<string | null>(null);
-  const [notificationNote, setNotificationNote] = useState('Please review the attached PRD and Figma design tokens before commencing test authoring.');
+  const [notificationNote, setNotificationNote] = useState('Please prepare the test cases and submit them using /testcase');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [feedbackMsg, setFeedbackMsg] = useState<string | null>(null);
 

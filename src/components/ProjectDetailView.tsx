@@ -151,7 +151,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
         updatedProj,
         selectedMemberToAdd,
         currentUser.id,
-        'You have been added to the QA Squad for this project.'
+        'Please prepare the test cases and submit them using /testcase'
       );
 
       setMemberToast(`Assigned ${memberName} to ${currentProject.name} and dispatched assignment notification!`);

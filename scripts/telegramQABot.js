@@ -691,7 +691,7 @@ async function notifyMemberOfProjectAssignment({
   chatId,
   project,
   leadName = 'Sarah Jenkins',
-  responsibility = 'You have been added to the QA Squad for this project.',
+  responsibility = 'Please prepare the test cases and submit them using /testcase',
 }) {
   try {
     const productOwner = project.projectOwner || project.productOwner || 'Product Owner';
@@ -713,7 +713,6 @@ async function notifyMemberOfProjectAssignment({
     }
 
     const figmaText = project.resources?.figmaUrl || 'Available in Design (Figma) tab';
-    const envText = project.resources?.testEnvUrl || 'https://staging-wallet.internal';
 
     let msg = `<b>Assigned to ${escapeHtml(project.name)}</b>\n\n`;
     msg += `New QA Project Assignment\n\n`;
@@ -723,8 +722,7 @@ async function notifyMemberOfProjectAssignment({
     msg += `Product Owner: <b>${escapeHtml(productOwner)}</b>\n\n`;
     msg += `Resources:\n`;
     msg += `📄 PRD: ${escapeHtml(prdText)}\n`;
-    msg += `🎨 Figma: ${escapeHtml(figmaText)}\n`;
-    msg += `🌐 Environment: ${escapeHtml(envText)}\n\n`;
+    msg += `🎨 Figma: ${escapeHtml(figmaText)}\n\n`;
     msg += `Your initial responsibility:\n`;
     msg += `${escapeHtml(responsibility)}\n\n`;
     msg += `Please review the project resources before starting.`;
@@ -2259,6 +2257,61 @@ async function handleMessage(message) {
     return;
   }
 
+  // /testcase command to prepare and submit test cases
+  if (text.startsWith('/testcase') || text === 'testcase' || text === '/testcases') {
+    const project = profile ? profile.projectName : 'Crypto Vault Wallet';
+
+    // Check if user submitted testcase details directly, e.g. /testcase Auth - Verify Biometric Login - ...
+    const args = rawText.replace(/^\/testcases?\s*/i, '').trim();
+    if (args.length > 3) {
+      const parts = args.split('-').map((s) => s.trim());
+      const module = parts.length > 1 ? parts[0] : 'General';
+      const title = parts.length > 1 ? parts[1] : parts[0];
+      const steps = parts.length > 2 ? parts[2] : 'Execute test steps per PRD';
+      const expected = parts.length > 3 ? parts[3] : 'Passes validation criteria';
+
+      const tcId = `tc-${Date.now().toString(36)}`;
+      if (supabase) {
+        await supabase.from('qa_tasks').insert({
+          id: tcId,
+          title: `[TC] ${title}`,
+          description: `Module: ${module}\nSteps: ${steps}\nExpected: ${expected}`,
+          project_id: profile?.projectId || 'prj-banking',
+          module: module,
+          priority: 'Medium',
+          status: 'Assigned',
+          assignee_id: `usr-${chatId}`,
+          created_at: new Date().toISOString(),
+        }).catch(() => {});
+      }
+
+      await sendMessage(
+        chatId,
+        `✅ <b>Test Case Prepared & Submitted!</b>\n\n` +
+        `📁 <b>Project:</b> ${escapeHtml(project)}\n` +
+        `🏷 <b>Module:</b> ${escapeHtml(module)}\n` +
+        `📌 <b>Title:</b> ${escapeHtml(title)}\n` +
+        `📋 <b>Steps:</b> ${escapeHtml(steps)}\n` +
+        `🎯 <b>Expected Result:</b> ${escapeHtml(expected)}\n\n` +
+        `<i>Your test case has been recorded and synced to the QA Command Center.</i>\n` +
+        `💡 Type <code>/checkin</code> when you are ready to log your daily standup.`
+      );
+      return;
+    }
+
+    let reply = `📝 <b>QA Test Case Preparation & Submission</b>\n\n`;
+    reply += `📁 <b>Active Project:</b> ${escapeHtml(project)}\n\n`;
+    reply += `<b>How to submit test cases via bot:</b>\n`;
+    reply += `Send: <code>/testcase &lt;Module&gt; - &lt;Title&gt; - &lt;Steps&gt; - &lt;Expected Result&gt;</code>\n\n`;
+    reply += `<b>Example:</b>\n`;
+    reply += `<code>/testcase Signature - Verify Multi-Sig Approval - 1. Sign tx 2. Verify quorum - Transaction broadcast successfully</code>\n\n`;
+    reply += `<i>You can also create or import bulk test cases via the web dashboard at any time.</i>\n\n`;
+    reply += `💡 Type <code>/checkin</code> to submit your daily standup.`;
+
+    await sendMessage(chatId, reply);
+    return;
+  }
+
   if (text.startsWith('/blocker')) {
     const reason = rawText.replace(/^\/blocker/i, '').trim();
     if (!reason) {
@@ -2897,6 +2950,7 @@ async function syncTelegramCommands(chatId = null, role = null) {
         { command: 'status', description: 'Overall QA & project readiness' },
         { command: 'team', description: 'Team members and their current status' },
         { command: 'project', description: 'Manage and switch active QA project' },
+        { command: 'testcase', description: 'Prepare and submit test cases' },
         { command: 'blocker', description: 'View or report blockers' },
         { command: 'resolve', description: 'Resolve active blockers' },
         { command: 'risks', description: 'View QA risks & defect exposures' },
@@ -2907,6 +2961,7 @@ async function syncTelegramCommands(chatId = null, role = null) {
         { command: 'cancel', description: 'Cancel current operation' },
       ] : [
         { command: 'checkin', description: 'Submit daily QA standup' },
+        { command: 'testcase', description: 'Prepare and submit test cases' },
         { command: 'project', description: 'Switch active QA project' },
         { command: 'blocker', description: 'Report urgent blocker' },
         { command: 'resolve', description: 'Resolve active blocker' },
@@ -2928,6 +2983,7 @@ async function syncTelegramCommands(chatId = null, role = null) {
     } else {
       const defaultCommands = [
         { command: 'checkin', description: 'Submit daily QA standup' },
+        { command: 'testcase', description: 'Prepare and submit test cases' },
         { command: 'status', description: 'View relevant QA status' },
         { command: 'project', description: 'Switch active QA project' },
         { command: 'blocker', description: 'Report urgent blocker' },

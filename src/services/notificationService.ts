@@ -167,7 +167,7 @@ class NotificationServiceManager {
     project: Project,
     memberId: string,
     leadId: string,
-    responsibility = 'You have been added to the QA Squad for this project.'
+    responsibility = 'Please prepare the test cases and submit them using /testcase'
   ) {
     const users = StorageService.getUsers();
     const lead = users.find((u) => u.id === leadId);
@@ -195,10 +195,7 @@ class NotificationServiceManager {
     // Format Figma link
     const figmaText = project.resources?.figmaUrl || 'Available in Design (Figma) tab';
 
-    // Format Environment
-    const envText = project.resources?.testEnvUrl || 'https://staging-wallet.internal';
-
-    const message = `New QA Project Assignment\n\nYou have been assigned to:\n${project.name}\n\nQA Lead: ${leadName}\nProduct Owner: ${productOwner}\n\nResources:\n📄 PRD: ${prdText}\n🎨 Figma: ${figmaText}\n🌐 Environment: ${envText}\n\nYour initial responsibility:\n${responsibility}\n\nPlease review the project resources before starting.`;
+    const message = `New QA Project Assignment\n\nYou have been assigned to:\n${project.name}\n\nQA Lead: ${leadName}\nProduct Owner: ${productOwner}\n\nResources:\n📄 PRD: ${prdText}\n🎨 Figma: ${figmaText}\n\nYour initial responsibility:\n${responsibility}\n\nPlease review the project resources before starting.`;
 
     this.dispatch({
       recipientId: memberId,
