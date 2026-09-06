@@ -167,7 +167,7 @@ class NotificationServiceManager {
     project: Project,
     memberId: string,
     leadId: string,
-    responsibility = 'Please prepare the test cases and submit them using /testcase'
+    _responsibility?: string
   ) {
     const users = StorageService.getUsers();
     const lead = users.find((u) => u.id === leadId);
@@ -195,7 +195,13 @@ class NotificationServiceManager {
     // Format Figma link
     const figmaText = project.resources?.figmaUrl || 'Available in Design (Figma) tab';
 
-    const message = `New QA Project Assignment\n\nYou have been assigned to:\n${project.name}\n\nQA Lead: ${leadName}\nProduct Owner: ${productOwner}\n\nResources:\n📄 PRD: ${prdText}\n🎨 Figma: ${figmaText}\n\nYour initial responsibility:\n${responsibility}\n\nPlease review the project resources before starting.`;
+    // Format Resources list
+    let resourcesBlock = `📄 PRD: ${prdText}\n🎨 Figma: ${figmaText}`;
+    if (project.resources?.testCaseUrl) {
+      resourcesBlock += `\n🧪 Test Cases: ${project.resources.testCaseUrl}`;
+    }
+
+    const message = `New QA Project Assignment\n\nYou have been assigned to:\n${project.name}\n\nQA Lead: ${leadName}\nProduct Owner: ${productOwner}\n\nResources:\n${resourcesBlock}\n\nPlease review the project resources before starting.`;
 
     this.dispatch({
       recipientId: memberId,

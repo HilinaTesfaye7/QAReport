@@ -150,6 +150,52 @@ function saveProjects(projectsList) {
   }
 }
 
+async function saveProjectTestCaseUrl(projectId, testCaseUrl, testCaseTitle = 'Test Cases') {
+  const projects = getProjects();
+  let target = null;
+
+  if (projectId) {
+    const pIdLower = String(projectId).toLowerCase();
+    target = projects.find(
+      (p) => p.id?.toLowerCase() === pIdLower || p.name?.toLowerCase() === pIdLower
+    );
+    if (!target) {
+      target = projects.find(
+        (p) => p.name?.toLowerCase().includes(pIdLower) || pIdLower.includes(p.name?.toLowerCase())
+      );
+    }
+  }
+
+  if (!target) {
+    target = projects.find((p) => p.name?.toLowerCase().includes('crypto')) || projects[0];
+  }
+
+  if (target) {
+    if (!target.resources) target.resources = {};
+    target.resources.testCaseUrl = testCaseUrl;
+    target.resources.testCaseTitle = testCaseTitle;
+    memoryProjects = projects;
+    saveProjects(projects);
+
+    if (supabase) {
+      try {
+        await supabase
+          .from('projects')
+          .update({
+            resources: target.resources,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', target.id);
+        console.log(`[Supabase] Updated testCaseUrl for project ${target.name} (${target.id}) to ${testCaseUrl}`);
+      } catch (err) {
+        console.error('[Supabase] Error updating testCaseUrl:', err.message);
+      }
+    }
+    return target;
+  }
+  return null;
+}
+
 function loadProfiles() {
   if (fs.existsSync(PROFILES_FILE)) {
     try {
@@ -691,10 +737,10 @@ async function notifyMemberOfProjectAssignment({
   chatId,
   project,
   leadName = 'Sarah Jenkins',
-  responsibility = 'Please prepare the test cases and submit them using /testcase',
+  _responsibility,
 }) {
   try {
-    const productOwner = project.projectOwner || project.productOwner || 'Product Owner';
+    const productOwner = project.projectOwner || project.productOwner || 'Elena Rostova';
     const prdDoc = project.resources?.prdDocuments?.[0];
     let prdText = '';
     if (project.resources?.prdUrl) {
@@ -722,10 +768,11 @@ async function notifyMemberOfProjectAssignment({
     msg += `Product Owner: <b>${escapeHtml(productOwner)}</b>\n\n`;
     msg += `Resources:\n`;
     msg += `📄 PRD: ${escapeHtml(prdText)}\n`;
-    msg += `🎨 Figma: ${escapeHtml(figmaText)}\n\n`;
-    msg += `Your initial responsibility:\n`;
-    msg += `${escapeHtml(responsibility)}\n\n`;
-    msg += `Please review the project resources before starting.`;
+    msg += `🎨 Figma: ${escapeHtml(figmaText)}\n`;
+    if (project.resources?.testCaseUrl) {
+      msg += `🧪 Test Cases: ${escapeHtml(project.resources.testCaseUrl)}\n`;
+    }
+    msg += `\nPlease review the project resources before starting.`;
 
     await sendMessage(chatId, msg);
     console.log(`[Notification] Dispatched project assignment alert for ${project.name} to chat ${chatId}`);
@@ -2095,6 +2142,52 @@ async function handleProjectSwitch(chatId, text) {
   return true;
 }
 
+async function handleTestCaseLinkStep(chatId, user, rawText) {
+  const session = userSessions.get(chatId);
+  if (!session || session.type !== 'submit_testcase_link') return false;
+
+  const input = rawText.trim();
+  if (input.toLowerCase() === 'cancel' || input.toLowerCase() === '/cancel') {
+    userSessions.delete(chatId);
+    await sendMessage(chatId, '❌ Test case link submission cancelled.');
+    return true;
+  }
+
+  // Extract URL or format it
+  const urlMatch = input.match(/https?:\/\/[^\s]+/i);
+  let testCaseUrl = urlMatch ? urlMatch[0] : input;
+
+  if (!testCaseUrl.startsWith('http://') && !testCaseUrl.startsWith('https://')) {
+    if (testCaseUrl.includes('.') && !testCaseUrl.includes(' ')) {
+      testCaseUrl = `https://${testCaseUrl}`;
+    } else {
+      await sendMessage(
+        chatId,
+        `⚠️ <b>Please provide a valid URL link</b>\n\n` +
+        `Example: <code>https://docs.google.com/spreadsheets/d/...</code> or Notion / TestRail / Jira link.\n\n` +
+        `<i>Reply with the link, or type <code>cancel</code> to abort.</i>`
+      );
+      return true;
+    }
+  }
+
+  const projectId = session.projectId;
+  const savedProj = await saveProjectTestCaseUrl(projectId, testCaseUrl);
+  userSessions.delete(chatId);
+
+  const finalProjectName = savedProj?.name || session.projectName || 'Crypto Vault Wallet';
+
+  await sendMessage(
+    chatId,
+    `✅ <b>Test Cases Link Submitted!</b>\n\n` +
+    `📁 <b>Project:</b> <b>${escapeHtml(finalProjectName)}</b>\n` +
+    `🔗 <b>Test Cases Link:</b> <a href="${escapeHtml(testCaseUrl)}">${escapeHtml(testCaseUrl)}</a>\n\n` +
+    `<i>The link has been saved and is now placed right beside PRD and Figma in the project dashboard.</i>\n\n` +
+    `💡 Type <code>/checkin</code> when you are ready to submit your daily standup.`
+  );
+  return true;
+}
+
 // ==========================================
 // 4. MAIN MESSAGE ROUTER
 // ==========================================
@@ -2128,6 +2221,7 @@ async function handleMessage(message) {
         `• /status — Overall QA & project readiness\n` +
         `• /team — Team members and their current status\n` +
         `• /project — Manage and switch active QA project\n` +
+        `• /testcase — Submit test cases link\n` +
         `• /blocker &lt;reason&gt; — View or report blockers\n` +
         `• /resolve — Resolve active blockers\n` +
         `• /risks — View QA risks & defect exposures\n` +
@@ -2137,6 +2231,7 @@ async function handleMessage(message) {
         `• /cancel — Cancel an active operation`
       : `<b>Available Commands:</b>\n` +
         `• /checkin — Submit daily QA standup\n` +
+        `• /testcase — Submit test cases link\n` +
         `• /project — Switch active project\n` +
         `• /blocker &lt;reason&gt; — Report urgent blocker\n` +
         `• /resolve — Resolve active blocker\n` +
@@ -2167,6 +2262,9 @@ async function handleMessage(message) {
       if (handled) return;
     } else if (session.type === 'switch_project') {
       const handled = await handleProjectSwitch(chatId, rawText);
+      if (handled) return;
+    } else if (session.type === 'submit_testcase_link') {
+      const handled = await handleTestCaseLinkStep(chatId, user, rawText);
       if (handled) return;
     }
   }
@@ -2257,58 +2355,64 @@ async function handleMessage(message) {
     return;
   }
 
-  // /testcase command to prepare and submit test cases
+  // /testcase command to submit test cases link
   if (text.startsWith('/testcase') || text === 'testcase' || text === '/testcases') {
-    const project = profile ? profile.projectName : 'Crypto Vault Wallet';
+    const projects = getProjects();
+    let targetProj = null;
 
-    // Check if user submitted testcase details directly, e.g. /testcase Auth - Verify Biometric Login - ...
+    if (profile?.projectId) {
+      targetProj = projects.find((p) => p.id === profile.projectId);
+    }
+    if (!targetProj && profile?.projectName) {
+      targetProj = projects.find(
+        (p) => p.name.toLowerCase() === profile.projectName.toLowerCase()
+      );
+    }
+    if (!targetProj) {
+      targetProj = projects.find((p) => p.memberIds?.includes(`usr-${chatId}`));
+    }
+    if (!targetProj) {
+      targetProj = projects.find((p) => p.name.toLowerCase().includes('crypto')) || projects[0];
+    }
+
+    const projectName = targetProj ? targetProj.name : (profile?.projectName || 'Crypto Vault Wallet');
+    const projectId = targetProj ? targetProj.id : (profile?.projectId || 'prj-crypto-vault');
+
+    // Check if user passed the link directly with the command: e.g. /testcase https://docs.google.com/spreadsheets/...
     const args = rawText.replace(/^\/testcases?\s*/i, '').trim();
-    if (args.length > 3) {
-      const parts = args.split('-').map((s) => s.trim());
-      const module = parts.length > 1 ? parts[0] : 'General';
-      const title = parts.length > 1 ? parts[1] : parts[0];
-      const steps = parts.length > 2 ? parts[2] : 'Execute test steps per PRD';
-      const expected = parts.length > 3 ? parts[3] : 'Passes validation criteria';
-
-      const tcId = `tc-${Date.now().toString(36)}`;
-      if (supabase) {
-        await supabase.from('qa_tasks').insert({
-          id: tcId,
-          title: `[TC] ${title}`,
-          description: `Module: ${module}\nSteps: ${steps}\nExpected: ${expected}`,
-          project_id: profile?.projectId || 'prj-banking',
-          module: module,
-          priority: 'Medium',
-          status: 'Assigned',
-          assignee_id: `usr-${chatId}`,
-          created_at: new Date().toISOString(),
-        }).catch(() => {});
+    if (args.startsWith('http://') || args.startsWith('https://') || (args.includes('.') && !args.includes(' ') && args.length > 5)) {
+      let finalUrl = args;
+      if (!finalUrl.startsWith('http://') && !finalUrl.startsWith('https://')) {
+        finalUrl = `https://${finalUrl}`;
       }
+      const savedProj = await saveProjectTestCaseUrl(projectId, finalUrl);
+      const finalName = savedProj ? savedProj.name : projectName;
 
       await sendMessage(
         chatId,
-        `✅ <b>Test Case Prepared & Submitted!</b>\n\n` +
-        `📁 <b>Project:</b> ${escapeHtml(project)}\n` +
-        `🏷 <b>Module:</b> ${escapeHtml(module)}\n` +
-        `📌 <b>Title:</b> ${escapeHtml(title)}\n` +
-        `📋 <b>Steps:</b> ${escapeHtml(steps)}\n` +
-        `🎯 <b>Expected Result:</b> ${escapeHtml(expected)}\n\n` +
-        `<i>Your test case has been recorded and synced to the QA Command Center.</i>\n` +
+        `✅ <b>Test Cases Link Submitted!</b>\n\n` +
+        `📁 <b>Project:</b> <b>${escapeHtml(finalName)}</b>\n` +
+        `🔗 <b>Test Cases Link:</b> <a href="${escapeHtml(finalUrl)}">${escapeHtml(finalUrl)}</a>\n\n` +
+        `<i>The link has been saved and is now placed right beside PRD and Figma in the project dashboard.</i>\n\n` +
         `💡 Type <code>/checkin</code> when you are ready to log your daily standup.`
       );
       return;
     }
 
-    let reply = `📝 <b>QA Test Case Preparation & Submission</b>\n\n`;
-    reply += `📁 <b>Active Project:</b> ${escapeHtml(project)}\n\n`;
-    reply += `<b>How to submit test cases via bot:</b>\n`;
-    reply += `Send: <code>/testcase &lt;Module&gt; - &lt;Title&gt; - &lt;Steps&gt; - &lt;Expected Result&gt;</code>\n\n`;
-    reply += `<b>Example:</b>\n`;
-    reply += `<code>/testcase Signature - Verify Multi-Sig Approval - 1. Sign tx 2. Verify quorum - Transaction broadcast successfully</code>\n\n`;
-    reply += `<i>You can also create or import bulk test cases via the web dashboard at any time.</i>\n\n`;
-    reply += `💡 Type <code>/checkin</code> to submit your daily standup.`;
+    // Otherwise, initiate interactive session to ask the user to provide the link
+    userSessions.set(chatId, {
+      type: 'submit_testcase_link',
+      projectId,
+      projectName,
+    });
 
-    await sendMessage(chatId, reply);
+    await sendMessage(
+      chatId,
+      `🧪 <b>Submit Test Cases Link</b>\n\n` +
+      `📁 <b>Active Project:</b> <b>${escapeHtml(projectName)}</b>\n\n` +
+      `Please provide the link to your test cases (Google Sheets, Notion, TestRail, Jira, or Docs):\n\n` +
+      `<i>👉 Reply with the URL below, or type <code>cancel</code> to abort:</i>`
+    );
     return;
   }
 
@@ -2950,7 +3054,7 @@ async function syncTelegramCommands(chatId = null, role = null) {
         { command: 'status', description: 'Overall QA & project readiness' },
         { command: 'team', description: 'Team members and their current status' },
         { command: 'project', description: 'Manage and switch active QA project' },
-        { command: 'testcase', description: 'Prepare and submit test cases' },
+        { command: 'testcase', description: 'Submit test cases link' },
         { command: 'blocker', description: 'View or report blockers' },
         { command: 'resolve', description: 'Resolve active blockers' },
         { command: 'risks', description: 'View QA risks & defect exposures' },
@@ -2961,7 +3065,7 @@ async function syncTelegramCommands(chatId = null, role = null) {
         { command: 'cancel', description: 'Cancel current operation' },
       ] : [
         { command: 'checkin', description: 'Submit daily QA standup' },
-        { command: 'testcase', description: 'Prepare and submit test cases' },
+        { command: 'testcase', description: 'Submit test cases link' },
         { command: 'project', description: 'Switch active QA project' },
         { command: 'blocker', description: 'Report urgent blocker' },
         { command: 'resolve', description: 'Resolve active blocker' },
@@ -2983,7 +3087,7 @@ async function syncTelegramCommands(chatId = null, role = null) {
     } else {
       const defaultCommands = [
         { command: 'checkin', description: 'Submit daily QA standup' },
-        { command: 'testcase', description: 'Prepare and submit test cases' },
+        { command: 'testcase', description: 'Submit test cases link' },
         { command: 'status', description: 'View relevant QA status' },
         { command: 'project', description: 'Switch active QA project' },
         { command: 'blocker', description: 'Report urgent blocker' },

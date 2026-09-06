@@ -22,6 +22,7 @@ import {
   UserMinus,
   Trash2,
   Copy,
+  ListChecks,
 } from 'lucide-react';
 import { Project, User, DailyReport } from '../types';
 import { StorageService } from '../services/storage';
@@ -51,8 +52,8 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
   onOpenCheckIn,
   onOpenCreateProject,
 }) => {
-  // Streamlined tabs: PRD, Design (Figma), Members, and Standups
-  const [activeTab, setActiveTab] = useState<'prd' | 'figma' | 'members' | 'standups'>('prd');
+  // Streamlined tabs: PRD, Design (Figma), Test Cases, Members, and Standups
+  const [activeTab, setActiveTab] = useState<'prd' | 'figma' | 'testcases' | 'members' | 'standups'>('prd');
   const [currentProject, setCurrentProject] = useState<Project>(project);
   const [reports, setReports] = useState<DailyReport[]>(DailyReportService.getDailyReports());
   const [isUpdatingVelocity, setIsUpdatingVelocity] = useState(false);
@@ -84,6 +85,11 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
   const [isEditingFigmaUrl, setIsEditingFigmaUrl] = useState(false);
   const [editFigmaUrlVal, setEditFigmaUrlVal] = useState(project.resources?.figmaUrl || '');
   const [isCopiedFigma, setIsCopiedFigma] = useState(false);
+
+  // Test Case Link States & Handler
+  const [isEditingTestCaseUrl, setIsEditingTestCaseUrl] = useState(false);
+  const [editTestCaseUrlVal, setEditTestCaseUrlVal] = useState(project.resources?.testCaseUrl || '');
+  const [isCopiedTestCase, setIsCopiedTestCase] = useState(false);
 
   const isLead = AuthService.isQALead(currentUser);
   const projectsList = allProjects || StorageService.getProjects();
@@ -220,6 +226,51 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
   useEffect(() => {
     setEditFigmaUrlVal(currentProject.resources?.figmaUrl || '');
   }, [currentProject.resources?.figmaUrl]);
+
+  const handleSaveTestCaseUrl = async () => {
+    const trimmed = editTestCaseUrlVal.trim();
+    if (!trimmed) return;
+
+    const all = StorageService.getProjects();
+    const target = all.find((p) => p.id === currentProject.id);
+    if (target) {
+      target.resources = {
+        ...target.resources,
+        testCaseUrl: trimmed,
+        testCaseTitle: target.resources?.testCaseTitle || 'Test Cases',
+      };
+      StorageService.saveProjects(all);
+      setCurrentProject({ ...target });
+    }
+
+    try {
+      ProjectService.updateProject(
+        currentProject.id,
+        { resources: { ...currentProject.resources, testCaseUrl: trimmed } },
+        currentUser.id
+      );
+    } catch {}
+
+    if (supabase) {
+      try {
+        await supabase
+          .from('projects')
+          .update({
+            resources: { ...currentProject.resources, testCaseUrl: trimmed },
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', currentProject.id);
+      } catch (err) {
+        console.warn('Supabase testCaseUrl update error:', err);
+      }
+    }
+
+    setIsEditingTestCaseUrl(false);
+  };
+
+  useEffect(() => {
+    setEditTestCaseUrlVal(currentProject.resources?.testCaseUrl || '');
+  }, [currentProject.resources?.testCaseUrl]);
 
   return (
     <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '24px' }}>
@@ -570,6 +621,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
         {[
           { id: 'prd', label: 'PRD & Specs', icon: FileText },
           { id: 'figma', label: 'Design (Figma)', icon: Palette },
+          { id: 'testcases', label: 'Test Cases', icon: ListChecks },
           { id: 'members', label: `Members (${projectMembers.length})`, icon: Users },
           { id: 'standups', label: `Daily Standups (${projectStandups.length})`, icon: Clock },
         ].map((tab) => {
@@ -1016,7 +1068,324 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
         </div>
       )}
 
-      {/* SUB-TAB 3: MEMBERS & SQUAD (WITH NOTIFICATION STATUS) */}
+      {/* SUB-TAB 3: TEST CASES (BESIDE PRD & FIGMA) */}
+      {activeTab === 'testcases' && (
+        <div
+          style={{
+            background: 'var(--bg-card)',
+            borderRadius: '12px',
+            border: '1px solid var(--border-subtle)',
+            padding: '28px',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '22px', flexWrap: 'wrap', gap: '14px' }}>
+            <div>
+              <h3 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <ListChecks size={22} color="#10b981" />
+                <span>Test Cases</span>
+              </h3>
+              <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
+                QA test specifications, test suites, and regression test checklists.
+              </p>
+            </div>
+
+            {currentProject.resources?.testCaseUrl && (
+              <a
+                href={currentProject.resources.testCaseUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Navigate directly to Test Cases"
+                style={{
+                  fontSize: '0.86rem',
+                  fontWeight: 800,
+                  color: '#fff',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  textDecoration: 'none',
+                  padding: '10px 20px',
+                  borderRadius: '10px',
+                  background: 'linear-gradient(135deg, #10b981, #059669)',
+                  boxShadow: '0 4px 16px rgba(16, 185, 129, 0.35)',
+                  transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+                  cursor: 'pointer',
+                }}
+              >
+                <span>Open Test Cases</span>
+                <ExternalLink size={15} />
+              </a>
+            )}
+          </div>
+
+          {/* Test Case Link Card - Direct Navigation */}
+          {currentProject.resources?.testCaseUrl ? (
+            <div
+              style={{
+                borderRadius: '12px',
+                border: '1px solid rgba(16, 185, 129, 0.35)',
+                background: 'rgba(15, 23, 42, 0.75)',
+                padding: '24px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '16px',
+                boxShadow: '0 6px 24px rgba(0, 0, 0, 0.3)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flex: 1, minWidth: '280px' }}>
+                  <a
+                    href={currentProject.resources.testCaseUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title="Touch or click to navigate to Test Cases"
+                    style={{
+                      width: '48px',
+                      height: '48px',
+                      borderRadius: '12px',
+                      background: 'linear-gradient(135deg, #10b981, #059669)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#fff',
+                      flexShrink: 0,
+                      textDecoration: 'none',
+                      boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <ListChecks size={24} />
+                  </a>
+                  <div style={{ overflow: 'hidden' }}>
+                    <div style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Test Cases Link
+                    </div>
+                    <a
+                      href={currentProject.resources.testCaseUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="Touch or click to navigate to Test Cases"
+                      style={{
+                        fontSize: '0.98rem',
+                        fontWeight: 700,
+                        color: '#34d399',
+                        textDecoration: 'underline',
+                        textUnderlineOffset: '3px',
+                        wordBreak: 'break-all',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        marginTop: '3px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <span>{currentProject.resources.testCaseUrl}</span>
+                      <ExternalLink size={14} style={{ flexShrink: 0 }} />
+                    </a>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  <a
+                    href={currentProject.resources.testCaseUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      padding: '9px 18px',
+                      borderRadius: '8px',
+                      background: 'linear-gradient(135deg, #059669, #10b981)',
+                      color: '#fff',
+                      fontSize: '0.84rem',
+                      fontWeight: 700,
+                      textDecoration: 'none',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      cursor: 'pointer',
+                      boxShadow: '0 2px 8px rgba(16, 185, 129, 0.3)',
+                    }}
+                  >
+                    <span>Open Sheet / Link</span>
+                    <ExternalLink size={14} />
+                  </a>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (currentProject.resources?.testCaseUrl) {
+                        navigator.clipboard.writeText(currentProject.resources.testCaseUrl);
+                        setIsCopiedTestCase(true);
+                        setTimeout(() => setIsCopiedTestCase(false), 2000);
+                      }
+                    }}
+                    style={{
+                      padding: '9px 14px',
+                      borderRadius: '8px',
+                      background: 'rgba(255, 255, 255, 0.06)',
+                      border: '1px solid var(--border-subtle)',
+                      color: isCopiedTestCase ? '#34d399' : 'var(--text-secondary)',
+                      fontSize: '0.82rem',
+                      fontWeight: 600,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {isCopiedTestCase ? (
+                      <>
+                        <Check size={14} color="#34d399" />
+                        <span>Copied!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy size={14} />
+                        <span>Copy Link</span>
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditTestCaseUrlVal(currentProject.resources?.testCaseUrl || '');
+                      setIsEditingTestCaseUrl((v) => !v);
+                    }}
+                    style={{
+                      padding: '9px 14px',
+                      borderRadius: '8px',
+                      background: 'rgba(255, 255, 255, 0.06)',
+                      border: '1px solid var(--border-subtle)',
+                      color: 'var(--text-secondary)',
+                      fontSize: '0.82rem',
+                      fontWeight: 600,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <Edit3 size={14} />
+                    <span>{isEditingTestCaseUrl ? 'Close' : 'Edit Link'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Editable Test Case URL field */}
+              {isEditingTestCaseUrl && (
+                <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '14px', display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <input
+                    type="url"
+                    value={editTestCaseUrlVal}
+                    onChange={(e) => setEditTestCaseUrlVal(e.target.value)}
+                    placeholder="https://docs.google.com/spreadsheets/d/..."
+                    style={{
+                      flex: 1,
+                      padding: '9px 14px',
+                      background: 'var(--bg-input)',
+                      border: '1px solid rgba(16, 185, 129, 0.4)',
+                      borderRadius: '8px',
+                      color: 'var(--text-primary)',
+                      fontSize: '0.84rem',
+                      outline: 'none',
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleSaveTestCaseUrl}
+                    style={{
+                      padding: '9px 18px',
+                      borderRadius: '8px',
+                      background: '#10b981',
+                      border: 'none',
+                      color: '#fff',
+                      fontSize: '0.82rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Save
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsEditingTestCaseUrl(false)}
+                    style={{
+                      padding: '9px 14px',
+                      borderRadius: '8px',
+                      background: 'transparent',
+                      border: '1px solid var(--border-subtle)',
+                      color: 'var(--text-muted)',
+                      fontSize: '0.82rem',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div
+              style={{
+                borderRadius: '12px',
+                border: '1px dashed rgba(16, 185, 129, 0.4)',
+                padding: '36px 20px',
+                textAlign: 'center',
+                color: 'var(--text-muted)',
+                background: 'rgba(15, 23, 42, 0.4)',
+              }}
+            >
+              <ListChecks size={32} color="#34d399" style={{ opacity: 0.7, marginBottom: '10px' }} />
+              <div style={{ fontSize: '0.94rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '6px' }}>
+                No Test Cases link attached yet
+              </div>
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', maxWidth: '480px', margin: '0 auto 16px' }}>
+                QA members can submit test cases via the Telegram bot using <code>/testcase</code>, or paste your Google Sheets, Notion, TestRail, or Jira link below:
+              </p>
+              <div style={{ display: 'inline-flex', gap: '8px', maxWidth: '480px', width: '100%' }}>
+                <input
+                  type="url"
+                  placeholder="https://docs.google.com/spreadsheets/d/..."
+                  value={editTestCaseUrlVal}
+                  onChange={(e) => setEditTestCaseUrlVal(e.target.value)}
+                  style={{
+                    flex: 1,
+                    padding: '9px 14px',
+                    borderRadius: '8px',
+                    border: '1px solid var(--border-subtle)',
+                    background: 'var(--bg-input)',
+                    color: 'var(--text-primary)',
+                    fontSize: '0.84rem',
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await handleSaveTestCaseUrl();
+                    if (editTestCaseUrlVal.trim()) {
+                      window.open(editTestCaseUrlVal.trim(), '_blank');
+                    }
+                  }}
+                  style={{
+                    padding: '9px 18px',
+                    borderRadius: '8px',
+                    background: 'linear-gradient(135deg, #10b981, #059669)',
+                    border: 'none',
+                    color: '#fff',
+                    fontWeight: 700,
+                    fontSize: '0.84rem',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  Save & Open ↗
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* SUB-TAB 4: MEMBERS & SQUAD (WITH NOTIFICATION STATUS) */}
       {activeTab === 'members' && (
         <div
           style={{

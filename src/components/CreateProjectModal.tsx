@@ -14,6 +14,7 @@ import {
   Sparkles,
   Info,
   Layers,
+  ListChecks,
 } from 'lucide-react';
 import { Project, User, DocumentMetadata } from '../types';
 import { StorageService } from '../services/storage';
@@ -54,8 +55,9 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
   );
   const [prdVersion, setPrdVersion] = useState('v1.0-RC');
 
-  // Step 3: Design (Figma UI/UX)
+  // Step 3: Design (Figma UI/UX) & Test Cases
   const [figmaUrl, setFigmaUrl] = useState('https://www.figma.com/file/aegis-design-system/prototype');
+  const [testCaseUrl, setTestCaseUrl] = useState('');
   const [figmaPreviewTitle, setFigmaPreviewTitle] = useState('Mobile & Web UI Design Specs');
   const [figmaDescription, setFigmaDescription] = useState('Includes all responsive viewports, state machines, and micro-interaction tokens.');
 
@@ -64,7 +66,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
   const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]); // Starts empty, no forced default members
   const [allowWithoutMembers, setAllowWithoutMembers] = useState(false);
   const [memberValidationError, setMemberValidationError] = useState<string | null>(null);
-  const [notificationNote, setNotificationNote] = useState('Please prepare the test cases and submit them using /testcase');
+  const [notificationNote, setNotificationNote] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [feedbackMsg, setFeedbackMsg] = useState<string | null>(null);
 
@@ -162,6 +164,8 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
             figmaPreviewTitle: figmaPreviewTitle || `${name} UI/UX Specifications`,
             figmaDescription,
             figmaVersion: 'v2.4',
+            testCaseUrl: testCaseUrl.trim() || undefined,
+            testCaseTitle: testCaseUrl.trim() ? `${name} Test Cases` : undefined,
             requirements: [
               'REQ-01: Authentication & Token Lifecycle',
               'REQ-02: Core Feature Flow and Business Logic Validation',
@@ -676,6 +680,30 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                       }}
                     />
                     <Palette size={14} color="#c084fc" style={{ position: 'absolute', left: '12px', top: '13px' }} />
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '6px', color: 'var(--text-secondary)' }}>
+                    Test Cases Link (Google Sheets, Notion, TestRail, Jira - Optional)
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type="url"
+                      placeholder="https://docs.google.com/spreadsheets/d/... or Notion / TestRail"
+                      value={testCaseUrl}
+                      onChange={(e) => setTestCaseUrl(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '10px 14px 10px 34px',
+                        background: 'var(--bg-input)',
+                        border: '1px solid var(--border-subtle)',
+                        borderRadius: '8px',
+                        color: 'var(--text-primary)',
+                        fontSize: '0.86rem',
+                      }}
+                    />
+                    <ListChecks size={14} color="#10b981" style={{ position: 'absolute', left: '12px', top: '13px' }} />
                   </div>
                 </div>
 

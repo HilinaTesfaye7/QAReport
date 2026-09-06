@@ -95,6 +95,8 @@ export interface ProjectResources {
   figmaDescription?: string;
   figmaVersion?: string;
   figmaPreviewTitle: string;
+  testCaseUrl?: string;
+  testCaseTitle?: string;
   requirements: string[];
   testEnvUrl: string;
   repoUrl: string;

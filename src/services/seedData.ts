@@ -742,7 +742,7 @@ export const INITIAL_NOTIFICATIONS: AppNotification[] = [
     id: 'notif-01',
     recipientId: 'usr-hana',
     title: '📋 New QA Project Assignment',
-    message: 'You have been assigned to: Banking SuperApp.\nQA Lead: Sarah Jenkins.\nResources: 📄 PRD, 🎨 Figma, 🌐 Staging Environment.\nPlease review project documentation before starting testing.',
+    message: 'You have been assigned to: Banking SuperApp.\nQA Lead: Sarah Jenkins.\nResources: 📄 PRD, 🎨 Figma.\nPlease review project documentation before starting testing.',
     type: 'assignment',
     read: false,
     createdAt: '2026-09-05T08:00:00Z',
