@@ -1374,7 +1374,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
                       Team Member Name
                     </th>
                     <th style={{ padding: '12px 14px', fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', width: '220px' }}>
-                      What you worked on today
+                      What did you work on today?
                     </th>
                     <th style={{ padding: '12px 14px', fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', width: '150px' }}>
                       Blocker
@@ -1469,7 +1469,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
                           </div>
                         </td>
 
-                        {/* 2. What you worked on today */}
+                        {/* 2. What did you work on today? */}
                         <td style={{ padding: '12px 14px', verticalAlign: 'top', fontSize: '0.8rem', color: 'var(--text-primary)', lineHeight: 1.5 }}>
                           {standup.todayWorkingOn || '—'}
                         </td>

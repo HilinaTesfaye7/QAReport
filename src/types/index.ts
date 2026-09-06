@@ -295,7 +295,7 @@ export interface DailyReport {
   projectId: string;
   projectName?: string;
   yesterdayCompleted?: string;
-  todayWorkingOn: string; // What you worked on today
+  todayWorkingOn: string; // What did you work on today?
   workStatus?: string;
   statusEmoji?: string;
   isBlocked: boolean;

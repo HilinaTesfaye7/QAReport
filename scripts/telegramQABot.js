@@ -1710,7 +1710,7 @@ async function startCheckin(chatId, user) {
     chatId,
     `👋 <b>Good day, ${escapeHtml(profile.fullName)}!</b>\n\n` +
     `📁 <b>Project:</b> <b>${escapeHtml(profile.projectName)}</b>\n\n` +
-    `🎯 <b>What you worked on today?</b>\n` +
+    `🎯 <b>What did you work on today?</b>\n` +
     `<i>(Feature, module, test cases executed, API testing, regression, bugs retested, etc.)</i>`
   );
 }
@@ -1800,7 +1800,7 @@ async function finalizeAndSubmitCheckin(chatId, user, session) {
     `✅ <b>Daily QA Report Submitted</b>\n\n` +
     `📁 <b>Project:</b> ${escapeHtml(profile.projectName)}\n` +
     `👤 <b>QA Member:</b> ${escapeHtml(profile.fullName)}\n\n` +
-    `🎯 <b>What you worked on today</b>\n` +
+    `🎯 <b>What did you work on today?</b>\n` +
     `${escapeHtml(answers.todayWorkingOn)}\n\n` +
     `🚨 <b>Blocker</b>\n` +
     `${escapeHtml(blockersText)}\n\n` +
@@ -1847,7 +1847,7 @@ async function handleCheckinStep(chatId, user, text) {
         `✅ <b>${blockersToResolve.length} Blocker(s) Marked as Resolved!</b>\n` +
         `They have been removed from the blocked tasks on the QA Command Center Dashboard.\n\n` +
         `Now let's proceed with your daily standup.\n\n` +
-        `🎯 <b>What you worked on today?</b>\n` +
+        `🎯 <b>What did you work on today?</b>\n` +
         `<i>(Feature, module, test cases executed, API testing, regression, bugs retested, etc.)</i>`
       );
     } else {
@@ -1855,7 +1855,7 @@ async function handleCheckinStep(chatId, user, text) {
         chatId,
         `Understood, keeping blocker(s) active on the dashboard.\n\n` +
         `Now let's proceed with your daily standup.\n\n` +
-        `🎯 <b>What you worked on today?</b>\n` +
+        `🎯 <b>What did you work on today?</b>\n` +
         `<i>(Feature, module, test cases executed, API testing, regression, bugs retested, etc.)</i>`
       );
     }

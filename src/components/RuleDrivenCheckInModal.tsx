@@ -254,10 +254,10 @@ export const RuleDrivenCheckInModal: React.FC<RuleDrivenCheckInModalProps> = ({
             {/* Structured Form */}
             <form onSubmit={handleSubmit}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '18px' }}>
-                {/* 1. What you worked on today */}
+                {/* 1. What did you work on today? */}
                 <div>
                   <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#38bdf8', marginBottom: '4px' }}>
-                    1. What you worked on today
+                    1. What did you work on today?
                   </label>
                   <textarea
                     value={todayWorkingOn}
