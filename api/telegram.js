@@ -723,6 +723,26 @@ export default async function handler(req, res) {
     }
   }
 
+  // Webhook registration and diagnostics actions
+  if (req.body && req.body.action === 'set_webhook') {
+    const webhookUrl = req.body.url;
+    if (webhookUrl) {
+      const resp = await fetch(`${TELEGRAM_API}/setWebhook?url=${encodeURIComponent(webhookUrl)}`);
+      const data = await resp.json();
+      return res.status(200).json(data);
+    }
+  }
+  if (req.body && req.body.action === 'get_webhook_info') {
+    const resp = await fetch(`${TELEGRAM_API}/getWebhookInfo`);
+    const data = await resp.json();
+    return res.status(200).json(data);
+  }
+  if (req.body && req.body.action === 'delete_webhook') {
+    const resp = await fetch(`${TELEGRAM_API}/deleteWebhook`);
+    const data = await resp.json();
+    return res.status(200).json(data);
+  }
+
   const update = req.body;
   if (!update || !update.message) {
     return res.status(200).json({ ok: true });
@@ -751,41 +771,82 @@ export default async function handler(req, res) {
     }
 
     // 2. Commands Routing
-    if (text === '/start' || text === 'start' || text === '/help' || text === 'help') {
+    if (
+      text === '/start' ||
+      text.startsWith('/start ') ||
+      text === 'start' ||
+      text === '/help' ||
+      text.startsWith('/help ') ||
+      text === 'help' ||
+      text === '/menu' ||
+      text === 'menu'
+    ) {
+      if (!profile && supabase) {
+        const defaultName = fromUser.first_name || fromUser.username || 'QA Member';
+        const defaultRole = 'QA Engineer / Tester';
+        let defaultProject = { id: 'prj-banking', name: 'Banking SuperApp' };
+        try {
+          const { data: dbProjects } = await supabase.from('projects').select('*').limit(1);
+          if (dbProjects && dbProjects.length > 0) {
+            defaultProject = { id: dbProjects[0].id, name: dbProjects[0].name };
+          }
+        } catch {}
+
+        const newProfile = {
+          chat_id: String(chatId),
+          full_name: defaultName,
+          role: defaultRole,
+          project_id: defaultProject.id,
+          project_name: defaultProject.name,
+          assigned_project_ids: [defaultProject.id],
+          assigned_projects: [defaultProject.name],
+          telegram_username: fromUser.username ? fromUser.username.replace(/^@/, '') : '',
+          updated_at: new Date().toISOString(),
+        };
+
+        try {
+          await supabase.from('telegram_profiles').upsert([newProfile]);
+          profile = newProfile;
+        } catch (sbErr) {
+          console.warn('[Webhook] Error creating profile on /start:', sbErr);
+        }
+      }
+
       const isLead = isQALead(profile);
       const commandsList = isLead
         ? `<b>Available Commands (QA Lead):</b>\n` +
           `• /status — Overall QA & project readiness\n` +
           `• /team — Team members and their current status\n` +
           `• /project — Manage and switch active QA project\n` +
+          `• /testcase — Submit test cases link\n` +
           `• /blocker &lt;reason&gt; — View or report blockers\n` +
           `• /resolve — Resolve active blockers\n` +
           `• /risks — View QA risks & defect exposures\n` +
           `• /report — Generate daily/weekly QA reports\n` +
           `• /profile — View and update your profile\n` +
-          `• /role [title] — Switch your QA role (e.g. /role QA Engineer)`
+          `• /role [title] — Switch your QA role (e.g. /role QA Lead)`
         : `<b>Available Commands:</b>\n` +
-          `• /checkin — Submit daily QA standup\n` +
+          `• /checkin — Submit daily QA standup (5 questions)\n` +
+          `• /testcase — Select project & submit test cases link\n` +
           `• /project — Switch active project\n` +
           `• /blocker &lt;reason&gt; — Report urgent blocker\n` +
           `• /resolve — Resolve active blocker\n` +
           `• /profile — View and update profile\n` +
           `• /status — View relevant QA status\n` +
-          `• /role [title] — Switch your QA role`;
+          `• /role [title] — Switch your QA role (e.g. /role QA Engineer)`;
 
-      const welcome = profile
-        ? `🛡️ <b>Welcome to AegisQA, ${profile.full_name}!</b>\n\n` +
-          `👤 <b>Role:</b> ${profile.role}\n` +
-          `🚀 <b>Active Project:</b> ${profile.project_name}\n\n` +
-          commandsList
-        : `🛡️ <b>Welcome to AegisQA Telegram Bot!</b>\n\n` +
-          `You are connected to the cloud QA command center.\n` +
-          `Your Chat ID is: <code>${chatId}</code>\n\n` +
-          `• Type /status to view QA & project status\n` +
-          `• Type /team to view team members & progress (QA Lead)\n` +
-          `• Type /project to view or select projects\n` +
-          `• Type /role to set your role\n` +
-          `• Type /blocker &lt;reason&gt; to alert QA Leads of an issue`;
+      const welcomeName = profile ? (profile.full_name || profile.fullName) : (fromUser.first_name || fromUser.username || 'QA Member');
+      const welcomeRole = profile ? profile.role : 'QA Engineer / Tester';
+      const welcomeProject = profile ? (profile.project_name || profile.projectName) : 'Banking SuperApp';
+
+      const welcome =
+        `🛡️ <b>Welcome to AegisQA, ${escapeHtml(welcomeName)}!</b>\n\n` +
+        `✅ <b>Your Telegram account is connected to the QA Command Center.</b>\n` +
+        `💬 <b>Your Chat ID:</b> <code>${chatId}</code>\n` +
+        `👤 <b>Role:</b> ${escapeHtml(welcomeRole)}\n` +
+        `🚀 <b>Active Project:</b> ${escapeHtml(welcomeProject)}\n\n` +
+        commandsList + `\n\n` +
+        `💡 <i>You will automatically receive alerts here whenever you are assigned to a QA project!</i>`;
 
       await sendTelegramMessage(chatId, welcome);
       return res.status(200).json({ ok: true });

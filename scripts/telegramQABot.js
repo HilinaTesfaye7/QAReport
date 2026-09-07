@@ -2294,14 +2294,57 @@ async function handleMessage(message) {
   }
 
   // Handle /start, start, /help, help, /menu, menu
-  if (text === '/start' || text === 'start' || text === '/help' || text === 'help' || text === '/menu' || text === 'menu') {
+  if (
+    text === '/start' ||
+    text.startsWith('/start ') ||
+    text === 'start' ||
+    text === '/help' ||
+    text.startsWith('/help ') ||
+    text === 'help' ||
+    text === '/menu' ||
+    text === 'menu'
+  ) {
     // Clear any stuck/previous wizard session so /start always provides a fresh welcome!
     userSessions.delete(chatId);
 
     if (!profile) {
-      console.log(`[Bot] Member ${chatId} has no active profile in Supabase. Prompting onboarding wizard.`);
-      await startOnboarding(chatId, user, false);
-      return;
+      console.log(`[Bot] New member ${chatId} (${user.username || user.first_name || 'unknown'}) clicked /start. Auto-registering profile.`);
+      const defaultName = user.first_name || user.username || 'QA Member';
+      const defaultRole = 'QA Engineer / Tester';
+      const projects = getProjects();
+      const defaultProject = projects.length > 0 ? projects[0] : { id: 'prj-banking', name: 'Banking SuperApp' };
+
+      profile = {
+        fullName: defaultName,
+        role: defaultRole,
+        projectId: defaultProject.id,
+        projectName: defaultProject.name,
+        assignedProjectIds: [defaultProject.id],
+        assignedProjects: [defaultProject.name],
+        telegramUsername: user.username ? user.username.replace(/^@/, '') : '',
+        chatId: String(chatId),
+        updatedAt: new Date().toISOString(),
+      };
+
+      saveProfile(chatId, profile);
+
+      if (supabase) {
+        try {
+          await supabase.from('telegram_profiles').upsert([{
+            chat_id: String(chatId),
+            full_name: defaultName,
+            role: defaultRole,
+            project_id: defaultProject.id,
+            project_name: defaultProject.name,
+            assigned_project_ids: [defaultProject.id],
+            assigned_projects: [defaultProject.name],
+            telegram_username: user.username ? user.username.replace(/^@/, '') : '',
+            updated_at: new Date().toISOString(),
+          }]);
+        } catch (sbErr) {
+          console.warn('[Bot] Error auto-creating profile in Supabase:', sbErr.message);
+        }
+      }
     }
 
     const isLead = isQALead(profile);
@@ -2316,26 +2359,28 @@ async function handleMessage(message) {
         `• /risks — View QA risks & defect exposures\n` +
         `• /report — Generate daily/weekly QA reports\n` +
         `• /profile — View and update your profile\n` +
-        `• /role [title] — Switch your QA role (e.g. /role QA Engineer)\n` +
+        `• /role [title] — Switch your QA role (e.g. /role QA Lead)\n` +
         `• /cancel — Cancel an active operation`
       : `<b>Available Commands:</b>\n` +
-        `• /checkin — Submit daily QA standup\n` +
-        `• /testcase — Submit test cases link\n` +
-        `• /project — Switch active project\n` +
+        `• /checkin — Submit daily QA standup (5 questions)\n` +
+        `• /testcase — Select project & submit test cases link\n` +
+        `• /project — View or switch active project\n` +
         `• /blocker &lt;reason&gt; — Report urgent blocker\n` +
         `• /resolve — Resolve active blocker\n` +
         `• /profile — View and update profile\n` +
         `• /status — View relevant QA status\n` +
-        `• /role [title] — Switch your QA role\n` +
+        `• /role [title] — Switch your QA role (e.g. /role QA Engineer)\n` +
         `• /cancel — Cancel current operation`;
 
     await sendMessage(
       chatId,
       `🛡️ <b>Welcome to AegisQA, ${escapeHtml(profile.fullName)}!</b>\n\n` +
+      `✅ <b>Your Telegram account is connected to the QA Command Center.</b>\n` +
+      `💬 <b>Your Chat ID:</b> <code>${chatId}</code>\n` +
       `👤 <b>Role:</b> ${escapeHtml(profile.role)}\n` +
-      `🚀 <b>Active Project:</b> ${escapeHtml(profile.projectName)}\n` +
-      `💬 <b>Chat ID:</b> <code>${chatId}</code>\n\n` +
-      commandsList
+      `🚀 <b>Active Project:</b> ${escapeHtml(profile.projectName)}\n\n` +
+      commandsList + `\n\n` +
+      `💡 <i>You will automatically receive alerts here whenever you are assigned to a QA project!</i>`
     );
     return;
   }
@@ -2375,19 +2420,45 @@ async function handleMessage(message) {
     return;
   }
 
-  // If user does not have an active profile in Supabase (new member, or previously deleted member joining again):
-  // ALWAYS trigger onboarding wizard to ask Name, Role, and Project!
+  // If user does not have an active profile in Supabase: auto-create so commands function immediately
   if (!profile) {
-    console.log(`[Bot] Member ${chatId} (${user.username || user.first_name || 'unknown'}) has no active profile in Supabase. Prompting onboarding wizard.`);
-    await startOnboarding(chatId, user, text === '/checkin');
-    return;
+    console.log(`[Bot] Member ${chatId} (${user.username || user.first_name || 'unknown'}) has no active profile in Supabase. Auto-creating baseline profile.`);
+    const defaultName = user.first_name || user.username || 'QA Member';
+    const defaultRole = 'QA Engineer / Tester';
+    const projects = getProjects();
+    const defaultProject = projects.length > 0 ? projects[0] : { id: 'prj-banking', name: 'Banking SuperApp' };
+
+    profile = {
+      fullName: defaultName,
+      role: defaultRole,
+      projectId: defaultProject.id,
+      projectName: defaultProject.name,
+      assignedProjectIds: [defaultProject.id],
+      assignedProjects: [defaultProject.name],
+      telegramUsername: user.username ? user.username.replace(/^@/, '') : '',
+      chatId: String(chatId),
+      updatedAt: new Date().toISOString(),
+    };
+
+    saveProfile(chatId, profile);
+    if (supabase) {
+      try {
+        await supabase.from('telegram_profiles').upsert([{
+          chat_id: String(chatId),
+          full_name: defaultName,
+          role: defaultRole,
+          project_id: defaultProject.id,
+          project_name: defaultProject.name,
+          assigned_project_ids: [defaultProject.id],
+          assigned_projects: [defaultProject.name],
+          telegram_username: user.username ? user.username.replace(/^@/, '') : '',
+          updated_at: new Date().toISOString(),
+        }]);
+      } catch {}
+    }
   }
 
   if (text === '/profile') {
-    if (!profile) {
-      await startOnboarding(chatId, user, false);
-      return;
-    }
 
     const isLead = isQALead(profile);
     const profileQuickCommands = isLead
