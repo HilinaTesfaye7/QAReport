@@ -29,15 +29,37 @@ export class TelegramProvider implements NotificationProvider {
     const config = StorageService.getChannelsConfig();
     if (!config.telegram?.enabled) return false;
 
-    // Check if recipient has their own telegramChatId or is Coco
-    const users = StorageService.getUsers();
-    const recipient = users.find((u) => u.id === notification.recipientId);
-    let targetChatId = recipient?.telegramChatId;
-    if (!targetChatId && recipient && (recipient.name.toLowerCase() === 'coco' || recipient.id.includes('347835367'))) {
+    // 1. Robust Target Chat ID Resolution
+    let targetChatId: string | undefined;
+
+    // Direct numeric ID or usr-<numeric> check (e.g. usr-854270712 -> 854270712)
+    const cleanId = (notification.recipientId || '').replace(/^usr-/, '').trim();
+    if (cleanId && /^\d+$/.test(cleanId)) {
+      targetChatId = cleanId;
+    }
+
+    // Check user profiles in memory/localStorage
+    if (!targetChatId) {
+      const users = StorageService.getUsers();
+      const recipient = users.find((u) => u.id === notification.recipientId || u.id === `usr-${notification.recipientId}`);
+      if (recipient?.telegramChatId && /^\d+$/.test(recipient.telegramChatId)) {
+        targetChatId = recipient.telegramChatId;
+      }
+    }
+
+    // Check if recipient is Coco
+    if (!targetChatId && notification.recipientId && (notification.recipientId.toLowerCase() === 'coco' || notification.recipientId.includes('347835367'))) {
       targetChatId = '347835367';
     }
-    if (!targetChatId) {
+
+    // Broadcast fallback ONLY for broadcast notifications
+    if (!targetChatId && (notification.recipientId === 'broadcast' || notification.recipientId === 'all')) {
       targetChatId = config.telegram?.chatId || '347835367';
+    }
+
+    if (!targetChatId) {
+      console.warn(`[TelegramProvider] No valid Telegram Chat ID found for recipient: ${notification.recipientId}`);
+      return false;
     }
 
     const botToken = config.telegram?.botToken || '8976092354:AAGROrwSrscf27zGsH5zRaXv2OCSwES8CA8';
@@ -48,7 +70,7 @@ export class TelegramProvider implements NotificationProvider {
         const safeMessage = escapeTelegramHtml(notification.message);
         const text = `<b>${safeTitle}</b>\n\n${safeMessage}`;
 
-        // 1. Try serverless proxy first (works 100% in browser without CORS blocks)
+        // 1. Try serverless proxy first (passes botToken so Vercel can always send)
         if (typeof window !== 'undefined' && window.location?.origin && window.location.origin.startsWith('http')) {
           try {
             const proxyRes = await fetch(`${window.location.origin}/api/telegram`, {
@@ -58,7 +80,7 @@ export class TelegramProvider implements NotificationProvider {
                 action: 'send_message',
                 chatId: targetChatId,
                 text,
-                parse_mode: 'HTML',
+                botToken,
               }),
             });
             if (proxyRes.ok) {

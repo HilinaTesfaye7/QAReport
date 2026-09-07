@@ -30,7 +30,7 @@ import { DailyReportService } from '../services/dailyReportService';
 import { ProjectService } from '../services/projectService';
 import { NotificationService } from '../services/notificationService';
 import { AuthService } from '../services/authService';
-import { supabase } from '../services/supabaseClient';
+import { supabase, isSupabaseConfigured } from '../services/supabaseClient';
 import { CreateProjectModal } from './CreateProjectModal';
 
 interface ProjectDetailViewProps {
@@ -93,12 +93,18 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
 
   const isLead = AuthService.isQALead(currentUser);
   const projectsList = allProjects || StorageService.getProjects();
-  const allUsers = StorageService.getUsers();
+  const [allUsers, setAllUsers] = useState<User[]>(StorageService.getUsers());
   const projectMembers = allUsers.filter((u) => currentProject.memberIds.includes(u.id));
   const leadUser = allUsers.find((u) => u.id === currentProject.qaLeadId);
 
   // Users not yet on this project
   const availableUsersToAdd = allUsers.filter((u) => !currentProject.memberIds.includes(u.id));
+
+  useEffect(() => {
+    StorageService.syncUsersWithCloud().then((users) => {
+      if (users && users.length > 0) setAllUsers(users);
+    });
+  }, []);
 
   useEffect(() => {
     setCurrentProject(project);
@@ -115,6 +121,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
       setReports(DailyReportService.getDailyReports());
       const fresh = StorageService.getProjects().find((p) => p.id === currentProject.id);
       if (fresh) setCurrentProject(fresh);
+      setAllUsers(StorageService.getUsers());
     };
     window.addEventListener('aegis_storage_change', handleStorage);
     return () => window.removeEventListener('aegis_storage_change', handleStorage);
@@ -152,13 +159,32 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
       const targetUser = allUsers.find((u) => u.id === selectedMemberToAdd);
       const memberName = targetUser ? targetUser.name : 'QA Member';
 
-      // Explicitly notify member
-      NotificationService.notifyProjectAssignment(
-        updatedProj,
-        selectedMemberToAdd,
-        currentUser.id,
-        'Please prepare the test cases and submit them using /testcase'
-      );
+      // Update assigned project in Supabase telegram_profiles
+      if (isSupabaseConfigured() && supabase) {
+        const chatId = targetUser?.telegramChatId || (selectedMemberToAdd.startsWith('usr-') ? selectedMemberToAdd.replace('usr-', '') : null);
+        if (chatId && !isNaN(Number(chatId))) {
+          supabase
+            .from('telegram_profiles')
+            .select('*')
+            .eq('chat_id', chatId)
+            .maybeSingle()
+            .then(({ data: prof }) => {
+              if (prof) {
+                const updatedIds = Array.from(new Set([...(prof.assigned_project_ids || []), updatedProj.id]));
+                const updatedNames = Array.from(new Set([...(prof.assigned_projects || []), updatedProj.name]));
+                supabase
+                  .from('telegram_profiles')
+                  .update({
+                    assigned_project_ids: updatedIds,
+                    assigned_projects: updatedNames,
+                    updated_at: new Date().toISOString(),
+                  })
+                  .eq('chat_id', chatId)
+                  .then(() => {});
+              }
+            });
+        }
+      }
 
       setMemberToast(`Assigned ${memberName} to ${currentProject.name} and dispatched assignment notification!`);
       setIsAddMemberOpen(false);

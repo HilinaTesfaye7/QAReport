@@ -11,9 +11,20 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
+const BOT_TOKEN =
+  process.env.TELEGRAM_BOT_TOKEN ||
+  process.env.VITE_TELEGRAM_BOT_TOKEN ||
+  '8976092354:AAGROrwSrscf27zGsH5zRaXv2OCSwES8CA8';
+
+const SUPABASE_URL =
+  process.env.VITE_SUPABASE_URL ||
+  process.env.SUPABASE_URL ||
+  'https://drnlgmhkzbyrwatuuesh.supabase.co';
+
+const SUPABASE_ANON_KEY =
+  process.env.VITE_SUPABASE_ANON_KEY ||
+  process.env.SUPABASE_ANON_KEY ||
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRybmxnbWhremJ5cndhdHV1ZXNoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg1OTQxMDksImV4cCI6MjEwNDE3MDEwOX0.xieZP_ftgnk-V5YqotxCGzdZD6BxqnkvI1MfpLxj-Zw';
 
 const supabase = (SUPABASE_URL && SUPABASE_ANON_KEY)
   ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
@@ -570,10 +581,11 @@ function formatQARisksText(project, openBlockers = [], memberReports = [], bugs 
   return out;
 }
 
-async function sendTelegramMessage(chatId, text) {
-  if (!BOT_TOKEN) return;
+async function sendTelegramMessage(chatId, text, tokenOverride = null) {
+  const token = tokenOverride || BOT_TOKEN;
+  if (!token) return { ok: false, description: 'No bot token configured' };
   try {
-    const res = await fetch(`${TELEGRAM_API}/sendMessage`, {
+    const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -586,7 +598,7 @@ async function sendTelegramMessage(chatId, text) {
     if (!data.ok) {
       console.warn('Telegram sendMessage HTML rejected:', data.description);
       if (data.description && (data.description.includes('parse entities') || data.description.includes('tag'))) {
-        await fetch(`${TELEGRAM_API}/sendMessage`, {
+        const fallbackRes = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -594,10 +606,13 @@ async function sendTelegramMessage(chatId, text) {
             text: stripHtml(text),
           }),
         });
+        return await fallbackRes.json();
       }
     }
+    return data;
   } catch (err) {
     console.error('Error sending Telegram message:', err);
+    return { ok: false, description: err.message };
   }
 }
 
@@ -716,11 +731,12 @@ export default async function handler(req, res) {
 
   // Support direct outbound notification dispatch from the web portal (bypasses browser CORS)
   if (req.body && (req.body.action === 'send_message' || req.body.action === 'send_notification')) {
-    const { chatId, text, parse_mode } = req.body;
+    const { chatId, text, botToken } = req.body;
     if (chatId && text) {
-      await sendTelegramMessage(chatId, text, parse_mode || 'HTML');
-      return res.status(200).json({ ok: true });
+      const sendResult = await sendTelegramMessage(chatId, text, botToken);
+      return res.status(200).json(sendResult);
     }
+    return res.status(400).json({ ok: false, description: 'Missing chatId or text' });
   }
 
   // Webhook registration and diagnostics actions
