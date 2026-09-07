@@ -2288,7 +2288,7 @@ async function handleMessage(message) {
   const user = message.from || {};
   console.log(`[Telegram IN] Chat ${chatId} (@${user.username || user.first_name || 'unknown'}): "${rawText}"`);
 
-  const profile = await findOrLinkProfile(chatId, user);
+  let profile = await findOrLinkProfile(chatId, user);
   if (profile && profile.role) {
     syncTelegramCommands(chatId, profile.role).catch(() => {});
   }
