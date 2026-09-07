@@ -854,9 +854,9 @@ async function startOnboarding(chatId, user, proceedToCheckinAfter = false) {
   await sendMessage(
     chatId,
     `🛡️ <b>Welcome to AegisQA!</b>\n\n` +
-    `Let's quickly configure your <b>QA Profile</b> (takes 20 seconds) so all your daily reports, blockers, and assignments are linked to you and your project in the system.\n\n` +
-    `<b>Step 1 of 3: What is your Full Name?</b>\n` +
-    `<i>(e.g., Coco or your real name. Reply with your name, or reply <code>skip</code> to use "${defaultName}")</i>`
+    `Let's configure your <b>QA Profile</b> (takes 10 seconds).\n\n` +
+    `<b>Step 1 of 2: What is your Full Name?</b>\n` +
+    `<i>(Reply with your name, or reply <code>skip</code> to use "${defaultName}")</i>`
   );
 }
 
@@ -873,13 +873,13 @@ async function handleOnboardingStep(chatId, user, text) {
 
       await sendMessage(
         chatId,
-        `Nice to meet you, <b>${chosenName}</b>!\n\n` +
-        `<b>Step 2 of 3: What is your QA Role?</b>\n\n` +
+        `Nice to meet you, <b>${escapeHtml(chosenName)}</b>!\n\n` +
+        `<b>Step 2 of 2: What is your QA Role?</b>\n\n` +
         `1️⃣ QA Engineer / Tester\n` +
         `2️⃣ QA Lead\n` +
         `3️⃣ Automation QA Engineer\n` +
         `4️⃣ Manual / Performance QA\n\n` +
-        `<i>Reply 1, 2, 3, 4, or type your custom role title:</i>`
+        `<i>Reply 1, 2, 3, 4, or type your role title:</i>`
       );
       return true;
     }
@@ -892,123 +892,47 @@ async function handleOnboardingStep(chatId, user, text) {
       else if (role === '4') role = DEFAULT_ROLES[3];
 
       session.answers.role = role;
-      session.step = 3;
-
-      const projects = await refreshProjectsFromCloud();
-      let listText = '';
-      projects.forEach((p, idx) => {
-        const emoji = NUMBER_EMOJIS[idx] || `[${idx + 1}]`;
-        listText += `${emoji} <b>${p.name}</b>\n`;
-      });
-
-      await sendMessage(
-        chatId,
-        `Role set to: <b>${role}</b>\n\n` +
-        `<b>Step 3 of 3: Which QA Project are you currently assigned to?</b>\n\n` +
-        listText + '\n' +
-        `<i>Reply with a number (1-${projects.length}) or type your project name:</i>`
-      );
-      return true;
-    }
-
-    case 3: {
-      const projects = await refreshProjectsFromCloud();
-      let projectName = text.trim();
-      let projectId = 'prj-custom';
-
-      const num = parseInt(projectName, 10);
-      if (!isNaN(num) && num >= 1 && num <= projects.length) {
-        projectId = projects[num - 1].id;
-        projectName = projects[num - 1].name;
-      } else {
-        const found = projects.find(
-          (p) => p.name.toLowerCase() === projectName.toLowerCase() || p.id.toLowerCase() === projectName.toLowerCase()
-        ) || projects.find((p) => p.name.toLowerCase().includes(projectName.toLowerCase()));
-
-        if (found) {
-          projectId = found.id;
-          projectName = found.name;
-        } else {
-          projectId = `prj-${Date.now().toString(36)}`;
-          const newProj = {
-            id: projectId,
-            name: projectName,
-            description: `QA scope for ${projectName}`,
-            status: 'Testing',
-            memberIds: [`usr-${chatId}`],
-          };
-          projects.push(newProj);
-          saveProjects(projects);
-          if (supabase) {
-            supabase.from('projects').upsert({
-              id: projectId,
-              name: projectName,
-              description: `QA scope for ${projectName}`,
-              status: 'Testing',
-              member_ids: [`usr-${chatId}`],
-            }).then(() => {});
-          }
-        }
-      }
-
-      session.answers.projectId = projectId;
-      session.answers.projectName = projectName;
 
       const profile = saveProfile(chatId, {
         fullName: session.answers.fullName,
         role: session.answers.role,
-        projectId: session.answers.projectId,
-        projectName: session.answers.projectName,
-        assignedProjectIds: [session.answers.projectId],
-        assignedProjects: [session.answers.projectName],
+        projectId: '',
+        projectName: '',
+        assignedProjectIds: [],
+        assignedProjects: [],
         telegramUsername: user.username ? user.username.replace(/^@/, '') : '',
       });
-
-      // Ensure the project includes this user in memberIds
-      const targetProj = projects.find((p) => p.id === projectId);
-      if (targetProj) {
-        if (!targetProj.memberIds) targetProj.memberIds = [];
-        const memberKey = `usr-${chatId}`;
-        if (!targetProj.memberIds.includes(memberKey)) {
-          targetProj.memberIds.push(memberKey);
-          saveProjects(projects);
-          if (supabase) {
-            supabase.from('projects').update({
-              member_ids: targetProj.memberIds,
-            }).eq('id', targetProj.id).then(() => {});
-          }
-        }
-      }
 
       const shouldCheckin = session.proceedToCheckinAfter;
       userSessions.delete(chatId);
 
+      const isLead = isQALead(profile);
+      const leadNote = isLead
+        ? `\n\n👑 <b>QA Lead Privileges:</b> You have access to team rollups, blocker alerts, <code>/status</code>, <code>/team</code>, and <code>/risks</code>.`
+        : ``;
+
       await sendMessage(
         chatId,
         `🎉 <b>QA Profile Configured Successfully!</b>\n\n` +
-        `👤 <b>Name:</b> ${escapeHtml(profile.fullName)}\n` +
-        `🏷 <b>Role:</b> ${escapeHtml(profile.role)}\n` +
-        `🚀 <b>Active Project:</b> ${escapeHtml(profile.projectName)}\n` +
-        `💬 <b>Chat ID:</b> <code>${chatId}</code>\n\n` +
-        `<b>Helpful Commands:</b>\n` +
-        `• /checkin — Submit your daily standup\n` +
-        `• /project — Switch your active project\n` +
-        `• /blocker &lt;issue&gt; — Immediately report an urgent blocker\n` +
-        `• /resolve — Resolve active blockers\n` +
-        `• /profile — View or update your profile\n` +
-        `• /status — View overall QA metrics`
+        `👤 <b>Name:</b> <b>${escapeHtml(profile.fullName)}</b>\n` +
+        `🏷 <b>Role:</b> <b>${escapeHtml(profile.role)}</b>${leadNote}\n\n` +
+        `✨ You are all set! Whenever you check in, submit test cases, or log blockers, you will simply select the project you are working on.\n\n` +
+        `💡 <b>Quick Commands:</b>\n` +
+        `• <code>/checkin</code> — Choose project & submit daily standup check-in\n` +
+        `• <code>/testcase</code> — Choose project & submit test cases link\n` +
+        `• <code>/blocker</code> — Choose project & report an urgent blocker\n` +
+        `• <code>/project</code> — View or switch your active project\n` +
+        `• <code>/profile</code> — View your QA profile details`
       );
 
-      if (shouldCheckin) {
+      if (shouldCheckin && !isLead) {
         await startCheckin(chatId, user);
       }
       return true;
     }
-
-    default:
-      userSessions.delete(chatId);
-      return false;
   }
+
+  return false;
 }
 
 // Helper to get open blockers for user
@@ -1818,79 +1742,66 @@ async function startCheckin(chatId, user) {
     return;
   }
 
-  // If member has multiple assigned projects, let them choose which project to check in for
-  const assigned = Array.from(new Set(profile.assignedProjects || [])).filter(Boolean);
-  if (assigned.length > 1) {
-    userSessions.set(chatId, {
-      type: 'checkin',
-      step: 'choose_checkin_project',
-      profile,
-      answers: {},
-      projectsList: assigned,
-    });
-    let listText = '';
-    assigned.forEach((pName, idx) => {
-      const emoji = NUMBER_EMOJIS[idx] || `[${idx + 1}]`;
-      const isCurrent = (profile.projectName && profile.projectName.toLowerCase() === pName.toLowerCase());
-      listText += `${emoji} <b>${escapeHtml(pName)}</b>${isCurrent ? ' <i>(Current Active)</i>' : ''}\n`;
-    });
-
-    await sendMessage(
-      chatId,
-      `👋 <b>Good day, ${escapeHtml(profile.fullName)}!</b>\n\n` +
-      `📁 <b>Select Project for Daily Standup:</b>\n` +
-      `You are assigned to ${assigned.length} projects. Which project are you checking in for today?\n\n` +
-      `${listText}\n` +
-      `<i>Reply with the number (e.g. 1) or type the project name:</i>`
-    );
+  // Always prompt member to choose the project for daily standup
+  const allProjects = await refreshProjectsFromCloud();
+  if (!allProjects || allProjects.length === 0) {
+    await sendMessage(chatId, '⚠️ No QA projects found in the system. Please ask your QA Lead or Admin to create a project first.');
     return;
   }
 
-  // Check if member previously reported an active blocker from yesterday/earlier
-  const openBlockers = await getOpenBlockersForUser(chatId, profile.fullName);
+  const assignedNames = (profile.assignedProjects || []).map((x) => String(x).toLowerCase());
+  const assignedIds = (profile.assignedProjectIds || []).map((x) => String(x).toLowerCase());
+  const memberKey = `usr-${chatId}`;
 
-  if (openBlockers.length > 0) {
-    userSessions.set(chatId, {
-      type: 'checkin',
-      step: 'resolve_previous_blocker',
-      pendingBlockers: openBlockers,
-      profile,
-      answers: {},
-    });
+  const assignedList = [];
+  const otherList = [];
 
-    const blockerCountText = openBlockers.length === 1 ? 'an active blocker' : `${openBlockers.length} active blockers`;
-    const blockerItemsList = openBlockers
-      .map((b) => `• <b>${escapeHtml(b.title || 'Blocker')}</b>: <i>"${escapeHtml(b.description)}"</i>`)
-      .join('\n');
+  for (const p of allProjects) {
+    const isAssigned =
+      assignedNames.includes(p.name.toLowerCase()) ||
+      assignedIds.includes(p.id.toLowerCase()) ||
+      (p.memberIds && p.memberIds.includes(memberKey));
 
-    await sendMessage(
-      chatId,
-      `👋 <b>Good morning, ${escapeHtml(profile.fullName)}!</b>\n\n` +
-      `⚠️ <b>Reminder from Yesterday:</b>\n` +
-      `You previously reported ${blockerCountText} on <b>${escapeHtml(openBlockers[0].projectName || profile.projectName)}</b>:\n` +
-      `${blockerItemsList}\n\n` +
-      `<b>Are these blocker(s) now resolved?</b>\n\n` +
-      `1️⃣ <b>Yes, mark resolved</b> (Remove from blocked tasks on QA Command Center)\n` +
-      `2️⃣ <b>No, still blocked</b>\n\n` +
-      `<i>Reply 1 (or 'yes', 'resolved') to mark them resolved, or 2 (or 'no') to keep active:</i>`
-    );
-    return;
+    if (isAssigned) {
+      assignedList.push(p);
+    } else {
+      otherList.push(p);
+    }
   }
+
+  const projectsList = [...assignedList, ...otherList];
 
   userSessions.set(chatId, {
     type: 'checkin',
-    step: 'q1_worked_today',
+    step: 'choose_checkin_project',
     profile,
     answers: {},
+    projectsList,
+  });
+
+  let listText = '';
+  projectsList.forEach((p, idx) => {
+    const emoji = NUMBER_EMOJIS[idx] || `[${idx + 1}]`;
+    const isCurrent = (profile.projectId === p.id || (profile.projectName && profile.projectName.toLowerCase() === p.name.toLowerCase()));
+    const isAssigned = assignedList.some((ap) => ap.id === p.id);
+
+    let badge = '';
+    if (isAssigned) badge += ' ⭐ <i>(Assigned)</i>';
+    if (isCurrent && !isAssigned) badge += ' <i>(Current)</i>';
+    else if (isCurrent && isAssigned) badge += ' <i>(Active)</i>';
+
+    listText += `${emoji} <b>${escapeHtml(p.name)}</b>${badge}\n`;
   });
 
   await sendMessage(
     chatId,
     `👋 <b>Good day, ${escapeHtml(profile.fullName)}!</b>\n\n` +
-    `📁 <b>Project:</b> <b>${escapeHtml(profile.projectName)}</b>\n\n` +
-    `🎯 <b>What did you work on today?</b>\n` +
-    `<i>(Feature, module, test cases executed, API testing, regression, bugs retested, etc.)</i>`
+    `📁 <b>Select Project for Daily Standup:</b>\n` +
+    `Which project are you checking in for today?\n\n` +
+    `${listText}\n` +
+    `<i>Reply with the number (1-${projectsList.length}) or type the project name:</i>`
   );
+  return;
 }
 
 async function finalizeAndSubmitCheckin(chatId, user, session) {
@@ -2001,28 +1912,35 @@ async function handleCheckinStep(chatId, user, text) {
   const lower = trimmed.toLowerCase();
   if (session.step === 'choose_checkin_project') {
     const list = session.projectsList || [];
-    let selectedName = null;
+    let selected = null;
     const num = parseInt(trimmed, 10);
     if (!isNaN(num) && num >= 1 && num <= list.length) {
-      selectedName = list[num - 1];
+      selected = list[num - 1];
     } else {
-      selectedName = list.find((p) => p.toLowerCase() === lower) ||
-                     list.find((p) => p.toLowerCase().includes(lower));
+      selected = list.find((p) => {
+        const name = (typeof p === 'object' ? p.name : p).toLowerCase();
+        const id = (typeof p === 'object' ? p.id : '').toLowerCase();
+        return name === lower || id === lower || name.includes(lower);
+      });
     }
 
-    if (!selectedName) {
+    if (!selected) {
       await sendMessage(
         chatId,
         `⚠️ <b>Please choose a valid project:</b>\n` +
-        `Reply with the number (1-${list.length}) or type the project name:`
+        `Reply with the number (1-${list.length}) or type the project name:\n<i>(or type <code>cancel</code> to abort)</i>`
       );
       return true;
     }
 
-    // Lookup project ID
-    const allProjects = await refreshProjectsFromCloud();
-    const matchedProj = allProjects.find((p) => p.name.toLowerCase() === selectedName.toLowerCase());
-    const matchedId = matchedProj ? matchedProj.id : profile.projectId;
+    const selectedName = typeof selected === 'object' ? selected.name : selected;
+    let matchedId = typeof selected === 'object' ? selected.id : profile.projectId;
+
+    if (!matchedId) {
+      const allProjects = await refreshProjectsFromCloud();
+      const matchedProj = allProjects.find((p) => p.name.toLowerCase() === selectedName.toLowerCase());
+      matchedId = matchedProj ? matchedProj.id : `prj-${Date.now().toString(36)}`;
+    }
 
     // Update active project in profile and session
     profile.projectId = matchedId;
@@ -2419,6 +2337,195 @@ async function handleTestCaseWizardStep(chatId, user, rawText) {
 }
 
 // ==========================================
+// 3B. BLOCKER REPORTING WIZARD
+// ==========================================
+
+async function handleBlockerWizardStep(chatId, user, text) {
+  const session = userSessions.get(chatId);
+  if (!session || session.type !== 'blocker_wizard') return false;
+
+  const input = text.trim();
+  if (input.toLowerCase() === 'cancel' || input.toLowerCase() === '/cancel') {
+    userSessions.delete(chatId);
+    await sendMessage(chatId, '❌ Blocker reporting cancelled.');
+    return true;
+  }
+
+  // STEP 1: User chooses project
+  if (session.step === 'choose_project') {
+    const projects = session.projectsList || getProjects();
+    let selected = null;
+
+    const num = parseInt(input, 10);
+    if (!isNaN(num) && num >= 1 && num <= projects.length) {
+      selected = projects[num - 1];
+    } else {
+      selected = projects.find(
+        (p) => (p.name && p.name.toLowerCase() === input.toLowerCase()) || (p.id && p.id.toLowerCase() === input.toLowerCase())
+      ) || projects.find((p) => p.name && p.name.toLowerCase().includes(input.toLowerCase()));
+    }
+
+    if (!selected) {
+      await sendMessage(
+        chatId,
+        `⚠️ <b>Project not recognized</b>\n\nPlease reply with a valid number (1-${projects.length}) or type the project name:\n<i>(or type <code>cancel</code> to abort)</i>`
+      );
+      return true;
+    }
+
+    const projectId = selected.id;
+    const projectName = selected.name;
+
+    // If pendingReason was already provided in the original /blocker command
+    if (session.pendingReason) {
+      const reason = session.pendingReason;
+      const profile = getProfile(chatId);
+      const memberName = profile ? profile.fullName : (user.first_name || 'QA Tester');
+
+      if (profile) {
+        profile.projectId = projectId;
+        profile.projectName = projectName;
+        const profiles = loadProfiles();
+        if (profiles[String(chatId)]) {
+          profiles[String(chatId)].projectId = projectId;
+          profiles[String(chatId)].projectName = projectName;
+          profiles[String(chatId)].updatedAt = new Date().toISOString();
+          saveProfiles(profiles);
+        }
+        if (supabase) {
+          supabase.from('telegram_profiles').update({
+            project_id: projectId,
+            project_name: projectName,
+            updated_at: new Date().toISOString(),
+          }).eq('chat_id', String(chatId)).then(() => {});
+        }
+      }
+
+      const blockerItem = {
+        id: `blk-${Date.now().toString(36)}`,
+        title: `Blocker: ${memberName} (Blocked)`,
+        description: reason,
+        projectId,
+        projectName,
+        severity: 'Critical',
+        status: 'Open',
+        reportedBy: memberName,
+        createdAt: new Date().toISOString(),
+        chatId: String(chatId),
+      };
+
+      persistBlocker(blockerItem);
+      userSessions.delete(chatId);
+
+      notifyQALeadsOfBlocker({
+        senderChatId: chatId,
+        memberName,
+        username: user.username || user.first_name,
+        projectName,
+        projectId,
+        reason,
+        severity: 'Critical',
+        createdAt: blockerItem.createdAt,
+      }).catch((err) => console.error('[Notify Lead Error]', err.message));
+
+      await sendMessage(
+        chatId,
+        `🚨 <b>CRITICAL BLOCKER LOGGED</b>\n\n` +
+        `📁 <b>Project:</b> <b>${escapeHtml(projectName)}</b>\n` +
+        `👤 <b>Reported by:</b> ${escapeHtml(memberName)} (@${escapeHtml(user.username || user.first_name)})\n` +
+        `⚠️ <b>Issue:</b> <i>"${escapeHtml(reason)}"</i>\n` +
+        `🕒 <b>Time:</b> <code>${new Date().toLocaleTimeString()}</code>\n\n` +
+        `<i>The QA Leadership Command Center has been alerted.</i>`
+      );
+      return true;
+    }
+
+    // Advance to STEP 2: Ask for blocker description
+    session.step = 'enter_reason';
+    session.projectId = projectId;
+    session.projectName = projectName;
+    userSessions.set(chatId, session);
+
+    await sendMessage(
+      chatId,
+      `🚨 <b>Report Urgent Blocker</b>\n\n` +
+      `📁 <b>Project:</b> <b>${escapeHtml(projectName)}</b>\n\n` +
+      `Please describe the blocker or critical challenge stopping your QA work:\n\n` +
+      `<i>👉 Reply with the description below (or type <code>cancel</code> to abort):</i>`
+    );
+    return true;
+  }
+
+  // STEP 2: User provides blocker description
+  if (session.step === 'enter_reason') {
+    const reason = input;
+    const projectId = session.projectId;
+    const projectName = session.projectName;
+    const profile = getProfile(chatId);
+    const memberName = profile ? profile.fullName : (user.first_name || 'QA Tester');
+
+    if (profile) {
+      profile.projectId = projectId;
+      profile.projectName = projectName;
+      const profiles = loadProfiles();
+      if (profiles[String(chatId)]) {
+        profiles[String(chatId)].projectId = projectId;
+        profiles[String(chatId)].projectName = projectName;
+        profiles[String(chatId)].updatedAt = new Date().toISOString();
+        saveProfiles(profiles);
+      }
+      if (supabase) {
+        supabase.from('telegram_profiles').update({
+          project_id: projectId,
+          project_name: projectName,
+          updated_at: new Date().toISOString(),
+        }).eq('chat_id', String(chatId)).then(() => {});
+      }
+    }
+
+    const blockerItem = {
+      id: `blk-${Date.now().toString(36)}`,
+      title: `Blocker: ${memberName} (Blocked)`,
+      description: reason,
+      projectId,
+      projectName,
+      severity: 'Critical',
+      status: 'Open',
+      reportedBy: memberName,
+      createdAt: new Date().toISOString(),
+      chatId: String(chatId),
+    };
+
+    persistBlocker(blockerItem);
+    userSessions.delete(chatId);
+
+    notifyQALeadsOfBlocker({
+      senderChatId: chatId,
+      memberName,
+      username: user.username || user.first_name,
+      projectName,
+      projectId,
+      reason,
+      severity: 'Critical',
+      createdAt: blockerItem.createdAt,
+    }).catch((err) => console.error('[Notify Lead Error]', err.message));
+
+    await sendMessage(
+      chatId,
+      `🚨 <b>CRITICAL BLOCKER LOGGED</b>\n\n` +
+      `📁 <b>Project:</b> <b>${escapeHtml(projectName)}</b>\n` +
+      `👤 <b>Reported by:</b> ${escapeHtml(memberName)} (@${escapeHtml(user.username || user.first_name)})\n` +
+      `⚠️ <b>Issue:</b> <i>"${escapeHtml(reason)}"</i>\n` +
+      `🕒 <b>Time:</b> <code>${new Date().toLocaleTimeString()}</code>\n\n` +
+      `<i>The QA Leadership Command Center has been alerted.</i>`
+    );
+    return true;
+  }
+
+  return false;
+}
+
+// ==========================================
 // 4. MAIN MESSAGE ROUTER
 // ==========================================
 
@@ -2449,43 +2556,9 @@ async function handleMessage(message) {
     userSessions.delete(chatId);
 
     if (!profile) {
-      console.log(`[Bot] New member ${chatId} (${user.username || user.first_name || 'unknown'}) clicked /start. Auto-registering profile.`);
-      const defaultName = user.first_name || user.username || 'QA Member';
-      const defaultRole = 'QA Engineer / Tester';
-      const projects = getProjects();
-      const defaultProject = projects.length > 0 ? projects[0] : { id: 'prj-banking', name: 'Banking SuperApp' };
-
-      profile = {
-        fullName: defaultName,
-        role: defaultRole,
-        projectId: defaultProject.id,
-        projectName: defaultProject.name,
-        assignedProjectIds: [defaultProject.id],
-        assignedProjects: [defaultProject.name],
-        telegramUsername: user.username ? user.username.replace(/^@/, '') : '',
-        chatId: String(chatId),
-        updatedAt: new Date().toISOString(),
-      };
-
-      saveProfile(chatId, profile);
-
-      if (supabase) {
-        try {
-          await supabase.from('telegram_profiles').upsert([{
-            chat_id: String(chatId),
-            full_name: defaultName,
-            role: defaultRole,
-            project_id: defaultProject.id,
-            project_name: defaultProject.name,
-            assigned_project_ids: [defaultProject.id],
-            assigned_projects: [defaultProject.name],
-            telegram_username: user.username ? user.username.replace(/^@/, '') : '',
-            updated_at: new Date().toISOString(),
-          }]);
-        } catch (sbErr) {
-          console.warn('[Bot] Error auto-creating profile in Supabase:', sbErr.message);
-        }
-      }
+      console.log(`[Bot] New member ${chatId} (${user.username || user.first_name || 'unknown'}) clicked /start. Starting QA onboarding wizard.`);
+      await startOnboarding(chatId, user, false);
+      return;
     }
 
     const isLead = isQALead(profile);
@@ -2541,6 +2614,9 @@ async function handleMessage(message) {
     } else if (session.type === 'testcase_wizard' || session.type === 'submit_testcase_link') {
       const handled = await handleTestCaseWizardStep(chatId, user, rawText);
       if (handled) return;
+    } else if (session.type === 'blocker_wizard') {
+      const handled = await handleBlockerWizardStep(chatId, user, rawText);
+      if (handled) return;
     }
   }
 
@@ -2561,42 +2637,11 @@ async function handleMessage(message) {
     return;
   }
 
-  // If user does not have an active profile in Supabase: auto-create so commands function immediately
+  // If user does not have an active profile: guide through onboarding
   if (!profile) {
-    console.log(`[Bot] Member ${chatId} (${user.username || user.first_name || 'unknown'}) has no active profile in Supabase. Auto-creating baseline profile.`);
-    const defaultName = user.first_name || user.username || 'QA Member';
-    const defaultRole = 'QA Engineer / Tester';
-    const projects = getProjects();
-    const defaultProject = projects.length > 0 ? projects[0] : { id: 'prj-banking', name: 'Banking SuperApp' };
-
-    profile = {
-      fullName: defaultName,
-      role: defaultRole,
-      projectId: defaultProject.id,
-      projectName: defaultProject.name,
-      assignedProjectIds: [defaultProject.id],
-      assignedProjects: [defaultProject.name],
-      telegramUsername: user.username ? user.username.replace(/^@/, '') : '',
-      chatId: String(chatId),
-      updatedAt: new Date().toISOString(),
-    };
-
-    saveProfile(chatId, profile);
-    if (supabase) {
-      try {
-        await supabase.from('telegram_profiles').upsert([{
-          chat_id: String(chatId),
-          full_name: defaultName,
-          role: defaultRole,
-          project_id: defaultProject.id,
-          project_name: defaultProject.name,
-          assigned_project_ids: [defaultProject.id],
-          assigned_projects: [defaultProject.name],
-          telegram_username: user.username ? user.username.replace(/^@/, '') : '',
-          updated_at: new Date().toISOString(),
-        }]);
-      } catch {}
-    }
+    console.log(`[Bot] Member ${chatId} (${user.username || user.first_name || 'unknown'}) has no active profile. Starting onboarding wizard.`);
+    await startOnboarding(chatId, user, false);
+    return;
   }
 
   if (text === '/profile') {
@@ -2732,55 +2777,124 @@ async function handleMessage(message) {
     return;
   }
 
-  if (text.startsWith('/blocker')) {
-    const reason = rawText.replace(/^\/blocker/i, '').trim();
+  if (text.startsWith('/blocker') || text === '/block' || text === '/blockers') {
+    const reason = rawText.replace(/^\/(?:blocker|blockers|block)\s*/i, '').trim();
+
     if (!reason) {
+      // Step 1: Prompt user to choose project first!
+      const allProjects = await refreshProjectsFromCloud();
+      const assignedNames = (profile?.assignedProjects || []).map((x) => String(x).toLowerCase());
+      const assignedIds = (profile?.assignedProjectIds || []).map((x) => String(x).toLowerCase());
+      const memberKey = `usr-${chatId}`;
+      const assignedList = [];
+      const otherList = [];
+
+      for (const p of allProjects) {
+        const isAssigned =
+          assignedNames.includes(p.name.toLowerCase()) ||
+          assignedIds.includes(p.id.toLowerCase()) ||
+          (p.memberIds && p.memberIds.includes(memberKey));
+
+        if (isAssigned) {
+          assignedList.push(p);
+        } else {
+          otherList.push(p);
+        }
+      }
+
+      const projectsList = [...assignedList, ...otherList];
+
+      userSessions.set(chatId, {
+        type: 'blocker_wizard',
+        step: 'choose_project',
+        projectsList,
+        profile,
+      });
+
+      let listText = '';
+      projectsList.forEach((p, idx) => {
+        const emoji = NUMBER_EMOJIS[idx] || `[${idx + 1}]`;
+        const isAssigned = assignedList.some((ap) => ap.id === p.id);
+        listText += `${emoji} <b>${escapeHtml(p.name)}</b>${isAssigned ? ' ⭐ <i>(Assigned)</i>' : ''}\n`;
+      });
+
       await sendMessage(
         chatId,
-        '⚠️ Please provide a description.\nExample: <code>/blocker Staging API returning 500 on auth</code>'
+        `🚨 <b>Report Urgent Blocker</b>\n\n` +
+        `📁 <b>Select Project:</b>\nWhich project has the blocker?\n\n` +
+        `${listText}\n` +
+        `<i>Reply with the number (1-${projectsList.length}) or type the project name:</i>`
       );
       return;
     }
 
-    const memberName = profile ? profile.fullName : (user.first_name || 'QA Tester');
-    const projectName = profile ? profile.projectName : 'General QA';
-    const projectId = profile ? profile.projectId : 'prj-banking';
+    // Reason provided: /blocker <reason>
+    if (profile && profile.projectName) {
+      const memberName = profile.fullName;
+      const projectName = profile.projectName;
+      const projectId = profile.projectId || 'prj-banking';
 
-    const blockerItem = {
-      id: `blk-${Date.now().toString(36)}`,
-      title: `Blocker via Telegram (${memberName})`,
-      description: reason,
-      projectId,
-      projectName,
-      severity: 'Critical',
-      status: 'Open',
-      reportedBy: memberName,
-      createdAt: new Date().toISOString(),
-      chatId,
-    };
+      const blockerItem = {
+        id: `blk-${Date.now().toString(36)}`,
+        title: `Blocker: ${memberName} (Blocked)`,
+        description: reason,
+        projectId,
+        projectName,
+        severity: 'Critical',
+        status: 'Open',
+        reportedBy: memberName,
+        createdAt: new Date().toISOString(),
+        chatId: String(chatId),
+      };
 
-    persistBlocker(blockerItem);
+      persistBlocker(blockerItem);
 
-    // Proactively notify QA Lead(s) directly in Telegram!
-    notifyQALeadsOfBlocker({
-      senderChatId: chatId,
-      memberName,
-      username: user.username || user.first_name,
-      projectName,
-      projectId,
-      reason,
-      severity: 'Critical',
-      createdAt: blockerItem.createdAt,
-    }).catch((err) => console.error('[Notify Lead Error]', err.message));
+      notifyQALeadsOfBlocker({
+        senderChatId: chatId,
+        memberName,
+        username: user.username || user.first_name,
+        projectName,
+        projectId,
+        reason,
+        severity: 'Critical',
+        createdAt: blockerItem.createdAt,
+      }).catch((err) => console.error('[Notify Lead Error]', err.message));
+
+      await sendMessage(
+        chatId,
+        `🚨 <b>CRITICAL BLOCKER LOGGED</b>\n\n` +
+        `📁 <b>Project:</b> <b>${escapeHtml(projectName)}</b>\n` +
+        `👤 <b>Reported by:</b> ${escapeHtml(memberName)} (@${escapeHtml(user.username || user.first_name)})\n` +
+        `⚠️ <b>Issue:</b> <i>"${escapeHtml(reason)}"</i>\n` +
+        `🕒 <b>Time:</b> <code>${new Date().toLocaleTimeString()}</code>\n\n` +
+        `<i>The QA Leadership Command Center has been alerted.</i>\n\n` +
+        `💡 <i>To log for a different project, reply with <code>/blocker</code> to select the project.</i>`
+      );
+      return;
+    }
+
+    // If profile has no active project, prompt to select project
+    const allProjects = await refreshProjectsFromCloud();
+    userSessions.set(chatId, {
+      type: 'blocker_wizard',
+      step: 'choose_project',
+      projectsList: allProjects,
+      pendingReason: reason,
+      profile,
+    });
+
+    let listText = '';
+    allProjects.forEach((p, idx) => {
+      const emoji = NUMBER_EMOJIS[idx] || `[${idx + 1}]`;
+      listText += `${emoji} <b>${escapeHtml(p.name)}</b>\n`;
+    });
 
     await sendMessage(
       chatId,
-      `🚨 <b>CRITICAL BLOCKER LOGGED</b>\n\n` +
-      `📁 <b>Project:</b> ${escapeHtml(projectName)}\n` +
-      `👤 <b>Reported by:</b> ${escapeHtml(memberName)} (@${escapeHtml(user.username || user.first_name)})\n` +
-      `⚠️ <b>Issue:</b> ${escapeHtml(reason)}\n` +
-      `🕒 <b>Time:</b> ${new Date().toLocaleTimeString()}\n\n` +
-      `<i>The QA Lead Command Center has been alerted.</i>`
+      `🚨 <b>Report Urgent Blocker</b>\n\n` +
+      `📁 <b>Select Project:</b>\nWhich project does this blocker belong to?\n\n` +
+      `${listText}\n` +
+      `<i>Reply with the number (1-${allProjects.length}) or type the project name:</i>`
     );
     return;
   }
