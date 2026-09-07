@@ -111,11 +111,22 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
     setProgressVal(project.qaProgress);
   }, [project]);
 
-  // Sync Telegram reports
+  // Sync Telegram reports with periodic live polling
   useEffect(() => {
-    DailyReportService.syncTelegramReports().then((synced) => {
+    const refreshData = async () => {
+      const synced = await DailyReportService.syncTelegramReports();
       setReports(synced);
-    });
+      const fresh = StorageService.getProjects().find((p) => p.id === currentProject.id);
+      if (fresh) setCurrentProject(fresh);
+      setAllUsers(StorageService.getUsers());
+    };
+
+    refreshData();
+
+    // Auto-poll every 4 seconds so Telegram standups appear in real time
+    const pollInterval = setInterval(() => {
+      refreshData();
+    }, 4000);
 
     const handleStorage = () => {
       setReports(DailyReportService.getDailyReports());
@@ -124,7 +135,10 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
       setAllUsers(StorageService.getUsers());
     };
     window.addEventListener('aegis_storage_change', handleStorage);
-    return () => window.removeEventListener('aegis_storage_change', handleStorage);
+    return () => {
+      clearInterval(pollInterval);
+      window.removeEventListener('aegis_storage_change', handleStorage);
+    };
   }, [currentProject.id]);
 
   useEffect(() => {
@@ -175,6 +189,8 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
                 supabase
                   .from('telegram_profiles')
                   .update({
+                    project_id: updatedProj.id,
+                    project_name: updatedProj.name,
                     assigned_project_ids: updatedIds,
                     assigned_projects: updatedNames,
                     updated_at: new Date().toISOString(),

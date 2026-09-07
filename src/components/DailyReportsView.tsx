@@ -15,15 +15,26 @@ export const DailyReportsView: React.FC<DailyReportsViewProps> = ({ currentUser 
   const [copiedNotification, setCopiedNotification] = useState(false);
 
   useEffect(() => {
-    DailyReportService.syncTelegramReports().then((synced) => {
+    const refreshData = async () => {
+      const synced = await DailyReportService.syncTelegramReports();
       setReports(synced);
-    });
+    };
+
+    refreshData();
+
+    // Live polling every 4 seconds for new Telegram standups
+    const pollInterval = setInterval(() => {
+      refreshData();
+    }, 4000);
 
     const handleStorage = () => {
       setReports(DailyReportService.getDailyReports());
     };
     window.addEventListener('aegis_storage_change', handleStorage);
-    return () => window.removeEventListener('aegis_storage_change', handleStorage);
+    return () => {
+      clearInterval(pollInterval);
+      window.removeEventListener('aegis_storage_change', handleStorage);
+    };
   }, []);
 
   // Editable fields for individual QA report

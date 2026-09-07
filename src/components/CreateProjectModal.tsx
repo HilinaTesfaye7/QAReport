@@ -260,6 +260,8 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                     supabase
                       .from('telegram_profiles')
                       .update({
+                        project_id: newProject.id,
+                        project_name: newProject.name,
                         assigned_project_ids: updatedIds,
                         assigned_projects: updatedNames,
                         updated_at: new Date().toISOString(),

@@ -1,13 +1,62 @@
 [
   {
+    "id": "prj-mtqz6yar",
+    "name": "St George",
+    "description": "full Test",
+    "status": "Testing",
+    "memberIds": [
+      "usr-918263567",
+      "usr-347835367"
+    ],
+    "resources": {
+      "prdUrl": "https://docs.bank.internal/prd/spec-v1",
+      "repoUrl": "https://github.com/company/st george",
+      "figmaUrl": "https://www.figma.com/design/MZNo0qGHG50tWqJlZkPhi9/Saint-George-FC--Portal?t=RXMU2HgT6APEW1zb-0",
+      "prdTitle": "no",
+      "apiDocUrl": "https://staging-app.internal/swagger-ui",
+      "figmaName": "St George UI Prototype",
+      "prdContent": "# Functional Requirements & Acceptance Criteria\n\n## 1. Overview\nComprehensive QA validation of all feature modules and API services.\n\n## 2. Acceptance Criteria\n- Pass 100% of P0 smoke test cases before release.\n- 0 critical or blocker severity defects open in regression cycle.\n- API response time < 250ms for 95th percentile.\n- Figma layout tokens and responsive breakpoints verified.",
+      "testEnvUrl": "https://staging-app.internal",
+      "releaseInfo": "Sprint candidate validation window closes prior to release deployment.",
+      "testCaseUrl": "https://docs.google.com/spreadsheets/d/1JWvrqjeHLzl9ZUBWKy8AGrEC0GWX0RFkourFFJ58WCA/edit?usp=sharing",
+      "buildVersion": "v1.0.0-rc1",
+      "figmaVersion": "v2.4",
+      "prdDocuments": [
+        {
+          "id": "doc-1788769529378",
+          "name": "no",
+          "version": "v1.0-RC",
+          "fileName": "st george-prd.pdf",
+          "fileSize": "2.4 MB",
+          "uploadedAt": "2026-09-07",
+          "uploadedBy": "Sarah Jenkins",
+          "downloadUrl": "https://docs.bank.internal/prd/spec-v1"
+        }
+      ],
+      "requirements": [
+        "REQ-01: Authentication & Token Lifecycle",
+        "REQ-02: Core Feature Flow and Business Logic Validation",
+        "REQ-03: Responsive Design Breakpoints Verification"
+      ],
+      "testCaseTitle": "St George Test Cases",
+      "importantNotes": "Review all Figma auto-layout padding specs before marking UI tickets complete.",
+      "testCredentials": [
+        {
+          "pass": "AegisPass#2026",
+          "role": "QA Automation Engineer",
+          "user": "qa.test@company.internal",
+          "notes": "Staging environment pre-loaded test data profile"
+        }
+      ],
+      "figmaDescription": "Includes all responsive viewports, state machines, and micro-interaction tokens.",
+      "figmaPreviewTitle": "Mobile & Web UI Design Specs"
+    }
+  },
+  {
     "id": "prj-mtqwfzb7",
     "name": "okkk",
     "description": "Quality assurance and test automation suite for okkk.",
     "status": "Testing",
-    "startDate": "2026-09-07",
-    "targetReleaseDate": "2026-09-21",
-    "projectOwner": "David Chen (VP Product)",
-    "qaLeadId": "usr-7651373544",
     "memberIds": [
       "usr-7651373544",
       "usr-918263567",
@@ -28,19 +77,13 @@
         "REQ-03: Responsive Design Breakpoints Verification"
       ],
       "testCaseTitle": "okkk Test Cases"
-    },
-    "qaProgress": 25,
-    "regressionProgress": 10
+    }
   },
   {
     "id": "prj-mtq2sy1r",
     "name": "test",
     "description": "QA Test Project",
     "status": "Testing",
-    "startDate": "2026-09-07",
-    "targetReleaseDate": "2026-09-21",
-    "projectOwner": "David Chen (VP Product)",
-    "qaLeadId": "usr-sarah",
     "memberIds": [
       "usr-432754405"
     ],
@@ -48,19 +91,13 @@
       "prdUrl": "https://docs.bank.internal/prd/spec-v1",
       "prdTitle": "test Functional Specifications",
       "testEnvUrl": "https://staging-app.internal"
-    },
-    "qaProgress": 0,
-    "regressionProgress": 0
+    }
   },
   {
     "id": "prj-mtq1iovd",
     "name": "Crypto Vault Wallet",
     "description": "QA security audit and regression for multi-sig wallet",
     "status": "Testing",
-    "startDate": "2026-09-05",
-    "targetReleaseDate": "2026-10-01",
-    "projectOwner": "Elena Rostova",
-    "qaLeadId": "usr-sarah",
     "memberIds": [
       "usr-347835367",
       "usr-hana"
@@ -81,19 +118,13 @@
       "importantNotes": "Verify secure enclave simulation",
       "testCredentials": [],
       "figmaPreviewTitle": "Crypto Vault UI Specs"
-    },
-    "qaProgress": 0,
-    "regressionProgress": 0
+    }
   },
   {
     "id": "prj-mtq28f4p",
     "name": "mn",
     "description": "dnd",
     "status": "Testing",
-    "startDate": "2026-09-06",
-    "targetReleaseDate": "2026-09-20",
-    "projectOwner": "David Chen (VP Product)",
-    "qaLeadId": "usr-sarah",
     "memberIds": [
       "usr-347835367",
       "usr-7527336375"
@@ -105,19 +136,13 @@
       "prdTitle": "ffdd",
       "figmaName": "mn UI Prototype",
       "testEnvUrl": "https://staging-app.internal"
-    },
-    "qaProgress": 0,
-    "regressionProgress": 0
+    }
   },
   {
     "id": "prj-mtpyvgg3",
     "name": "wallet",
     "description": "nfmnfmd",
     "status": "Planning",
-    "startDate": "2026-09-06",
-    "targetReleaseDate": "2026-09-20",
-    "projectOwner": "samrawit",
-    "qaLeadId": "usr-sarah",
     "memberIds": [
       "usr-347835367",
       "usr-7527336375"
@@ -164,19 +189,13 @@
       ],
       "figmaDescription": "Includes all responsive viewports, state machines, and micro-interaction tokens.",
       "figmaPreviewTitle": "wallet design"
-    },
-    "qaProgress": 0,
-    "regressionProgress": 0
+    }
   },
   {
     "id": "prj-mtovdw5i",
     "name": "n n n",
     "description": " nbmbm",
     "status": "Testing",
-    "startDate": "2026-09-05",
-    "targetReleaseDate": "2026-09-19",
-    "projectOwner": "David Chen (VP Product)",
-    "qaLeadId": "usr-sarah",
     "memberIds": [
       "usr-sara",
       "usr-347835367"
@@ -223,19 +242,13 @@
       ],
       "figmaDescription": "Includes all responsive viewports, state machines, and micro-interaction tokens.",
       "figmaPreviewTitle": "Mobile & Web UI Design Specs"
-    },
-    "qaProgress": 0,
-    "regressionProgress": 0
+    }
   },
   {
     "id": "prj-mtov3ge4",
     "name": "alias",
     "description": "creat and transfer",
     "status": "Testing",
-    "startDate": "2026-09-05",
-    "targetReleaseDate": "2026-09-19",
-    "projectOwner": "Hilina Tesfaye",
-    "qaLeadId": "usr-sarah",
     "memberIds": [
       "usr-sara",
       "usr-347835367"
@@ -280,19 +293,13 @@
       ],
       "figmaDescription": "Includes all responsive viewports, state machines, and micro-interaction tokens.",
       "figmaPreviewTitle": "Mobile & Web UI Design Specs"
-    },
-    "qaProgress": 0,
-    "regressionProgress": 0
+    }
   },
   {
     "id": "prj-nextgen",
     "name": "NextGen Mobile Banking",
     "description": "Next-generation mobile retail banking app with biometric authentication and card controls.",
     "status": "Testing",
-    "startDate": "2026-09-01",
-    "targetReleaseDate": "2026-10-15",
-    "projectOwner": "David Chen",
-    "qaLeadId": "usr-sarah",
     "memberIds": [
       "usr-347835367",
       "usr-sarah"
@@ -310,19 +317,13 @@
         "REQ-02: Instant wire"
       ],
       "figmaPreviewTitle": "NextGen UI/UX Specifications"
-    },
-    "qaProgress": 20,
-    "regressionProgress": 10
+    }
   },
   {
     "id": "prj-merchant",
     "name": "Merchant Portal NextGen",
     "description": "B2B web dashboard for e-commerce and retail merchants to manage settlements, chargebacks, and API webhook integrations.",
     "status": "Planning",
-    "startDate": "2026-08-20",
-    "targetReleaseDate": "2026-10-05",
-    "projectOwner": "Marcus Vance (Fintech Ops)",
-    "qaLeadId": "usr-sarah",
     "memberIds": [
       "usr-sara",
       "usr-ahmed"
@@ -354,19 +355,13 @@
       ],
       "figmaDescription": "Full B2B desktop dashboard and dispute evidence modal.",
       "figmaPreviewTitle": "Merchant B2B Dashboard Layout & Dispute Flow"
-    },
-    "qaProgress": 35,
-    "regressionProgress": 15
+    }
   },
   {
     "id": "prj-mto97e35",
     "name": "ko",
     "description": "cxcx",
     "status": "In Progress",
-    "startDate": "2026-09-05",
-    "targetReleaseDate": "2026-09-19",
-    "projectOwner": "David Chen (VP Product)",
-    "qaLeadId": "usr-7527336375",
     "memberIds": [
       "usr-347835367",
       "usr-7527336375"
@@ -378,19 +373,13 @@
       "prdTitle": "ko Functional Specifications",
       "figmaName": "ko UI Prototype",
       "testEnvUrl": "https://staging-app.internal"
-    },
-    "qaProgress": 40,
-    "regressionProgress": 20
+    }
   },
   {
     "id": "prj-mto9eukb",
     "name": "sor",
     "description": "nmdsn",
     "status": "Testing",
-    "startDate": "2026-09-05",
-    "targetReleaseDate": "2026-09-19",
-    "projectOwner": "David Chen (VP Product)",
-    "qaLeadId": "usr-sarah",
     "memberIds": [
       "usr-347835367"
     ],
@@ -434,19 +423,13 @@
       ],
       "figmaDescription": "Includes all responsive viewports, state machines, and micro-interaction tokens.",
       "figmaPreviewTitle": "Mobile & Web UI Design Specs"
-    },
-    "qaProgress": 0,
-    "regressionProgress": 0
+    }
   },
   {
     "id": "prj-mobile",
     "name": "Mobile Banking iOS & Android",
     "description": "Cross-platform native mobile client focusing on card management, contactless NFC payments, and push security tokens.",
     "status": "UAT",
-    "startDate": "2026-07-15",
-    "targetReleaseDate": "2026-09-18",
-    "projectOwner": "Elena Rostova (Mobile Director)",
-    "qaLeadId": "usr-sarah",
     "memberIds": [
       "usr-hana",
       "usr-sara"
@@ -479,19 +462,13 @@
       ],
       "figmaDescription": "Native iOS & Android card views with encrypted CVV reveal.",
       "figmaPreviewTitle": "Mobile Native Components & Virtual Card Flow"
-    },
-    "qaProgress": 81,
-    "regressionProgress": 78
+    }
   },
   {
     "id": "prj-banking",
     "name": "Banking SuperApp",
     "description": "Next-generation retail banking application with instant payments, multi-currency wallets, and biometric authentication.",
     "status": "Testing",
-    "startDate": "2026-08-01",
-    "targetReleaseDate": "2026-09-12",
-    "projectOwner": "David Chen (VP Product)",
-    "qaLeadId": "usr-sarah",
     "memberIds": [
       "usr-hana",
       "usr-ahmed",
@@ -562,8 +539,6 @@
       ],
       "figmaDescription": "Full mobile and responsive web frames with auto-layout padding tokens.",
       "figmaPreviewTitle": "SuperApp UI Kit & Interactive Transfer Flows (Figma v2.4)"
-    },
-    "qaProgress": 74,
-    "regressionProgress": 62
+    }
   }
 ]

@@ -560,28 +560,22 @@ async function findQALeadsForProject(projectId, projectName) {
     }
   }
 
-  const allLeads = Array.from(leads.values());
-  if (allLeads.length === 0) return [];
+  // 3. Always include Platform Admin / Leadership
+  const ADMIN_CHAT_ID = '347835367';
+  if (!leads.has(ADMIN_CHAT_ID)) {
+    leads.set(ADMIN_CHAT_ID, {
+      chatId: ADMIN_CHAT_ID,
+      fullName: 'Coco (Admin)',
+      role: 'Platform Admin',
+      projectId: '',
+      projectName: '',
+      assignedProjectIds: [],
+      assignedProjects: [],
+    });
+  }
 
-  const pId = projectId ? String(projectId).toLowerCase() : '';
-  const pName = projectName ? String(projectName).toLowerCase() : '';
-
-  const matchedLeads = allLeads.filter((lead) => {
-    if (!pId && !pName) return true;
-    const lPId = lead.projectId ? String(lead.projectId).toLowerCase() : '';
-    const lPName = lead.projectName ? String(lead.projectName).toLowerCase() : '';
-    const assignedIds = (lead.assignedProjectIds || []).map((x) => String(x).toLowerCase());
-    const assignedNames = (lead.assignedProjects || []).map((x) => String(x).toLowerCase());
-
-    return (
-      (pId && lPId === pId) ||
-      (pName && lPName === pName) ||
-      (pId && assignedIds.includes(pId)) ||
-      (pName && assignedNames.includes(pName))
-    );
-  });
-
-  return matchedLeads.length > 0 ? matchedLeads : allLeads;
+  // All QA Leads and Platform Admin should receive critical blocker & risk alerts
+  return Array.from(leads.values());
 }
 
 // Proactive Telegram Alert to QA Lead when a blocker is filed via /blocker
@@ -796,6 +790,45 @@ async function notifyMemberOfProjectAssignment({
 
     await sendMessage(chatId, msg);
     console.log(`[Notification] Dispatched project assignment alert for ${project.name} to chat ${chatId}`);
+
+    // Automatically switch the member's active project & update assigned projects list
+    try {
+      const strChatId = String(chatId);
+      const profiles = loadProfiles();
+      const existing = profiles[strChatId] || {
+        chatId: strChatId,
+        fullName: 'QA Member',
+        role: 'QA Engineer / Tester',
+      };
+
+      const assignedIds = Array.from(new Set([...(existing.assignedProjectIds || []), project.id]));
+      const assignedNames = Array.from(new Set([...(existing.assignedProjects || []), project.name]));
+
+      existing.projectId = project.id;
+      existing.projectName = project.name;
+      existing.assignedProjectIds = assignedIds;
+      existing.assignedProjects = assignedNames;
+      existing.updatedAt = new Date().toISOString();
+
+      profiles[strChatId] = existing;
+      saveProfiles(profiles);
+
+      if (supabase) {
+        await supabase
+          .from('telegram_profiles')
+          .update({
+            project_id: project.id,
+            project_name: project.name,
+            assigned_project_ids: assignedIds,
+            assigned_projects: assignedNames,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('chat_id', strChatId);
+      }
+    } catch (profErr) {
+      console.warn('[Profile Update Error on Assignment]', profErr.message);
+    }
+
     return true;
   } catch (err) {
     console.error('[Notification Error] Project assignment notification failed:', err.message);
@@ -1785,6 +1818,34 @@ async function startCheckin(chatId, user) {
     return;
   }
 
+  // If member has multiple assigned projects, let them choose which project to check in for
+  const assigned = Array.from(new Set(profile.assignedProjects || [])).filter(Boolean);
+  if (assigned.length > 1) {
+    userSessions.set(chatId, {
+      type: 'checkin',
+      step: 'choose_checkin_project',
+      profile,
+      answers: {},
+      projectsList: assigned,
+    });
+    let listText = '';
+    assigned.forEach((pName, idx) => {
+      const emoji = NUMBER_EMOJIS[idx] || `[${idx + 1}]`;
+      const isCurrent = (profile.projectName && profile.projectName.toLowerCase() === pName.toLowerCase());
+      listText += `${emoji} <b>${escapeHtml(pName)}</b>${isCurrent ? ' <i>(Current Active)</i>' : ''}\n`;
+    });
+
+    await sendMessage(
+      chatId,
+      `👋 <b>Good day, ${escapeHtml(profile.fullName)}!</b>\n\n` +
+      `📁 <b>Select Project for Daily Standup:</b>\n` +
+      `You are assigned to ${assigned.length} projects. Which project are you checking in for today?\n\n` +
+      `${listText}\n` +
+      `<i>Reply with the number (e.g. 1) or type the project name:</i>`
+    );
+    return;
+  }
+
   // Check if member previously reported an active blocker from yesterday/earlier
   const openBlockers = await getOpenBlockersForUser(chatId, profile.fullName);
 
@@ -1938,6 +1999,86 @@ async function handleCheckinStep(chatId, user, text) {
   const profile = session.profile;
   const trimmed = text.trim();
   const lower = trimmed.toLowerCase();
+  if (session.step === 'choose_checkin_project') {
+    const list = session.projectsList || [];
+    let selectedName = null;
+    const num = parseInt(trimmed, 10);
+    if (!isNaN(num) && num >= 1 && num <= list.length) {
+      selectedName = list[num - 1];
+    } else {
+      selectedName = list.find((p) => p.toLowerCase() === lower) ||
+                     list.find((p) => p.toLowerCase().includes(lower));
+    }
+
+    if (!selectedName) {
+      await sendMessage(
+        chatId,
+        `⚠️ <b>Please choose a valid project:</b>\n` +
+        `Reply with the number (1-${list.length}) or type the project name:`
+      );
+      return true;
+    }
+
+    // Lookup project ID
+    const allProjects = await refreshProjectsFromCloud();
+    const matchedProj = allProjects.find((p) => p.name.toLowerCase() === selectedName.toLowerCase());
+    const matchedId = matchedProj ? matchedProj.id : profile.projectId;
+
+    // Update active project in profile and session
+    profile.projectId = matchedId;
+    profile.projectName = selectedName;
+    session.profile = profile;
+
+    const profiles = loadProfiles();
+    if (profiles[String(chatId)]) {
+      profiles[String(chatId)].projectId = matchedId;
+      profiles[String(chatId)].projectName = selectedName;
+      profiles[String(chatId)].updatedAt = new Date().toISOString();
+      saveProfiles(profiles);
+    }
+    if (supabase) {
+      supabase.from('telegram_profiles').update({
+        project_id: matchedId,
+        project_name: selectedName,
+        updated_at: new Date().toISOString(),
+      }).eq('chat_id', String(chatId)).then(() => {});
+    }
+
+    // Check if user previously reported an active blocker for this project
+    const openBlockers = await getOpenBlockersForUser(chatId, profile.fullName);
+    const projectBlockers = openBlockers.filter((b) => !b.projectName || b.projectName.toLowerCase() === selectedName.toLowerCase());
+
+    if (projectBlockers.length > 0) {
+      session.step = 'resolve_previous_blocker';
+      session.pendingBlockers = projectBlockers;
+      const blockerCountText = projectBlockers.length === 1 ? 'an active blocker' : `${projectBlockers.length} active blockers`;
+      const blockerItemsList = projectBlockers
+        .map((b) => `• <b>${escapeHtml(b.title || 'Blocker')}</b>: <i>"${escapeHtml(b.description)}"</i>`)
+        .join('\n');
+
+      await sendMessage(
+        chatId,
+        `📁 <b>Project:</b> <b>${escapeHtml(selectedName)}</b>\n\n` +
+        `⚠️ <b>Reminder from Yesterday:</b>\n` +
+        `You previously reported ${blockerCountText} on <b>${escapeHtml(selectedName)}</b>:\n` +
+        `${blockerItemsList}\n\n` +
+        `<b>Are these blocker(s) now resolved?</b>\n\n` +
+        `1️⃣ <b>Yes, mark resolved</b> (Remove from blocked tasks on QA Command Center)\n` +
+        `2️⃣ <b>No, still blocked</b>\n\n` +
+        `<i>Reply 1 to mark resolved, or 2 to keep active:</i>`
+      );
+      return true;
+    }
+
+    session.step = 'q1_worked_today';
+    await sendMessage(
+      chatId,
+      `📁 <b>Project:</b> <b>${escapeHtml(selectedName)}</b>\n\n` +
+      `🎯 <b>What did you work on today?</b>\n` +
+      `<i>(Feature, module, test cases executed, API testing, regression, bugs retested, etc.)</i>`
+    );
+    return true;
+  }
 
   if (session.step === 'resolve_previous_blocker') {
     const isYes = lower === '1' || lower.includes('yes') || lower.includes('resolved') || lower === 'y' || lower.includes('fixed');
@@ -3319,8 +3460,9 @@ async function init() {
 
     pollUpdates();
   } catch (err) {
-    console.error('❌ Network error connecting to Telegram API:', err.message);
-    process.exit(1);
+    console.error('⚠️ Initial connection to Telegram API failed:', err.message);
+    console.log('Retrying connection in 3 seconds...');
+    setTimeout(init, 3000);
   }
 }
 

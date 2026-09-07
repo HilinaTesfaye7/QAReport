@@ -1,5 +1,28 @@
 [
   {
+    "id": "tg-mtqz9x6i",
+    "date": "2026-09-07",
+    "chatId": "918263567",
+    "memberId": "usr-918263567",
+    "memberName": "Dagmawit",
+    "role": "QA Engineer / Tester",
+    "projectId": "prj-mtqz6yar",
+    "projectName": "St George",
+    "todayWorkingOn": "Fan engagement test on point and contribution modules",
+    "blockers": "There was \"something went wrong error on point and referral creation",
+    "isBlocked": true,
+    "risks": "",
+    "nextPlan": "none",
+    "majorAchievement": "None",
+    "yesterdayCompleted": "None",
+    "workStatus": "Blocked",
+    "statusEmoji": "🔴",
+    "progressPercentage": 80,
+    "expectedCompletion": "none",
+    "notes": "{\"workStatus\":\"Blocked\",\"statusEmoji\":\"🔴\",\"risks\":\"None\",\"nextPlan\":\"none\",\"majorAchievement\":\"None\"}",
+    "submittedAt": "2026-09-07T08:27:47.900Z"
+  },
+  {
     "id": "tg-mtqwc33n",
     "date": "2026-09-07",
     "chatId": "854270712",

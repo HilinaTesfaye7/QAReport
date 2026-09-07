@@ -1,5 +1,30 @@
 [
   {
+    "id": "blk-mtqzrd32",
+    "title": "Blocker via Telegram (Coco)",
+    "description": "it's not working",
+    "projectId": "prj-mto97e35",
+    "projectName": "ko",
+    "severity": "Critical",
+    "status": "Open",
+    "reportedBy": "Coco",
+    "createdAt": "2026-09-07T08:41:21.662Z",
+    "chatId": 347835367
+  },
+  {
+    "id": "blk-mtqz9x6w",
+    "title": "Blocker: Dagmawit (Blocked)",
+    "description": "There was \"something went wrong error on point and referral creation",
+    "projectId": "prj-mtqz6yar",
+    "projectName": "St George",
+    "severity": "Critical",
+    "status": "Resolved",
+    "reportedBy": "Dagmawit",
+    "chatId": "918263567",
+    "createdAt": "2026-09-07T08:27:47.912Z",
+    "resolvedAt": "2026-09-07T08:44:57.581Z"
+  },
+  {
     "id": "blk-mtqwc33s",
     "title": "Blocker: BigAbod (Blocked)",
     "description": "App is not ready for QA",

@@ -555,26 +555,38 @@ export const StorageService = {
           .order('submitted_at', { ascending: false });
 
         if (!error && data) {
-          const mapped: DailyReport[] = data.map((r: any) => ({
-            id: r.id,
-            date: r.date,
-            chatId: r.chat_id,
-            memberId: r.member_id || `usr-${r.chat_id || 'unknown'}`,
-            memberName: r.member_name,
-            role: r.role || 'QA Tester',
-            projectId: r.project_id,
-            projectName: r.project_name,
-            yesterdayCompleted: r.yesterday_completed || '',
-            todayWorkingOn: r.today_working_on || '',
-            blockers: r.blockers || '',
-            isBlocked: Boolean(r.is_blocked),
-            progressPercentage: Number(r.progress_percentage || 50),
-            expectedCompletion: (r.expected_completion as any) || 'Today',
-            notes: r.notes || '',
-            status: 'submitted' as const,
-            submittedAt: r.submitted_at || new Date().toISOString(),
-            source: 'telegram' as const,
-          }));
+          const mapped: DailyReport[] = data.map((r: any) => {
+            let parsedNotes: any = {};
+            try {
+              if (r.notes && typeof r.notes === 'string' && r.notes.startsWith('{')) {
+                parsedNotes = JSON.parse(r.notes);
+              }
+            } catch {}
+
+            return {
+              id: r.id,
+              date: r.date,
+              chatId: r.chat_id,
+              memberId: r.member_id || `usr-${r.chat_id || 'unknown'}`,
+              memberName: r.member_name,
+              role: r.role || 'QA Tester',
+              projectId: r.project_id,
+              projectName: r.project_name,
+              yesterdayCompleted: r.yesterday_completed || parsedNotes.majorAchievement || '',
+              todayWorkingOn: r.today_working_on || '',
+              blockers: r.blockers || '',
+              isBlocked: Boolean(r.is_blocked),
+              risks: r.risks || parsedNotes.risks || '',
+              nextPlan: r.next_plan || parsedNotes.nextPlan || r.expected_completion || '',
+              majorAchievement: r.major_achievement || parsedNotes.majorAchievement || r.yesterday_completed || '',
+              progressPercentage: Number(r.progress_percentage || 50),
+              expectedCompletion: (r.expected_completion as any) || 'Today',
+              notes: r.notes || '',
+              status: 'submitted' as const,
+              submittedAt: r.submitted_at || new Date().toISOString(),
+              source: 'telegram' as const,
+            };
+          });
 
           localStorage.setItem(STORAGE_KEYS.DAILY_REPORTS, JSON.stringify(mapped));
           emitChange(STORAGE_KEYS.DAILY_REPORTS);
