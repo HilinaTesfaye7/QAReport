@@ -721,10 +721,20 @@ async function notifyQALeadsOfBlockerResolvedWebhook({
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
+    let dbStatus = 'disconnected';
+    if (supabase) {
+      try {
+        const { error } = await supabase.from('projects').select('id').limit(1);
+        dbStatus = error ? `warning: ${error.message}` : 'healthy';
+      } catch (e) {
+        dbStatus = `exception: ${e.message}`;
+      }
+    }
     return res.status(200).json({
       status: 'active',
       service: 'AegisQA Telegram Webhook',
       supabaseConnected: Boolean(supabase),
+      database: dbStatus,
       time: new Date().toISOString(),
     });
   }

@@ -68,6 +68,12 @@ export default defineConfig({
             }
           }
 
+          if (req.url === '/api/ping' || req.url === '/api/health') {
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ status: 'ok', service: 'AegisQA Vite Dev Server', timestamp: new Date().toISOString() }));
+            return;
+          }
+
           next();
         });
       },

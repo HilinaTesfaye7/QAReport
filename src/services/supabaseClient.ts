@@ -26,3 +26,24 @@ export const supabase: SupabaseClient | null = isSupabaseConfigured()
       },
     })
   : null;
+
+// Keepalive: Prevent Supabase project from pausing or dropping idle connection while dashboard is open
+export const startSupabaseKeepAlive = () => {
+  if (typeof window === 'undefined' || !supabase) return;
+  const proc = typeof globalThis !== 'undefined' ? (globalThis as any).process : null;
+  if (proc && (proc.env?.IS_TEST || proc.env?.NODE_ENV === 'test')) return;
+  // Gentle background ping every 5 minutes
+  const timer = setInterval(async () => {
+    try {
+      await supabase.from('projects').select('id').limit(1);
+    } catch {
+      // Silently handle background keepalive
+    }
+  }, 5 * 60 * 1000);
+  if (timer && typeof (timer as any).unref === 'function') {
+    (timer as any).unref();
+  }
+};
+
+startSupabaseKeepAlive();
+

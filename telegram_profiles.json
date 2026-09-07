@@ -22,6 +22,17 @@
     "chatId": "347835367",
     "updatedAt": "2026-09-07T08:25:29.857+00:00"
   },
+  "398745619": {
+    "fullName": "helina fara nat",
+    "role": "QA Lead",
+    "projectId": "prj-banking",
+    "projectName": "Banking SuperApp",
+    "assignedProjectIds": [],
+    "assignedProjects": [],
+    "telegramUsername": "YonatanMekonnen",
+    "chatId": "398745619",
+    "updatedAt": "2026-09-07T11:49:32.001+00:00"
+  },
   "432754405": {
     "fullName": "Helllooooo",
     "role": "QA Engineer / Tester",
@@ -89,8 +100,8 @@
   "7651373544": {
     "fullName": "Sesitu lala",
     "role": "QA Engineer / Tester",
-    "projectId": "prj-mtpyvgg3",
-    "projectName": "wallet",
+    "projectId": "prj-mtqz6yar",
+    "projectName": "St George",
     "assignedProjectIds": [
       "prj-mtpyvgg3"
     ],
@@ -99,6 +110,6 @@
     ],
     "telegramUsername": "Qa_elst",
     "chatId": "7651373544",
-    "updatedAt": "2026-09-07T09:28:06.311+00:00"
+    "updatedAt": "2026-09-07T09:34:05.299+00:00"
   }
 }

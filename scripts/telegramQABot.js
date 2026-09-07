@@ -19,6 +19,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import http from 'node:http';
 import { createClient } from '@supabase/supabase-js';
 
 // Automatically load .env or .env.example file if present
@@ -3449,13 +3450,23 @@ async function handleMessage(message) {
   await sendMessage(chatId, fallbackMsg);
 }
 
-// Long Polling Loop
+// Long Polling Loop & Keepalive State
 let lastUpdateId = 0;
+let lastPollSuccess = Date.now();
+let isPolling = false;
 
 async function pollUpdates() {
+  if (isPolling) return;
+  isPolling = true;
+
   try {
-    const res = await fetch(`${TELEGRAM_API}/getUpdates?offset=${lastUpdateId + 1}&timeout=25`);
+    // AbortSignal.timeout(35000): Prevents silent TCP socket hangs when idle.
+    // Telegram long poll timeout is 25s, so 35s ensures network hangs are gracefully broken.
+    const res = await fetch(`${TELEGRAM_API}/getUpdates?offset=${lastUpdateId + 1}&timeout=25`, {
+      signal: AbortSignal.timeout(35000),
+    });
     const data = await res.json();
+    lastPollSuccess = Date.now();
 
     if (data.ok && Array.isArray(data.result)) {
       for (const update of data.result) {
@@ -3472,10 +3483,16 @@ async function pollUpdates() {
       console.error('[Telegram API Error]', data.description);
     }
   } catch (err) {
-    console.error('[Polling Error]', err.message);
+    if (err.name === 'TimeoutError' || err.message?.includes('aborted')) {
+      // Normal long-poll cycle completion when no messages arrive; socket is healthy
+      lastPollSuccess = Date.now();
+    } else {
+      console.error('[Polling Error]', err.message);
+    }
+  } finally {
+    isPolling = false;
+    setTimeout(pollUpdates, 800);
   }
-
-  setTimeout(pollUpdates, 800);
 }
 
 // Sync Telegram commands for bot menu (/ command autocomplete)
@@ -3546,12 +3563,159 @@ async function syncTelegramCommands(chatId = null, role = null) {
   }
 }
 
+// Keepalive HTTP Server & Anti-Sleep Background Loop
+let httpServer = null;
+let keepAliveTimer = null;
+let watchdogTimer = null;
+
+function startKeepAliveServer() {
+  if (httpServer) return;
+  const rawPort = process.env.PORT || process.env.KEEP_ALIVE_PORT || 3000;
+  const PORT = Number(rawPort) || 3000;
+
+  httpServer = http.createServer(async (req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+    if (req.method === 'OPTIONS') {
+      res.writeHead(200);
+      return res.end();
+    }
+
+    const reqUrl = req.url || '/';
+    const cleanPath = reqUrl.split('?')[0];
+
+    if (cleanPath === '/' || cleanPath === '/health' || cleanPath === '/ping' || cleanPath === '/status') {
+      let dbStatus = 'disconnected';
+      if (supabase) {
+        try {
+          const { error } = await supabase.from('projects').select('id').limit(1);
+          dbStatus = error ? `warning: ${error.message}` : 'connected';
+        } catch (e) {
+          dbStatus = `exception: ${e.message}`;
+        }
+      }
+
+      const payload = {
+        status: 'ok',
+        service: 'AegisQA Telegram Bot',
+        uptimeSeconds: Math.round(process.uptime()),
+        database: dbStatus,
+        lastPollSecondsAgo: Math.round((Date.now() - lastPollSuccess) / 1000),
+        activeProfiles: Object.keys(loadProfiles()).length,
+        timestamp: new Date().toISOString(),
+      };
+
+      res.writeHead(200, {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-cache, no-store',
+      });
+      return res.end(JSON.stringify(payload, null, 2));
+    }
+
+    res.writeHead(404, { 'Content-Type': 'text/plain' });
+    res.end('Not Found');
+  });
+
+  const bindHost = '0.0.0.0';
+  httpServer.listen(PORT, bindHost, () => {
+    console.log(`✓ Keepalive HTTP server listening on port ${PORT} (/health, /ping)`);
+  });
+
+  httpServer.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      const fallbackPort = PORT + 1;
+      console.warn(`[Keepalive] Port ${PORT} in use, binding to fallback port ${fallbackPort}...`);
+      try {
+        httpServer.close();
+      } catch {}
+      httpServer = http.createServer(httpServer.listeners('request')[0]);
+      httpServer.listen(fallbackPort, bindHost, () => {
+        console.log(`✓ Keepalive HTTP server listening on fallback port ${fallbackPort} (/health)`);
+      });
+    } else {
+      console.error('[Keepalive Server Error]', err.message);
+    }
+  });
+}
+
+function startKeepAliveLoop() {
+  if (keepAliveTimer) return;
+
+  const KEEPALIVE_INTERVAL_MS = Number(process.env.KEEPALIVE_INTERVAL_MS) || (5 * 60 * 1000); // 5 minutes
+  console.log(`✓ Keepalive anti-sleep service active: pinging every ${KEEPALIVE_INTERVAL_MS / 60000}m to prevent sleep.`);
+
+  // 1. Watchdog: If no Telegram poll cycle completes in 75s, force restart polling
+  if (!watchdogTimer) {
+    watchdogTimer = setInterval(() => {
+      const elapsed = Date.now() - lastPollSuccess;
+      if (elapsed > 75000) {
+        console.warn(`[Watchdog] Polling may be stalled (${Math.round(elapsed / 1000)}s since last cycle). Forcing restart...`);
+        isPolling = false;
+        pollUpdates();
+      }
+    }, 30000);
+    watchdogTimer.unref();
+  }
+
+  // 2. Anti-Sleep Periodic Pinger (Supabase DB + Hosting Web Service)
+  keepAliveTimer = setInterval(async () => {
+    // A. Supabase database keepalive (prevents project from pausing/sleeping after inactivity)
+    if (supabase) {
+      try {
+        const { error } = await supabase.from('projects').select('id').limit(1);
+        if (error) {
+          console.warn('[Keepalive] Supabase ping warning:', error.message);
+        } else {
+          console.log('[Keepalive] Supabase DB ping OK — project kept awake');
+        }
+      } catch (dbErr) {
+        console.warn('[Keepalive] Supabase DB ping error:', dbErr.message);
+      }
+    }
+
+    // B. Web Service self-ping (prevents Render, Koyeb, Glitch, etc. from spinning down to sleep)
+    const externalUrl =
+      process.env.RENDER_EXTERNAL_URL ||
+      process.env.APP_URL ||
+      process.env.KEEPALIVE_URL ||
+      (httpServer && httpServer.address() && typeof httpServer.address() === 'object'
+        ? `http://127.0.0.1:${httpServer.address().port}`
+        : null);
+
+    if (externalUrl) {
+      try {
+        const cleanBase = externalUrl.replace(/\/+$/, '');
+        const target = cleanBase.endsWith('/health') || cleanBase.endsWith('/ping')
+          ? cleanBase
+          : `${cleanBase}/health`;
+
+        const pingRes = await fetch(target, {
+          signal: AbortSignal.timeout(10000),
+        });
+        if (pingRes.ok) {
+          console.log(`[Keepalive] Self-ping OK to ${target} (HTTP ${pingRes.status}) — web service kept awake`);
+        }
+      } catch (pingErr) {
+        console.log(`[Keepalive] Self-ping note: ${pingErr.message}`);
+      }
+    }
+  }, KEEPALIVE_INTERVAL_MS);
+
+  keepAliveTimer.unref();
+}
+
 // Startup
 async function init() {
   console.log('\n=============================================');
   console.log('🛡️  AegisQA Telegram Daily Standup Bot');
   console.log('    100% Non-AI Deterministic QA Engine');
   console.log('=============================================\n');
+
+  // Launch anti-sleep HTTP health server and keepalive ping loop
+  startKeepAliveServer();
+  startKeepAliveLoop();
 
   try {
     const res = await fetch(`${TELEGRAM_API}/getMe`);
@@ -3609,4 +3773,6 @@ export {
   notifyQALeadsOfStandupIssue,
   notifyQALeadsOfBlockerResolved,
   notifyMemberOfProjectAssignment,
+  startKeepAliveServer,
+  startKeepAliveLoop,
 };
