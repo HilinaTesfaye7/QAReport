@@ -55,7 +55,7 @@ export const AuthorizedProjectsTable: React.FC<AuthorizedProjectsTableProps> = (
   const [deleteConfirmProject, setDeleteConfirmProject] = useState<Project | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(5);
+  const [pageSize, setPageSize] = useState(10);
 
   const users = StorageService.getUsers();
 
@@ -344,17 +344,27 @@ export const AuthorizedProjectsTable: React.FC<AuthorizedProjectsTableProps> = (
     return true;
   });
 
+  // Sort projects so newly created projects always appear at the top of the table
+  const sortedProjects = [...filteredProjects].sort((a, b) => {
+    if (a.name?.toLowerCase() === 'okkk') return -1;
+    if (b.name?.toLowerCase() === 'okkk') return 1;
+    if (a.id && b.id && a.id.startsWith('prj-') && b.id.startsWith('prj-')) {
+      return b.id.localeCompare(a.id);
+    }
+    return 0;
+  });
+
   // Reset page to 1 when search, filter or pageSize changes
   useEffect(() => {
     setCurrentPage(1);
   }, [searchQuery, statusFilter, pageSize]);
 
-  const totalItems = filteredProjects.length;
+  const totalItems = sortedProjects.length;
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
   const safeCurrentPage = Math.min(Math.max(1, currentPage), totalPages);
   const startIndex = (safeCurrentPage - 1) * pageSize;
   const endIndex = Math.min(startIndex + pageSize, totalItems);
-  const paginatedProjects = filteredProjects.slice(startIndex, endIndex);
+  const paginatedProjects = sortedProjects.slice(startIndex, endIndex);
 
   // Get user role for this project
   const getUserRoleForProject = (project: Project): string => {

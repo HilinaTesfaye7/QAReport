@@ -243,8 +243,10 @@ export const StorageService = {
           const records = data.filter((raw: any) => !deletedProjectIds.has(raw.id));
 
           // Retain any fresh local project that was just created and may still be saving to cloud
+          const missingInCloud: Project[] = [];
           for (const lp of localProjects) {
             if (!cloudIds.has(lp.id) && !deletedProjectIds.has(lp.id)) {
+              missingInCloud.push(lp);
               records.unshift({
                 id: lp.id,
                 name: lp.name,
@@ -260,6 +262,29 @@ export const StorageService = {
                 regression_progress: lp.regressionProgress,
               });
             }
+          }
+
+          // Auto-persist any missing local projects to Supabase Cloud so they never disappear
+          if (missingInCloud.length > 0) {
+            const missingRows = missingInCloud.map((p) => ({
+              id: p.id,
+              name: p.name,
+              description: p.description || '',
+              status: p.status,
+              start_date: p.startDate,
+              target_release_date: p.targetReleaseDate,
+              project_owner: p.projectOwner,
+              qa_lead_id: p.qaLeadId,
+              member_ids: p.memberIds,
+              resources: p.resources,
+              qa_progress: p.qaProgress,
+              regression_progress: p.regressionProgress,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            }));
+            supabase.from('projects').upsert(missingRows).then(({ error: upErr }) => {
+              if (upErr) console.warn('Supabase auto-sync missing project error:', upErr);
+            });
           }
 
           const projectMap = new Map<string, Project>();
@@ -308,7 +333,7 @@ export const StorageService = {
       }
     }
 
-    // 2. Fall back to local dev-server API or localStorage
+    // 2. Fall back to local dev-server API or localStorage (merge without destroying local additions)
     if (typeof fetch !== 'undefined') {
       try {
         const deletedProjectIds = new Set<string>(
@@ -318,10 +343,15 @@ export const StorageService = {
         if (res.ok) {
           const diskProjects = await res.json();
           if (Array.isArray(diskProjects) && diskProjects.length > 0) {
-            const filtered = diskProjects.filter((p: any) => !deletedProjectIds.has(p.id));
-            localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(filtered));
+            const filteredDisk = diskProjects.filter((p: any) => !deletedProjectIds.has(p.id));
+            const diskIdSet = new Set(filteredDisk.map((p: any) => p.id));
+            const localRaw = localStorage.getItem(STORAGE_KEYS.PROJECTS);
+            const localProjects: Project[] = localRaw ? JSON.parse(localRaw) : [];
+            const preservedLocals = localProjects.filter((lp) => !diskIdSet.has(lp.id) && !deletedProjectIds.has(lp.id));
+            const merged = [...preservedLocals, ...filteredDisk];
+            localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(merged));
             emitChange(STORAGE_KEYS.PROJECTS);
-            return filtered;
+            return merged;
           }
         }
       } catch {}

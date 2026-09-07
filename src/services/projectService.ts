@@ -29,7 +29,8 @@ export const ProjectService = {
       regressionProgress: 0,
     };
 
-    projects.push(newProject);
+    // Place newest projects first so they immediately appear on Page 1
+    projects.unshift(newProject);
     StorageService.saveProjects(projects);
 
     AuditService.log({

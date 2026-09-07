@@ -215,11 +215,22 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
             resources: newProject.resources,
             qa_progress: newProject.qaProgress,
             regression_progress: newProject.regressionProgress,
+            created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           }]);
         } catch (cloudErr) {
           console.warn('Supabase initial project upsert error:', cloudErr);
         }
+      }
+
+      // Sync with /api/projects disk/serverless backup
+      if (typeof fetch !== 'undefined') {
+        const allProjs = StorageService.getProjects();
+        fetch('/api/projects', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(allProjs),
+        }).catch(() => {});
       }
 
       // Explicitly trigger instant assignment notifications for all selected members

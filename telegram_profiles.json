@@ -7,16 +7,65 @@
     "assignedProjectIds": [
       "prj-banking",
       "prj-mobile",
-      "prj-nextgen"
+      "prj-nextgen",
+      "prj-mtqwfzb7"
     ],
     "assignedProjects": [
       "Banking SuperApp",
       "Mobile Banking iOS & Android",
-      "NextGen Mobile Banking"
+      "NextGen Mobile Banking",
+      "okkk"
     ],
     "telegramUsername": "Helu777",
     "chatId": "347835367",
-    "updatedAt": "2026-09-05T11:54:52.077+00:00"
+    "updatedAt": "2026-09-07T07:08:32.25+00:00"
+  },
+  "432754405": {
+    "fullName": "Helllooooo",
+    "role": "QA Engineer / Tester",
+    "projectId": "prj-mtq2sy1r",
+    "projectName": "test",
+    "assignedProjectIds": [
+      "prj-mtq2sy1r"
+    ],
+    "assignedProjects": [
+      "test"
+    ],
+    "telegramUsername": "",
+    "chatId": "432754405",
+    "updatedAt": "2026-09-07T06:09:36.316+00:00"
+  },
+  "854270712": {
+    "fullName": "BigAbod",
+    "role": "QA Engineer / Tester",
+    "projectId": "prj-banking",
+    "projectName": "Banking SuperApp",
+    "assignedProjectIds": [
+      "prj-banking",
+      "prj-mtqwfzb7"
+    ],
+    "assignedProjects": [
+      "Banking SuperApp",
+      "okkk"
+    ],
+    "telegramUsername": "BigAbod",
+    "chatId": "854270712",
+    "updatedAt": "2026-09-07T07:08:32.246+00:00"
+  },
+  "918263567": {
+    "fullName": "Dagmawit",
+    "role": "QA Engineer / Tester",
+    "projectId": "prj-mtqwfzb7",
+    "projectName": "okkk",
+    "assignedProjectIds": [
+      "prj-mtqwfzb7"
+    ],
+    "assignedProjects": [
+      "okkk"
+    ],
+    "telegramUsername": "dag519",
+    "chatId": "918263567",
+    "updatedAt": "2026-09-07T07:51:11.14+00:00"
   },
   "7527336375": {
     "fullName": "Ola king",
@@ -32,5 +81,20 @@
     "telegramUsername": "",
     "chatId": "7527336375",
     "updatedAt": "2026-09-05T20:48:59.373+00:00"
+  },
+  "7651373544": {
+    "fullName": "QA",
+    "role": "QA Lead",
+    "projectId": "prj-mtqwfzb7",
+    "projectName": "okkk",
+    "assignedProjectIds": [
+      "prj-mtqwfzb7"
+    ],
+    "assignedProjects": [
+      "okkk"
+    ],
+    "telegramUsername": "Qa_elst",
+    "chatId": "7651373544",
+    "updatedAt": "2026-09-07T07:23:11.169+00:00"
   }
 }

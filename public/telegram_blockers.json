@@ -1,5 +1,30 @@
 [
   {
+    "id": "blk-mtqwc33s",
+    "title": "Blocker: BigAbod (Blocked)",
+    "description": "App is not ready for QA",
+    "projectId": "prj-banking",
+    "projectName": "Banking SuperApp",
+    "severity": "Critical",
+    "status": "Resolved",
+    "reportedBy": "BigAbod",
+    "chatId": "854270712",
+    "createdAt": "2026-09-07T07:05:30.040Z",
+    "resolvedAt": "2026-09-07T07:06:00.434Z"
+  },
+  {
+    "id": "blk-mtq2yztw",
+    "title": "Blocker: Coco (Blocked)",
+    "description": "i can't test",
+    "projectId": "prj-mto97e35",
+    "projectName": "ko",
+    "severity": "Critical",
+    "status": "Open",
+    "reportedBy": "Coco",
+    "chatId": "347835367",
+    "createdAt": "2026-09-06T17:23:30.404Z"
+  },
+  {
     "id": "blk-mtovx2s4",
     "title": "Blocker: Coco (Blocked)",
     "description": "Goooo",
