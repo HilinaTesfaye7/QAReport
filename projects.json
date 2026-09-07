@@ -145,7 +145,8 @@
     "status": "Planning",
     "memberIds": [
       "usr-347835367",
-      "usr-7527336375"
+      "usr-7527336375",
+      "usr-7651373544"
     ],
     "resources": {
       "prdUrl": "https://docs.bank.internal/prd/spec-v1",
@@ -473,7 +474,8 @@
       "usr-hana",
       "usr-ahmed",
       "usr-daniel",
-      "usr-854270712"
+      "usr-854270712",
+      "usr-7651373544"
     ],
     "resources": {
       "prdUrl": "https://docs.bankcorp.internal/prd/superapp-v2.4",

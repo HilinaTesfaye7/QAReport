@@ -231,6 +231,13 @@ function getProfile(chatId) {
   return profiles[String(chatId)] || null;
 }
 
+function saveProfiles(profiles) {
+  fs.writeFileSync(PROFILES_FILE, JSON.stringify(profiles, null, 2), 'utf8');
+  try {
+    fs.writeFileSync(PUBLIC_PROFILES_FILE, JSON.stringify(profiles, null, 2), 'utf8');
+  } catch {}
+}
+
 function saveProfile(chatId, data) {
   const strChatId = String(chatId);
   const profiles = loadProfiles();
@@ -240,10 +247,7 @@ function saveProfile(chatId, data) {
     chatId: strChatId,
     updatedAt: new Date().toISOString(),
   };
-  fs.writeFileSync(PROFILES_FILE, JSON.stringify(profiles, null, 2), 'utf8');
-  try {
-    fs.writeFileSync(PUBLIC_PROFILES_FILE, JSON.stringify(profiles, null, 2), 'utf8');
-  } catch {}
+  saveProfiles(profiles);
   
   const saved = profiles[strChatId];
   console.log(`[Profile] Saved profile for chat ${strChatId}: ${saved.fullName || 'QA Member'} (${saved.projectName || 'General'})`);
