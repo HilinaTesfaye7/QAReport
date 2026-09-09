@@ -501,6 +501,16 @@
       ],
       "figmaDescription": "Full mobile and responsive web frames with auto-layout padding tokens.",
       "figmaPreviewTitle": "SuperApp UI Kit & Interactive Transfer Flows (Figma v2.4)"
+    },
+    "workload": {
+      "complexity": "Critical",
+      "testingScope": "Full stack",
+      "featureCount": "30+",
+      "regressionSize": "Very Large",
+      "releaseFrequency": "Weekly",
+      "calculatedPercentage": 45,
+      "approvedPercentage": 45,
+      "releaseAdjustment": 15
     }
   },
   {
@@ -539,6 +549,16 @@
       ],
       "figmaDescription": "Native iOS & Android card views with encrypted CVV reveal.",
       "figmaPreviewTitle": "Mobile Native Components & Virtual Card Flow"
+    },
+    "workload": {
+      "complexity": "High",
+      "testingScope": "Mobile",
+      "featureCount": "16-30",
+      "regressionSize": "Medium",
+      "releaseFrequency": "Bi-weekly",
+      "calculatedPercentage": 24,
+      "approvedPercentage": 25,
+      "releaseAdjustment": 0
     }
   }
 ]

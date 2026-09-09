@@ -1,0 +1,19 @@
+{
+  "weights": {
+    "testExecution": 25,
+    "passRate": 25,
+    "defectHealth": 20,
+    "blockers": 15,
+    "qaReporting": 15
+  },
+  "thresholds": {
+    "ready": 90,
+    "conditional": 75,
+    "highRisk": 60
+  },
+  "gates": {
+    "criticalDefectBlocksRelease": true,
+    "criticalBlockerBlocksRelease": true,
+    "mandatoryRegressionRequired": true
+  }
+}

@@ -1,0 +1,170 @@
+[
+  {
+    "id": "asg-mtu3p99n",
+    "testerId": "usr-347835367",
+    "projectId": "prj-banking",
+    "allocationPercentage": 20,
+    "startDate": "2026-09-09T12:55:00.395Z",
+    "status": "Active"
+  },
+  {
+    "id": "asg-mtu3p9ae",
+    "testerId": "usr-347835367",
+    "projectId": "prj-mobile",
+    "allocationPercentage": 20,
+    "startDate": "2026-09-09T12:55:00.422Z",
+    "status": "Active"
+  },
+  {
+    "id": "asg-mtu3p9ah",
+    "testerId": "usr-347835367",
+    "projectId": "prj-nextgen",
+    "allocationPercentage": 20,
+    "startDate": "2026-09-09T12:55:00.425Z",
+    "status": "Active"
+  },
+  {
+    "id": "asg-mtu3p9aj",
+    "testerId": "usr-347835367",
+    "projectId": "prj-mtqwfzb7",
+    "allocationPercentage": 20,
+    "startDate": "2026-09-09T12:55:00.427Z",
+    "status": "Active"
+  },
+  {
+    "id": "asg-mtu3p9am",
+    "testerId": "usr-347835367",
+    "projectId": "prj-mtqz6yar",
+    "allocationPercentage": 20,
+    "startDate": "2026-09-09T12:55:00.430Z",
+    "status": "Active"
+  },
+  {
+    "id": "asg-mtu3p9ap",
+    "testerId": "usr-367448100",
+    "projectId": "prj-mtqz6yar",
+    "allocationPercentage": 20,
+    "startDate": "2026-09-09T12:55:00.433Z",
+    "status": "Active"
+  },
+  {
+    "id": "asg-mtu3p9at",
+    "testerId": "usr-398745619",
+    "projectId": "prj-banking",
+    "allocationPercentage": 20,
+    "startDate": "2026-09-09T12:55:00.437Z",
+    "status": "Active"
+  },
+  {
+    "id": "asg-mtu3p9aw",
+    "testerId": "usr-432754405",
+    "projectId": "prj-mtq2sy1r",
+    "allocationPercentage": 20,
+    "startDate": "2026-09-09T12:55:00.440Z",
+    "status": "Active"
+  },
+  {
+    "id": "asg-mtu3p9az",
+    "testerId": "usr-502756256",
+    "projectId": "prj-mtqz6yar",
+    "allocationPercentage": 20,
+    "startDate": "2026-09-09T12:55:00.443Z",
+    "status": "Active"
+  },
+  {
+    "id": "asg-mtu3p9b3",
+    "testerId": "usr-854270712",
+    "projectId": "prj-banking",
+    "allocationPercentage": 20,
+    "startDate": "2026-09-09T12:55:00.447Z",
+    "status": "Active"
+  },
+  {
+    "id": "asg-mtu3p9b6",
+    "testerId": "usr-854270712",
+    "projectId": "prj-mtqwfzb7",
+    "allocationPercentage": 20,
+    "startDate": "2026-09-09T12:55:00.450Z",
+    "status": "Active"
+  },
+  {
+    "id": "asg-mtu3p9bb",
+    "testerId": "usr-918263567",
+    "projectId": "prj-mtqwfzb7",
+    "allocationPercentage": 20,
+    "startDate": "2026-09-09T12:55:00.455Z",
+    "status": "Active"
+  },
+  {
+    "id": "asg-mtu3p9bd",
+    "testerId": "usr-918263567",
+    "projectId": "prj-mtqz6yar",
+    "allocationPercentage": 20,
+    "startDate": "2026-09-09T12:55:00.457Z",
+    "status": "Active"
+  },
+  {
+    "id": "asg-mtu3p9bg",
+    "testerId": "usr-7527336375",
+    "projectId": "prj-mtof6cqc",
+    "allocationPercentage": 20,
+    "startDate": "2026-09-09T12:55:00.460Z",
+    "status": "Active"
+  },
+  {
+    "id": "asg-mtu3p9bi",
+    "testerId": "usr-7651373544",
+    "projectId": "prj-mtpyvgg3",
+    "allocationPercentage": 20,
+    "startDate": "2026-09-09T12:55:00.462Z",
+    "status": "Active"
+  },
+  {
+    "id": "asg-mtu3p9bk",
+    "testerId": "usr-6009896175",
+    "projectId": "prj-mtqz6yar",
+    "allocationPercentage": 20,
+    "startDate": "2026-09-09T12:55:00.464Z",
+    "status": "Active"
+  },
+  {
+    "id": "asg-mtu3p9bm",
+    "testerId": "usr--5044151423",
+    "projectId": "prj-banking",
+    "allocationPercentage": 20,
+    "startDate": "2026-09-09T12:55:00.466Z",
+    "status": "Active"
+  },
+  {
+    "id": "asg-mtu3p9bo",
+    "testerId": "usr--5044151423",
+    "projectId": "prj-mobile",
+    "allocationPercentage": 20,
+    "startDate": "2026-09-09T12:55:00.468Z",
+    "status": "Active"
+  },
+  {
+    "id": "asg-mtu3p9bs",
+    "testerId": "usr--5044151423",
+    "projectId": "prj-nextgen",
+    "allocationPercentage": 20,
+    "startDate": "2026-09-09T12:55:00.472Z",
+    "status": "Active"
+  },
+  {
+    "id": "asg-mtu3p9bu",
+    "testerId": "usr--5044151423",
+    "projectId": "prj-mtqwfzb7",
+    "allocationPercentage": 20,
+    "startDate": "2026-09-09T12:55:00.474Z",
+    "status": "Active"
+  },
+  {
+    "id": "asg-mtu3p9bw",
+    "testerId": "usr--5044151423",
+    "projectId": "prj-mtqz6yar",
+    "allocationPercentage": 20,
+    "startDate": "2026-09-09T12:55:00.476Z",
+    "status": "Active"
+  }
+]

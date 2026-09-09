@@ -22,6 +22,13 @@ import path from 'node:path';
 import http from 'node:http';
 import { createClient } from '@supabase/supabase-js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { getTeamCapacity, getTesterCapacity, generateCapacityBar, getEffectiveProjectWorkload } from './workload/capacityService.js';
+import { getImbalanceAlerts, getBestTesterRecommendations, getAssignmentWarning } from './workload/alertService.js';
+import { assignTesterToProject, getProjectAssignments } from './workload/assignmentService.js';
+import { recordDailySnapshot, getTesterTrend } from './workload/historyService.js';
+import { handleNewCheckinStep } from './checkin/checkinCommand.js';
+import { calculateReadinessScore, loadReadinessConfig } from './readiness/readinessCalculator.js';
+import { getDashboardOverview } from './dashboard/qaDashboard.js';
 
 // Automatically load .env or .env.example file if present
 function loadEnv() {
@@ -2135,6 +2142,10 @@ async function finalizeAndSubmitCheckin(chatId, user, session) {
     }).catch((err) => console.error('[Notify Lead Error]', err.message));
   }
 
+  // Snapshot workload history
+  const cap = getTesterCapacity('usr-' + chatId);
+  recordDailySnapshot('usr-' + chatId, cap.totalWorkload);
+
   userSessions.delete(chatId);
 
   // AFTER SUBMISSION, show concise confirmation matching required template
@@ -2241,12 +2252,13 @@ async function handleCheckinStep(chatId, user, text) {
       return true;
     }
 
-    session.step = 'q1_worked_today';
+    session.step = 'work_type';
     await sendMessage(
       chatId,
       `📁 <b>Project:</b> <b>${escapeHtml(selectedName)}</b>\n\n` +
-      `🎯 <b>What did you work on today?</b>\n` +
-      `<i>(Feature, module, test cases executed, API testing, regression, bugs retested, etc.)</i>`
+      `🎯 <b>Select your work type(s) for today:</b>\n` +
+      `<i>(Functional Testing, Regression, Bug Verification, API Testing, Web Testing, Mobile Testing, Other)</i>\n` +
+      `Type the work type or reply "Next" if done.`
     );
     return true;
   }
@@ -2288,99 +2300,15 @@ async function handleCheckinStep(chatId, user, text) {
         `<i>(Feature, module, test cases executed, API testing, regression, bugs retested, etc.)</i>`
       );
     }
-    session.step = 'q1_worked_today';
+    session.step = 'work_type';
     return true;
   }
 
-  switch (session.step) {
-    case 'q1_worked_today':
-    case 1:
-      session.answers.todayWorkingOn = trimmed;
-      session.step = 'q2_blockers';
-      await sendMessage(
-        chatId,
-        `🚨 <b>Any blockers/challenges?</b>\n\n` +
-        `<i>(Reply with any blockers or challenges, or type <b>None</b> if all clear):</i>`
-      );
-      return true;
-
-    case 'q2_blockers':
-    case 2: {
-      const isNone = lower === 'none' || lower === 'no' || lower === '0' || lower === 'clear' || lower === 'all clear' || lower === 'nothing' || lower === 'nil';
-      const isYes = lower === 'yes' || lower === 'y' || lower === 'yeah' || lower === 'yep' || lower === 'i have a blocker';
-      
-      if (isNone) {
-        session.answers.blockers = 'None';
-        session.answers.isBlocked = false;
-      } else if (isYes) {
-        session.step = 'q2_blockers_desc';
-        await sendMessage(
-          chatId,
-          `Please describe the blocker in detail:`
-        );
-        return true;
-      } else {
-        session.answers.blockers = trimmed;
-        session.answers.isBlocked = true;
-      }
-      session.step = 'q3_risks';
-      await sendMessage(
-        chatId,
-        `⚠️ <b>Risk you afraid of?</b>\n\n` +
-        `<i>(Any release risks, environment instability, dependencies, or type <b>None</b> if none):</i>`
-      );
-      return true;
-    }
-
-    case 'q2_blockers_desc': {
-      session.answers.blockers = trimmed;
-      session.answers.isBlocked = true;
-      session.step = 'q3_risks';
-      await sendMessage(
-        chatId,
-        `⚠️ <b>Risk you afraid of?</b>\n\n` +
-        `<i>(Any release risks, environment instability, dependencies, or type <b>None</b> if none):</i>`
-      );
-      return true;
-    }
-
-    case 'q3_risks':
-    case 3: {
-      const isNone = lower === 'none' || lower === 'no' || lower === '0' || lower === 'clear' || lower === 'nothing' || lower === 'nil';
-      session.answers.risks = isNone ? 'None' : trimmed;
-      session.step = 'q4_next_plan';
-      await sendMessage(
-        chatId,
-        `📋 <b>Next Plan?</b>\n\n` +
-        `<i>(What is your primary testing task or plan next?):</i>`
-      );
-      return true;
-    }
-
-    case 'q4_next_plan':
-    case 4:
-      session.answers.nextPlan = trimmed;
-      session.step = 'q5_major_achievement';
-      await sendMessage(
-        chatId,
-        `🏆 <b>Major achievement today?</b>\n\n` +
-        `<i>(Key accomplishment, milestone, critical bug found/verified, or type <b>None</b>):</i>`
-      );
-      return true;
-
-    case 'q5_major_achievement':
-    case 5: {
-      const isNone = lower === 'none' || lower === 'no' || lower === '0' || lower === 'nothing' || lower === 'nil';
-      session.answers.majorAchievement = isNone ? 'None' : trimmed;
-      session.answers.yesterdayCompleted = session.answers.majorAchievement;
-      await finalizeAndSubmitCheckin(chatId, user, session);
-      return true;
-    }
-
-    default:
-      userSessions.delete(chatId);
-      return false;
+  const res = await handleNewCheckinStep(chatId, session, text, sendMessage);
+  if (res.cancel) {
+    return true;
   }
+  return res.done;
 }
 
 // ==========================================
@@ -2613,6 +2541,134 @@ async function handleTestCaseWizardStep(chatId, user, rawText) {
 // ==========================================
 // 3B. BLOCKER REPORTING WIZARD
 // ==========================================
+
+async function handleAssignWizardStep(chatId, user, text) {
+  const session = userSessions.get(chatId);
+  if (!session || session.type !== 'assign_wizard') return false;
+
+  const rawText = text.trim();
+  const lower = rawText.toLowerCase();
+
+  if (lower === '/cancel' || lower === 'cancel') {
+    userSessions.delete(chatId);
+    await sendMessage(chatId, `❌ Assignment cancelled.`);
+    return true;
+  }
+
+  // STEP 1: Choose project
+  if (session.step === 'choose_project') {
+    const list = session.projectsList;
+    let chosenProject = null;
+
+    if (!isNaN(rawText)) {
+      const idx = parseInt(rawText, 10) - 1;
+      if (idx >= 0 && idx < list.length) {
+        chosenProject = list[idx];
+      }
+    } else {
+      chosenProject = list.find((p) => p.name.toLowerCase() === lower);
+    }
+
+    if (!chosenProject) {
+      await sendMessage(chatId, `⚠️ Invalid project. Please reply with the number or exact name (or type /cancel).`);
+      return true;
+    }
+
+    session.selectedProject = chosenProject;
+    
+    // Show tester recommendations
+    const requiredWeight = getEffectiveProjectWorkload(chosenProject.id);
+    const recText = getBestTesterRecommendations(requiredWeight);
+
+    session.step = 'choose_tester';
+    await sendMessage(
+      chatId,
+      `📁 <b>Project:</b> ${escapeHtml(chosenProject.name)}\n` +
+      `📊 <b>Required QA allocation: ${requiredWeight}%</b>\n\n` +
+      recText + `\n` +
+      `<i>Reply with the QA Tester's exact name (or type /cancel):</i>`
+    );
+    return true;
+  }
+
+  // STEP 2: Choose tester
+  if (session.step === 'choose_tester') {
+    const profiles = JSON.parse(fs.readFileSync(path.resolve(process.cwd(), 'telegram_profiles.json'), 'utf-8'));
+    let chosenTesterId = null;
+    let chosenTesterName = '';
+
+    for (const id in profiles) {
+      if (profiles[id].fullName.toLowerCase() === lower || lower.includes(profiles[id].fullName.toLowerCase())) {
+        chosenTesterId = `usr-${id}`;
+        chosenTesterName = profiles[id].fullName;
+        break;
+      }
+    }
+
+    if (!chosenTesterId) {
+      await sendMessage(chatId, `⚠️ Tester not found. Please type their exact name as shown in the list.`);
+      return true;
+    }
+
+    session.selectedTesterId = chosenTesterId;
+    session.selectedTesterName = chosenTesterName;
+
+    const requiredWeight = getEffectiveProjectWorkload(session.selectedProject.id);
+    
+    session.step = 'choose_allocation';
+    await sendMessage(
+      chatId,
+      `<b>Allocation for ${escapeHtml(chosenTesterName)} on ${escapeHtml(session.selectedProject.name)}</b>\n\n` +
+      `Project total workload: ${requiredWeight}%\n` +
+      `Suggested allocation: ${requiredWeight}%\n\n` +
+      `<i>Reply with the percentage to allocate (e.g., 20) or just reply ${requiredWeight} to accept the suggestion:</i>`
+    );
+    return true;
+  }
+
+  // STEP 3: Choose allocation
+  if (session.step === 'choose_allocation') {
+    const allocation = parseInt(rawText.replace('%', ''), 10);
+    if (isNaN(allocation) || allocation <= 0) {
+      await sendMessage(chatId, `⚠️ Invalid percentage. Please enter a number.`);
+      return true;
+    }
+
+    session.allocation = allocation;
+    
+    // Check warning
+    const cap = getTesterCapacity(session.selectedTesterId);
+    const warning = getAssignmentWarning(session.selectedTesterId, session.selectedTesterName, cap.totalWorkload, allocation);
+
+    if (warning) {
+      session.step = 'confirm_warning';
+      await sendMessage(chatId, warning);
+      return true;
+    }
+
+    // Assign directly
+    assignTesterToProject(session.selectedTesterId, session.selectedProject.id, allocation);
+    userSessions.delete(chatId);
+    await sendMessage(chatId, `✅ Successfully assigned ${escapeHtml(session.selectedTesterName)} to ${escapeHtml(session.selectedProject.name)} with ${allocation}% workload.`);
+    return true;
+  }
+
+  // STEP 4: Confirm Warning
+  if (session.step === 'confirm_warning') {
+    if (lower === 'assign anyway' || lower === 'yes' || lower === 'assign') {
+      assignTesterToProject(session.selectedTesterId, session.selectedProject.id, session.allocation);
+      userSessions.delete(chatId);
+      await sendMessage(chatId, `✅ Successfully assigned ${escapeHtml(session.selectedTesterName)} to ${escapeHtml(session.selectedProject.name)} with ${session.allocation}% workload.`);
+      return true;
+    } else {
+      userSessions.delete(chatId);
+      await sendMessage(chatId, `❌ Assignment aborted. You can type /assign to start over.`);
+      return true;
+    }
+  }
+
+  return false;
+}
 
 async function handleBlockerWizardStep(chatId, user, text) {
   const session = userSessions.get(chatId);
@@ -2901,6 +2957,9 @@ async function handleMessage(message) {
       if (handled) return;
     } else if (session.type === 'testcase_wizard' || session.type === 'submit_testcase_link') {
       const handled = await handleTestCaseWizardStep(chatId, user, rawText);
+      if (handled) return;
+    } else if (session.type === 'assign_wizard') {
+      const handled = await handleAssignWizardStep(chatId, user, rawText);
       if (handled) return;
     } else if (session.type === 'blocker_wizard') {
       const handled = await handleBlockerWizardStep(chatId, user, rawText);
@@ -3426,6 +3485,135 @@ async function handleMessage(message) {
     reportMsg += `• Switch active project: <code>/project</code>\n`;
 
     await sendLongMessage(chatId, reportMsg);
+    return;
+  }
+
+  if (text.startsWith('/readiness')) {
+    const parts = text.split(' ');
+    let targetProject = profile?.projectId;
+    
+    if (parts.length > 1) {
+      if (!isQALead(profile)) {
+        await sendMessage(chatId, `⚠️ Only QA Leads can query other projects.`);
+        return;
+      }
+      const allProjects = JSON.parse(fs.readFileSync(path.resolve(process.cwd(), 'projects.json'), 'utf-8'));
+      const p = allProjects.find(pr => pr.name.toLowerCase().includes(parts.slice(1).join(' ').toLowerCase()));
+      if (p) targetProject = p.id;
+    }
+
+    if (!targetProject) {
+      await sendMessage(chatId, `⚠️ Project not found.`);
+      return;
+    }
+
+    const allProjects = JSON.parse(fs.readFileSync(path.resolve(process.cwd(), 'projects.json'), 'utf-8'));
+    const p = allProjects.find(pr => pr.id === targetProject);
+
+    // Simulate getting actual test and defect data
+    const testData = { executed: 160, planned: 200, passed: 145 };
+    const defectData = { critical: 0, high: 2, medium: 5, low: 10, activeBlockers: 1 };
+    const reportingData = { expected: 5, submitted: 5 };
+    
+    const readiness = calculateReadinessScore(targetProject, testData, defectData, reportingData);
+    
+    let msg = `🚦 <b>RELEASE READINESS</b>\n\n`;
+    msg += `Project: ${p.name}\n`;
+    msg += `Overall Score: <b>${readiness.score}/100</b>\n\n`;
+    msg += `Status:\n${readiness.emoji} <b>${readiness.status}</b>\n\n`;
+    msg += `📊 <b>Score Breakdown</b>\n\n`;
+    
+    const cats = [
+      { name: 'Test Execution', data: readiness.components.execution },
+      { name: 'Pass Rate', data: readiness.components.passRate },
+      { name: 'Defect Health', data: readiness.components.defectHealth },
+      { name: 'Blockers', data: readiness.components.blockers },
+      { name: 'QA Reporting', data: readiness.components.qaReporting }
+    ];
+
+    cats.forEach(c => {
+      msg += `${c.name}\n`;
+      msg += `<code>${generateCapacityBar(c.data.pct)}</code>\n`;
+      msg += `Contribution: ${c.data.pts.toFixed(1)}/${c.data.max}\n\n`;
+    });
+
+    if (readiness.gateBlocked) {
+      msg += `🚨 <b>RELEASE BLOCKED</b>\n`;
+      readiness.gateReason.forEach(r => msg += `• ${r}\n`);
+    }
+
+    await sendLongMessage(chatId, msg);
+    return;
+  }
+
+  if (text === '/dashboard') {
+    if (!isQALead(profile)) {
+      await sendMessage(chatId, `⚠️ <b>Access Denied:</b> Only for QA Leads.`);
+      return;
+    }
+    const allProjects = JSON.parse(fs.readFileSync(path.resolve(process.cwd(), 'projects.json'), 'utf-8'));
+    const checkins = JSON.parse(fs.readFileSync(path.resolve(process.cwd(), 'checkins.json'), 'utf-8'));
+    const teamCap = getTeamCapacity();
+    
+    const msg = getDashboardOverview(allProjects, checkins, teamCap);
+    await sendLongMessage(chatId, msg);
+    return;
+  }
+
+  if (text === '/capacity' || text === '/workload') {
+    const isLead = isQALead(profile);
+    if (!isLead) {
+      await sendMessage(chatId, `⚠️ <b>Access Denied:</b> This command is restricted to QA Leads.`);
+      return;
+    }
+    
+    const teamCap = getTeamCapacity();
+    let msg = `👥 <b>QA TEAM CAPACITY</b>\n\n`;
+    msg += `Total QA Capacity: <b>${teamCap.totalTeamCapacity}%</b>\n`;
+    msg += `Allocated Capacity: <b>${teamCap.totalAllocated}%</b>\n`;
+    msg += `Available Capacity: <b>${teamCap.availableCapacity}%</b>\n\n`;
+    msg += `Team Utilization: ${generateCapacityBar(teamCap.utilization)}\n\n`;
+    
+    for (const t of teamCap.breakdown) {
+      const trend = getTesterTrend(t.testerId);
+      const trendStr = trend ? ` ${trend.trend}` : '';
+      msg += `<b>${t.emoji} ${escapeHtml(t.name)}</b> — ${t.workload}%${trendStr}\n`;
+      msg += `<code>${generateCapacityBar(t.workload)}</code>\n`;
+      if (trend && trend.overloadedDays > 0) {
+        msg += `<i>🔴 Overloaded for ${trend.overloadedDays} consecutive days</i>\n`;
+      }
+      msg += `\n`;
+    }
+    
+    const imbalances = getImbalanceAlerts();
+    if (imbalances) {
+      msg += `━━━━━━━━━━━━━━━━━━━━\n${imbalances}\n`;
+    }
+    
+    await sendLongMessage(chatId, msg);
+    return;
+  }
+
+  if (text === '/assign') {
+    const isLead = isQALead(profile);
+    if (!isLead) {
+      await sendMessage(chatId, `⚠️ <b>Access Denied:</b> This command is restricted to QA Leads.`);
+      return;
+    }
+    const allProjects = JSON.parse(fs.readFileSync(path.resolve(process.cwd(), 'projects.json'), 'utf-8'));
+    userSessions.set(chatId, {
+      type: 'assign_wizard',
+      step: 'choose_project',
+      projectsList: allProjects,
+      profile
+    });
+    
+    let listText = '';
+    allProjects.forEach((p, idx) => {
+      listText += `${idx + 1}️⃣ <b>${escapeHtml(p.name)}</b>\n`;
+    });
+    
+    await sendMessage(chatId, `📁 <b>Assign QA Tester to Project</b>\n\nWhich project do you want to assign a tester to?\n\n${listText}\n<i>Reply with the number:</i>`);
     return;
   }
 
