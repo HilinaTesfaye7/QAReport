@@ -1,5 +1,54 @@
 [
   {
+    "id": "blk-mtr8yzrw",
+    "title": "Blocker: Gete (Blocked)",
+    "description": "Yes the devs",
+    "projectId": "prj-mtqz6yar",
+    "projectName": "St George",
+    "severity": "Critical",
+    "status": "Resolved",
+    "reportedBy": "Gete",
+    "chatId": "367448100",
+    "createdAt": "2026-09-07T12:59:14.204Z",
+    "resolvedAt": "2026-09-07T13:00:01.560Z"
+  },
+  {
+    "id": "blk-mtr8n8bw",
+    "title": "Blocker: fara helina (Blocked)",
+    "description": "yaw endmitawkew chapi fara new ena fara selhone blocker new @Chapiy",
+    "projectId": "prj-banking",
+    "projectName": "Banking SuperApp",
+    "severity": "Critical",
+    "status": "Open",
+    "reportedBy": "fara helina",
+    "createdAt": "2026-09-07T12:50:05.420Z",
+    "chatId": "398745619"
+  },
+  {
+    "id": "blk-mtr7wz9z",
+    "title": "Blocker: fara helina (Blocked)",
+    "description": "",
+    "projectId": "prj-mtqz6yar",
+    "projectName": "St George",
+    "severity": "Critical",
+    "status": "Open",
+    "reportedBy": "fara helina",
+    "createdAt": "2026-09-07T12:29:40.631Z",
+    "chatId": "398745619"
+  },
+  {
+    "id": "blk-mtr7j5zj",
+    "title": "Blocker: fara helina (Blocked)",
+    "description": "fara helina selhonku new",
+    "projectId": "prj-mtqz6yar",
+    "projectName": "St George",
+    "severity": "Critical",
+    "status": "Open",
+    "reportedBy": "fara helina",
+    "createdAt": "2026-09-07T12:18:56.143Z",
+    "chatId": "398745619"
+  },
+  {
     "id": "blk-mtqzrd32",
     "title": "Blocker via Telegram (Coco)",
     "description": "it's not working",

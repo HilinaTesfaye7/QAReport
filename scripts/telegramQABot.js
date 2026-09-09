@@ -21,6 +21,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import http from 'node:http';
 import { createClient } from '@supabase/supabase-js';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 // Automatically load .env or .env.example file if present
 function loadEnv() {
@@ -98,6 +99,7 @@ const REPORTS_FILE = path.resolve(process.cwd(), 'telegram_daily_reports.json');
 const BLOCKERS_FILE = path.resolve(process.cwd(), 'telegram_blockers.json');
 const PROJECTS_FILE = path.resolve(process.cwd(), 'projects.json');
 const PUBLIC_PROJECTS_FILE = path.resolve(process.cwd(), 'public', 'projects.json');
+const GROUP_MESSAGES_FILE = path.resolve(process.cwd(), 'telegram_group_messages.json');
 
 const NUMBER_EMOJIS = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟', '1️⃣1️⃣', '1️⃣2️⃣', '1️⃣3️⃣', '1️⃣4️⃣', '1️⃣5️⃣'];
 
@@ -514,6 +516,201 @@ function persistBlocker(blocker) {
       else console.log(`[Supabase] Synced blocker for ${blocker.projectName} to cloud`);
     });
   }
+}
+
+// Helper to persist group messages for daily summary
+function persistGroupMessage(messageData) {
+  let existing = [];
+  if (fs.existsSync(GROUP_MESSAGES_FILE)) {
+    try {
+      existing = JSON.parse(fs.readFileSync(GROUP_MESSAGES_FILE, 'utf8'));
+    } catch {
+      existing = [];
+    }
+  }
+  existing.push(messageData);
+  fs.writeFileSync(GROUP_MESSAGES_FILE, JSON.stringify(existing, null, 2), 'utf8');
+}
+
+// Helper to generate daily summary from group messages
+async function generateDailySummary(chatId, dateStr) {
+  let messages = [];
+  if (fs.existsSync(GROUP_MESSAGES_FILE)) {
+    try {
+      messages = JSON.parse(fs.readFileSync(GROUP_MESSAGES_FILE, 'utf8'));
+    } catch {
+      messages = [];
+    }
+  }
+
+  // Filter messages for this chat and today's date
+  const todayMessages = messages.filter(m => {
+    if (m.chatId !== chatId) return false;
+    const msgDate = new Date(m.timestamp).toISOString().split('T')[0];
+    return msgDate === dateStr;
+  });
+
+  if (todayMessages.length === 0) {
+    return null; // No messages today
+  }
+
+  const formattedDate = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+
+  // Use Gemini AI if API Key is available
+  if (process.env.GEMINI_API_KEY) {
+    try {
+      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+      let transcript = ``;
+      todayMessages.forEach(msg => {
+        if (msg.text) {
+          const time = new Date(msg.timestamp).toLocaleTimeString();
+          transcript += `[${time}] ${msg.senderName}: ${msg.text}\n`;
+        }
+      });
+
+      const prompt = `Analyze the following team chat transcript and generate a daily summary.
+
+Implement a two-stage classification system.
+
+STAGE 1 — RELEVANCE FILTER
+Before categorizing a message, determine whether it is actually relevant to the project/work.
+IGNORE messages that are:
+* Greetings
+* Laughter such as "haha", "hehe", "huhuu"
+* Repeated characters such as "Gooooo", "Gooo"
+* Casual chatting, personal jokes, insults, or teasing unrelated to the project
+* Random names or short meaningless messages
+* Profanity that does not contain actionable project information
+* Repeated/non-informative messages
+
+However, if a message contains a genuine work issue together with casual language, preserve the meaningful work information and remove the irrelevant portion.
+
+STAGE 2 — WORK CLASSIFICATION
+Only classify messages that pass the relevance filter.
+Use these exact sections:
+- 🔥 Main Topics
+- 🐛 Issues / Blockers
+- ✅ Completed Work
+- 📌 Decisions
+- 📌 Action Items
+- 💬 Important Discussions
+
+RULES:
+- Issues / Blockers: E.g., "Login API is not working", "Movie page has a UI issue".
+- Completed Work: E.g., "I completed testing the payment page".
+- Decisions: Infer decisions from the context (e.g., "Let's not deploy"). Do not wait for the word "decision".
+- Action Items: Only include when there is a clear task that someone needs to perform. Do not classify ordinary discussion as an action item.
+- Important Discussions: Only include meaningful project information, planning, or risks. Do not copy long conversations.
+- Main Topics: Extract meaningful project topics from relevant messages only.
+
+DEDUPLICATION & SUMMARY QUALITY RULES:
+- A single message must normally appear in only ONE category (e.g., a decision not to deploy because of a payment API failure should primarily be a Decision).
+- Never include casual conversation, jokes, insults, or meaningless short messages.
+- Summarize instead of dumping raw messages. Preserve important technical/project information.
+- Mention the person responsible only when the message clearly identifies an owner.
+- Combine duplicate messages about the same issue.
+- Classification must depend on the meaning/context of the entire message.
+- Do not treat words like "decide", "issue", "plan", or "testing" as sufficient evidence by themselves.
+- Keep the final summary concise and professional.
+
+Return the summary formatted strictly in Telegram HTML (using <b>, <i>, <code>). Do not use Markdown (no asterisks).
+Start the message exactly with:
+📋 <b>Daily Group Summary — ${formattedDate}</b>
+
+Transcript:
+${transcript}`;
+
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
+      let aiSummary = response.text();
+      // Ensure no markdown asterisks leak through
+      aiSummary = aiSummary.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
+      return aiSummary;
+    } catch (e) {
+      console.error("[Gemini AI Error]", e);
+      // Fallback to heuristic if AI fails
+    }
+  }
+
+  // Fallback Heuristics
+  const topics = new Set();
+  const issues = [];
+  const decisions = [];
+  const actionItems = [];
+  const importantDiscussions = [];
+
+  todayMessages.forEach(msg => {
+    const text = msg.text.toLowerCase();
+    
+    if (!text) return; // Skip empty messages
+    
+    // Simple heuristics
+    if (text.includes('release') || text.includes('deploy') || text.includes('project') || text.includes('new feature')) {
+      topics.add('Project/Release discussed');
+    }
+    if (text.includes('payment') || text.includes('api')) {
+      topics.add('Payment/API discussed');
+    }
+    if (text.includes('test') || text.includes('qa')) {
+      topics.add('Testing requirements discussed');
+    }
+
+    if (text.includes('bug') || text.includes('block') || text.includes('issue') || text.includes('fail') || text.includes('not working') || text.includes('down')) {
+      issues.push(`• ${msg.senderName}: ${msg.text}`);
+    }
+
+    if (text.includes('decide') || text.includes('will do') || text.includes('agreed') || text.includes('moved to')) {
+      decisions.push(`• ${msg.senderName}: ${msg.text}`);
+    }
+
+    if (text.includes('todo') || text.includes('action') || text.includes('need to') || text.includes('investigate') || text.includes('fix')) {
+      actionItems.push(`• ${msg.senderName}: ${msg.text}`);
+    }
+
+    if (text.length > 100 || text.includes('important')) {
+      importantDiscussions.push(`• ${msg.senderName}: ${msg.text}`);
+    }
+  });
+
+  if (topics.size === 0) topics.add('General discussion');
+
+  let summary = `📋 <b>Daily Group Summary — ${formattedDate}</b>\n\n`;
+  
+  summary += `🔥 <b>Main Topics</b>\n`;
+  Array.from(topics).forEach(t => summary += `• ${t}\n`);
+  summary += `\n`;
+
+  if (issues.length > 0) {
+    summary += `🐛 <b>Issues / Blockers</b>\n`;
+    issues.slice(0, 5).forEach(i => summary += `${escapeHtml(i)}\n`);
+    summary += `\n`;
+  }
+
+  if (decisions.length > 0) {
+    summary += `✅ <b>Decisions</b>\n`;
+    decisions.slice(0, 5).forEach(d => summary += `${escapeHtml(d)}\n`);
+    summary += `\n`;
+  }
+
+  if (actionItems.length > 0) {
+    summary += `📌 <b>Action Items</b>\n`;
+    actionItems.slice(0, 5).forEach(a => summary += `${escapeHtml(a)}\n`);
+    summary += `\n`;
+  }
+
+  if (importantDiscussions.length > 0) {
+    summary += `💬 <b>Important Discussions</b>\n`;
+    summary += `${escapeHtml(importantDiscussions[0])}\n`;
+    if (importantDiscussions.length > 1) {
+      summary += `<i>(and ${importantDiscussions.length - 1} more...)</i>\n`;
+    }
+  } else {
+    summary += `💬 <b>Activity</b>\nTotal messages analyzed: ${todayMessages.length}\n`;
+  }
+
+  return summary;
 }
 
 // Helper to look up QA Leads registered in local store or Supabase
@@ -2546,6 +2743,20 @@ async function handleMessage(message) {
     syncTelegramCommands(chatId, profile.role).catch(() => {});
   }
 
+  // Group message collection
+  if (message.chat.type === 'group' || message.chat.type === 'supergroup') {
+    if (!text.startsWith('/')) { // Not a command
+      persistGroupMessage({
+        id: message.message_id,
+        chatId: message.chat.id,
+        senderName: user.first_name || user.username || 'Unknown',
+        text: rawText,
+        timestamp: (message.date * 1000) || Date.now()
+      });
+      return; // Do not process normal text as a command
+    }
+  }
+
   // Handle /start, start, /help, help, /menu, menu
   if (
     text === '/start' ||
@@ -3430,6 +3641,19 @@ async function handleMessage(message) {
     return;
   }
 
+  // /summary Command (For Groups)
+  if (text === '/summary' || text.startsWith('/summary ')) {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const summary = await generateDailySummary(chatId, todayStr);
+    
+    if (summary) {
+      await sendMessage(chatId, summary);
+    } else {
+      await sendMessage(chatId, `ℹ️ No group messages recorded today to summarize.`);
+    }
+    return;
+  }
+
   // Fallback
   const isLead = isQALead(profile);
   const fallbackMsg = isLead
@@ -3706,6 +3930,50 @@ function startKeepAliveLoop() {
   keepAliveTimer.unref();
 }
 
+let lastReportDate = null;
+let reporterTimer = null;
+
+function startDailyReporter() {
+  if (reporterTimer) return;
+  
+  reporterTimer = setInterval(async () => {
+    const now = new Date();
+    const dateStr = now.toISOString().split('T')[0];
+    
+    // Run at 18:00 (6 PM) local server time
+    if (now.getHours() === 18 && now.getMinutes() === 0 && lastReportDate !== dateStr) {
+      lastReportDate = dateStr;
+      
+      let messages = [];
+      if (fs.existsSync(GROUP_MESSAGES_FILE)) {
+        try {
+          messages = JSON.parse(fs.readFileSync(GROUP_MESSAGES_FILE, 'utf8'));
+        } catch {
+          messages = [];
+        }
+      }
+      
+      // Find unique group chat IDs that have messages today
+      const todayChatIds = new Set();
+      messages.forEach(m => {
+        const msgDate = new Date(m.timestamp).toISOString().split('T')[0];
+        if (msgDate === dateStr) {
+          todayChatIds.add(m.chatId);
+        }
+      });
+      
+      for (const chatId of todayChatIds) {
+        const summary = await generateDailySummary(chatId, dateStr);
+        if (summary) {
+          console.log(`[Reporter] Sending daily summary to group ${chatId}`);
+          await sendMessage(chatId, summary);
+        }
+      }
+    }
+  }, 60000); // Check every minute
+  reporterTimer.unref();
+}
+
 // Startup
 async function init() {
   console.log('\n=============================================');
@@ -3716,6 +3984,9 @@ async function init() {
   // Launch anti-sleep HTTP health server and keepalive ping loop
   startKeepAliveServer();
   startKeepAliveLoop();
+  
+  // Launch daily reporter scheduler
+  startDailyReporter();
 
   try {
     const res = await fetch(`${TELEGRAM_API}/getMe`);
