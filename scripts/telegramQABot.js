@@ -2265,13 +2265,34 @@ async function handleCheckinStep(chatId, user, text) {
     case 'q2_blockers':
     case 2: {
       const isNone = lower === 'none' || lower === 'no' || lower === '0' || lower === 'clear' || lower === 'all clear' || lower === 'nothing' || lower === 'nil';
+      const isYes = lower === 'yes' || lower === 'y' || lower === 'yeah' || lower === 'yep' || lower === 'i have a blocker';
+      
       if (isNone) {
         session.answers.blockers = 'None';
         session.answers.isBlocked = false;
+      } else if (isYes) {
+        session.step = 'q2_blockers_desc';
+        await sendMessage(
+          chatId,
+          `Please describe the blocker in detail:`
+        );
+        return true;
       } else {
         session.answers.blockers = trimmed;
         session.answers.isBlocked = true;
       }
+      session.step = 'q3_risks';
+      await sendMessage(
+        chatId,
+        `⚠️ <b>Risk you afraid of?</b>\n\n` +
+        `<i>(Any release risks, environment instability, dependencies, or type <b>None</b> if none):</i>`
+      );
+      return true;
+    }
+
+    case 'q2_blockers_desc': {
+      session.answers.blockers = trimmed;
+      session.answers.isBlocked = true;
       session.step = 'q3_risks';
       await sendMessage(
         chatId,
