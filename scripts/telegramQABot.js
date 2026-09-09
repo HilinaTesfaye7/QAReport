@@ -2305,10 +2305,11 @@ async function handleCheckinStep(chatId, user, text) {
   }
 
   const res = await handleNewCheckinStep(chatId, session, text, sendMessage);
-  if (res.cancel) {
+  if (res.cancel || res.done) {
+    userSessions.delete(chatId);
     return true;
   }
-  return res.done;
+  return true; // Always return true because the session handled the input
 }
 
 // ==========================================

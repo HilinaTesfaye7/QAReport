@@ -11,7 +11,7 @@ export async function handleNewCheckinStep(chatId, session, text, sendMessage) {
 
   // STEP 1: WORK TYPE
   if (session.step === 'work_type') {
-    if (lower === 'done' || lower === 'next') {
+    if (lower === 'done' || lower === 'next' || lower.endsWith(' next') || lower.endsWith(' done')) {
       if (!session.workTypes || session.workTypes.length === 0) {
         await sendMessage(chatId, `⚠️ Please select at least one work type.`);
         return { done: false };
@@ -126,7 +126,7 @@ export async function handleNewCheckinStep(chatId, session, text, sendMessage) {
 
   // STEP 5: REMAINING WORK
   if (session.step === 'remaining_work') {
-    if (lower === 'done' || lower === 'next') {
+    if (lower === 'done' || lower === 'next' || lower.endsWith(' next') || lower.endsWith(' done')) {
       session.step = 'eta';
       await sendMessage(chatId, `<b>When do you expect to complete your current QA work?</b> (e.g. Today, Tomorrow)`);
       return { done: false };
