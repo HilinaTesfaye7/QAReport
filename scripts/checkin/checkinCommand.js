@@ -13,11 +13,11 @@ export async function handleNewCheckinStep(chatId, session, text, sendMessage) {
   if (session.step === 'work_type') {
     if (lower === 'done' || lower === 'next' || lower.endsWith(' next') || lower.endsWith(' done')) {
       if (!session.workTypes || session.workTypes.length === 0) {
-        await sendMessage(chatId, `⚠️ Please select at least one work type.`);
+        await sendMessage(chatId, `⚠️ Please select at least one work type.`, { reply_markup: { keyboard: [[{ text: 'Next' }]], resize_keyboard: true } });
         return { done: false };
       }
       session.step = 'test_execution_executed';
-      await sendMessage(chatId, `<b>How many test cases did you execute today?</b> (Enter a number)`);
+      await sendMessage(chatId, `<b>How many test cases did you execute today?</b> (Enter a number)`, { reply_markup: { remove_keyboard: true } });
       return { done: false };
     }
 
@@ -26,7 +26,7 @@ export async function handleNewCheckinStep(chatId, session, text, sendMessage) {
       session.workTypes.push(rawText);
     }
     
-    await sendMessage(chatId, `Added: ${rawText}. Select more or type "Next" to continue.`);
+    await sendMessage(chatId, `Added: ${rawText}. Select more or tap "Next" to continue.`, { reply_markup: { keyboard: [[{ text: 'Next' }]], resize_keyboard: true } });
     return { done: false };
   }
 
@@ -109,18 +109,18 @@ export async function handleNewCheckinStep(chatId, session, text, sendMessage) {
   if (session.step === 'blocker_ask') {
     if (lower === 'yes') {
       session.step = 'blocker_reason';
-      await sendMessage(chatId, `<b>What is blocking you?</b>`);
+      await sendMessage(chatId, `<b>What is blocking you?</b>`, { reply_markup: { remove_keyboard: true } });
     } else {
       session.blocker = null;
       session.step = 'remaining_work';
-      await sendMessage(chatId, `<b>What remains?</b> (Type activities and reply "Next" when done)`);
+      await sendMessage(chatId, `<b>What remains?</b> (Type activities and tap "Next" when done)`, { reply_markup: { keyboard: [[{ text: 'Next' }]], resize_keyboard: true } });
     }
     return { done: false };
   }
   if (session.step === 'blocker_reason') {
     session.blocker = rawText;
     session.step = 'remaining_work';
-    await sendMessage(chatId, `<b>What remains?</b> (Type activities and reply "Next" when done)`);
+    await sendMessage(chatId, `<b>What remains?</b> (Type activities and tap "Next" when done)`, { reply_markup: { keyboard: [[{ text: 'Next' }]], resize_keyboard: true } });
     return { done: false };
   }
 
@@ -128,12 +128,12 @@ export async function handleNewCheckinStep(chatId, session, text, sendMessage) {
   if (session.step === 'remaining_work') {
     if (lower === 'done' || lower === 'next' || lower.endsWith(' next') || lower.endsWith(' done')) {
       session.step = 'eta';
-      await sendMessage(chatId, `<b>When do you expect to complete your current QA work?</b> (e.g. Today, Tomorrow)`);
+      await sendMessage(chatId, `<b>When do you expect to complete your current QA work?</b> (e.g. Today, Tomorrow)`, { reply_markup: { remove_keyboard: true } });
       return { done: false };
     }
     session.remainingWork = session.remainingWork || [];
     session.remainingWork.push(rawText);
-    await sendMessage(chatId, `Added. Type "Next" to continue.`);
+    await sendMessage(chatId, `Added. Tap "Next" to continue.`, { reply_markup: { keyboard: [[{ text: 'Next' }]], resize_keyboard: true } });
     return { done: false };
   }
 

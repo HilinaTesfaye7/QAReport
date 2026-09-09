@@ -2258,7 +2258,8 @@ async function handleCheckinStep(chatId, user, text) {
       `📁 <b>Project:</b> <b>${escapeHtml(selectedName)}</b>\n\n` +
       `🎯 <b>Select your work type(s) for today:</b>\n` +
       `<i>(Functional Testing, Regression, Bug Verification, API Testing, Web Testing, Mobile Testing, Other)</i>\n` +
-      `Type the work type or reply "Next" if done.`
+      `Type the work type or tap "Next" if done.`,
+      { reply_markup: { keyboard: [[{ text: 'Next' }]], resize_keyboard: true } }
     );
     return true;
   }
