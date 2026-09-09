@@ -63,6 +63,15 @@ if (!BOT_TOKEN) {
   process.exit(1);
 }
 
+// Dummy Web Server for Render Free Tier Web Service compliance
+const PORT = process.env.PORT || 3000;
+http.createServer((req, res) => {
+  res.writeHead(200, { 'Content-Type': 'text/plain' });
+  res.end('AegisQA Telegram Bot is running!\n');
+}).listen(PORT, () => {
+  console.log(`✓ Dummy web server listening on port ${PORT}`);
+});
+
 const TELEGRAM_API = `https://api.telegram.org/bot${BOT_TOKEN}`;
 
 // Supabase Cloud Database Client

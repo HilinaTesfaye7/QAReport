@@ -7,11 +7,12 @@
     "memberIds": [
       "usr-918263567",
       "usr-347835367",
-      "usr-7651373544",
       "usr-398745619",
       "usr-502756256",
       "usr-367448100",
-      "usr-6009896175"
+      "usr-6009896175",
+      "usr--5044151423",
+      "usr-7651373544"
     ],
     "resources": {
       "prdUrl": "https://docs.bank.internal/prd/spec-v1",
@@ -150,8 +151,7 @@
     "status": "Planning",
     "memberIds": [
       "usr-347835367",
-      "usr-7527336375",
-      "usr-7651373544"
+      "usr-7527336375"
     ],
     "resources": {
       "prdUrl": "https://docs.bank.internal/prd/spec-v1",
@@ -434,7 +434,6 @@
     "memberIds": [
       "usr-hana",
       "usr-854270712",
-      "usr-7651373544",
       "usr-398745619"
     ],
     "resources": {
