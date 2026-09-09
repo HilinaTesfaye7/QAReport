@@ -886,6 +886,39 @@ async function notifyQALeadsOfBlockerResolved({
   }
 }
 
+async function notifyQALeadsOfAchievement({
+  senderChatId,
+  memberName,
+  username,
+  projectName,
+  projectId,
+  achievementText,
+}) {
+  try {
+    const leads = await findQALeadsForProject(projectId, projectName);
+    const targetLeads = leads.filter((l) => String(l.chatId) !== String(senderChatId));
+
+    if (targetLeads.length === 0) {
+      return;
+    }
+
+    const timeStr = new Date().toLocaleTimeString();
+    let msg = `🏆 <b>QA LEAD ALERT — TEAM ACHIEVEMENT</b>\n\n`;
+    msg += `📁 <b>Project:</b> <b>${escapeHtml(projectName || 'QA Project')}</b>\n`;
+    msg += `👤 <b>Member:</b> <b>${escapeHtml(memberName)}</b> (@${escapeHtml(username || 'unknown')})\n`;
+    msg += `🕒 <b>Time:</b> <code>${escapeHtml(timeStr)}</code>\n\n`;
+    msg += `🌟 <b>Major Achievement:</b>\n<i>"${escapeHtml(achievementText)}"</i>\n\n`;
+    msg += `<i>Take a moment to celebrate this win! 🎉</i>`;
+
+    for (const lead of targetLeads) {
+      console.log(`[Notification] Dispatching Achievement alert to QA Lead ${lead.fullName} (${lead.chatId})...`);
+      await sendMessage(lead.chatId, msg);
+    }
+  } catch (err) {
+    console.error('[Notification Error] Achievement notification failed:', err.message);
+  }
+}
+
 // Proactive Telegram Alert to QA Lead when a member mentions a Blocker, Risk, or Critical Bug in Standup
 async function notifyQALeadsOfStandupIssue({
   senderChatId,
@@ -2090,6 +2123,18 @@ async function finalizeAndSubmitCheckin(chatId, user, session) {
       hasRisk,
       nextPlanText,
       majorAchievementText,
+    }).catch((err) => console.error('[Notify Lead Error]', err.message));
+  }
+
+  const hasAchievement = Boolean(answers.majorAchievement && answers.majorAchievement.toLowerCase() !== 'none' && answers.majorAchievement.trim().length > 0);
+  if (hasAchievement) {
+    notifyQALeadsOfAchievement({
+      senderChatId: chatId,
+      memberName: profile.fullName,
+      username: user.username || user.first_name,
+      projectName: profile.projectName,
+      projectId: profile.projectId,
+      achievementText: majorAchievementText,
     }).catch((err) => console.error('[Notify Lead Error]', err.message));
   }
 
