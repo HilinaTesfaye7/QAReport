@@ -95,10 +95,9 @@ const DEFAULT_PROJECTS = [
 ];
 
 const DEFAULT_ROLES = [
-  'QA Engineer / Tester',
+  'QA Tester',
   'QA Lead',
   'Automation QA Engineer',
-  'Manual / Performance QA',
 ];
 
 // Persistent Profiles Store (telegram_profiles.json)
@@ -1119,11 +1118,10 @@ async function handleOnboardingStep(chatId, user, text) {
         chatId,
         `Nice to meet you, <b>${escapeHtml(chosenName)}</b>!\n\n` +
         `<b>Step 2 of 2: What is your QA Role?</b>\n\n` +
-        `1️⃣ QA Engineer / Tester\n` +
+        `1️⃣ QA Tester\n` +
         `2️⃣ QA Lead\n` +
-        `3️⃣ Automation QA Engineer\n` +
-        `4️⃣ Manual / Performance QA\n\n` +
-        `<i>Reply 1, 2, 3, 4, or type your role title:</i>`
+        `3️⃣ Automation QA Engineer\n\n` +
+        `<i>Reply 1, 2, 3, or type your role title:</i>`
       );
       return true;
     }
@@ -1133,7 +1131,6 @@ async function handleOnboardingStep(chatId, user, text) {
       if (role === '1') role = DEFAULT_ROLES[0];
       else if (role === '2') role = DEFAULT_ROLES[1];
       else if (role === '3') role = DEFAULT_ROLES[2];
-      else if (role === '4') role = DEFAULT_ROLES[3];
 
       session.answers.role = role;
 
@@ -3678,12 +3675,11 @@ async function handleMessage(message) {
     await sendMessage(
       chatId,
       `👤 <b>QA Role Management</b>\n\n` +
-      `• <b>Your Current Role:</b> <b>${escapeHtml(profile ? profile.role : 'QA Engineer / Tester')}</b>\n\n` +
+      `• <b>Your Current Role:</b> <b>${escapeHtml(profile ? profile.role : 'QA Tester')}</b>\n\n` +
       `To change your role, reply:\n` +
+      `• <code>/role QA Tester</code>\n` +
       `• <code>/role QA Lead</code>\n` +
-      `• <code>/role QA Engineer / Tester</code>\n` +
-      `• <code>/role Automation QA Engineer</code>\n` +
-      `• <code>/role Manual / Performance QA</code>\n\n` +
+      `• <code>/role Automation QA Engineer</code>\n\n` +
       `<i>QA Leads have access to <code>/team</code>, <code>/report</code>, and <code>/risks</code>.</i>`
     );
     return;
@@ -3694,7 +3690,6 @@ async function handleMessage(message) {
     if (newRole === '1') newRole = DEFAULT_ROLES[0];
     else if (newRole === '2') newRole = DEFAULT_ROLES[1];
     else if (newRole === '3') newRole = DEFAULT_ROLES[2];
-    else if (newRole === '4') newRole = DEFAULT_ROLES[3];
 
     saveProfile(chatId, {
       fullName: profile ? profile.fullName : (user.first_name || 'QA Tester'),
