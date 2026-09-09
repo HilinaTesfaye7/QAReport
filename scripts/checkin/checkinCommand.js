@@ -50,43 +50,30 @@ export async function handleNewCheckinStep(chatId, session, text, sendMessage) {
       return { done: false };
     }
 
-    session.step = 'new_bugs';
-    await sendMessage(chatId, `<b>Did you find any new bugs today?</b> (Yes/No)`);
+    if (session.failed > 0) {
+      session.step = 'new_bugs_desc';
+      await sendMessage(chatId, `<b>What was the bug? Mention it:</b>`);
+    } else {
+      session.step = 'new_bugs';
+      await sendMessage(chatId, `<b>Did you find any new bugs today?</b> (Yes/No)`);
+    }
     return { done: false };
   }
 
   // STEP 3: NEW BUGS
   if (session.step === 'new_bugs') {
     if (lower === 'yes') {
-      session.step = 'new_bugs_critical';
-      session.newBugs = { critical: 0, high: 0, medium: 0, low: 0 };
-      await sendMessage(chatId, `<b>How many Critical bugs?</b>`);
+      session.step = 'new_bugs_desc';
+      await sendMessage(chatId, `<b>What was the bug? Mention it:</b>`);
     } else {
+      session.newBugs = null;
       session.step = 'blocker_ask';
       await sendMessage(chatId, `<b>Are you currently blocked?</b> (Yes/No)`);
     }
     return { done: false };
   }
-  if (session.step === 'new_bugs_critical') {
-    session.newBugs.critical = parseInt(rawText, 10) || 0;
-    session.step = 'new_bugs_high';
-    await sendMessage(chatId, `<b>How many High bugs?</b>`);
-    return { done: false };
-  }
-  if (session.step === 'new_bugs_high') {
-    session.newBugs.high = parseInt(rawText, 10) || 0;
-    session.step = 'new_bugs_medium';
-    await sendMessage(chatId, `<b>How many Medium bugs?</b>`);
-    return { done: false };
-  }
-  if (session.step === 'new_bugs_medium') {
-    session.newBugs.medium = parseInt(rawText, 10) || 0;
-    session.step = 'new_bugs_low';
-    await sendMessage(chatId, `<b>How many Low bugs?</b>`);
-    return { done: false };
-  }
-  if (session.step === 'new_bugs_low') {
-    session.newBugs.low = parseInt(rawText, 10) || 0;
+  if (session.step === 'new_bugs_desc') {
+    session.newBugs = rawText;
     session.step = 'blocker_ask';
     await sendMessage(chatId, `<b>Are you currently blocked?</b> (Yes/No)`);
     return { done: false };
@@ -142,7 +129,7 @@ export async function handleNewCheckinStep(chatId, session, text, sendMessage) {
       passed: session.passed,
       failed: session.failed,
       blocked: session.blocked,
-      newBugs: session.newBugs || { critical: 0, high: 0, medium: 0, low: 0 },
+      newBugs: session.newBugs,
       blocker: session.blocker,
       remainingWork: session.remainingWork || [],
       eta: session.eta,
@@ -160,11 +147,8 @@ export async function handleNewCheckinStep(chatId, session, text, sendMessage) {
     summary += `• Pass Rate: ${stats.passRate}%\n\n`;
     
     if (session.newBugs) {
-      summary += `🐛 <b>Bugs</b>\n`;
-      summary += `• Critical: ${session.newBugs.critical}\n`;
-      summary += `• High: ${session.newBugs.high}\n`;
-      summary += `• Medium: ${session.newBugs.medium}\n`;
-      summary += `• Low: ${session.newBugs.low}\n\n`;
+      summary += `🐛 <b>Bugs Mentioned</b>\n`;
+      summary += `• ${session.newBugs}\n\n`;
     }
     
     summary += `🚧 <b>Blockers</b>\n`;
