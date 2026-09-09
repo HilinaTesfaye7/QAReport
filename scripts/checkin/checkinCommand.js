@@ -53,44 +53,30 @@ export async function handleNewCheckinStep(chatId, session, text, sendMessage) {
     if (session.failed > 0) {
       session.step = 'new_bugs_desc';
       await sendMessage(chatId, `<b>What was the bug? Mention it:</b>`);
-    } else {
-      session.step = 'new_bugs';
-      await sendMessage(chatId, `<b>Did you find any new bugs today?</b> (Yes/No)`);
-    }
-    return { done: false };
-  }
-
-  // STEP 3: NEW BUGS
-  if (session.step === 'new_bugs') {
-    if (lower === 'yes') {
-      session.step = 'new_bugs_desc';
-      await sendMessage(chatId, `<b>What was the bug? Mention it:</b>`);
-    } else {
-      session.newBugs = null;
-      session.step = 'blocker_ask';
-      await sendMessage(chatId, `<b>Are you currently blocked?</b> (Yes/No)`);
-    }
-    return { done: false };
-  }
-  if (session.step === 'new_bugs_desc') {
-    session.newBugs = rawText;
-    session.step = 'blocker_ask';
-    await sendMessage(chatId, `<b>Are you currently blocked?</b> (Yes/No)`);
-    return { done: false };
-  }
-
-  // STEP 4: BLOCKER
-  if (session.step === 'blocker_ask') {
-    if (lower === 'yes') {
+    } else if (session.blocked > 0) {
       session.step = 'blocker_reason';
       await sendMessage(chatId, `<b>What is blocking you?</b>`, { reply_markup: { remove_keyboard: true } });
     } else {
-      session.blocker = null;
       session.step = 'remaining_work';
       await sendMessage(chatId, `<b>What remains?</b>`);
     }
     return { done: false };
   }
+
+  // STEP 3: NEW BUGS
+  if (session.step === 'new_bugs_desc') {
+    session.newBugs = rawText;
+    if (session.blocked > 0) {
+      session.step = 'blocker_reason';
+      await sendMessage(chatId, `<b>What is blocking you?</b>`, { reply_markup: { remove_keyboard: true } });
+    } else {
+      session.step = 'remaining_work';
+      await sendMessage(chatId, `<b>What remains?</b>`);
+    }
+    return { done: false };
+  }
+
+  // STEP 4: BLOCKER
   if (session.step === 'blocker_reason') {
     session.blocker = rawText;
     session.step = 'remaining_work';
