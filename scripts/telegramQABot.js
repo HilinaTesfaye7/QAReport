@@ -2252,12 +2252,12 @@ async function handleCheckinStep(chatId, user, text) {
       return true;
     }
 
-    session.step = 'work_type';
+    session.step = 'worked_today';
     await sendMessage(
       chatId,
       `📁 <b>Project:</b> <b>${escapeHtml(selectedName)}</b>\n\n` +
-      `🎯 <b>Select your work type(s) for today:</b>\n` +
-      `<i>(Functional Testing, Regression, Bug Verification, API Testing, Web Testing, Mobile Testing, Other)</i>`
+      `📝 <b>What did you work on today?</b>\n` +
+      `<i>(Briefly describe the work/testing completed today)</i>`
     );
     return true;
   }
@@ -2299,11 +2299,14 @@ async function handleCheckinStep(chatId, user, text) {
         `<i>(Feature, module, test cases executed, API testing, regression, bugs retested, etc.)</i>`
       );
     }
-    session.step = 'work_type';
+    session.step = 'worked_today';
     return true;
   }
 
-  const res = await handleNewCheckinStep(chatId, session, text, sendMessage);
+  const res = await handleNewCheckinStep(chatId, session, text, sendMessage, {
+    notifyAchievement: notifyQALeadsOfAchievement,
+    notifyIssue: notifyQALeadsOfStandupIssue
+  });
   if (res.cancel || res.done) {
     userSessions.delete(chatId);
     return true;

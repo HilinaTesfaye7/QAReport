@@ -1,7 +1,7 @@
 import { saveCheckin } from './checkinService.js';
-import { calculateExecutionStats, validateTestExecution } from './checkinValidation.js';
+import { calculateExecutionStats, parseMetricsString, validateTestExecution } from './checkinValidation.js';
 
-export async function handleNewCheckinStep(chatId, session, text, sendMessage) {
+export async function handleNewCheckinStep(chatId, session, text, sendMessage, notifyCallbacks = {}) {
   const rawText = text.trim();
   const lower = rawText.toLowerCase();
 
@@ -9,140 +9,123 @@ export async function handleNewCheckinStep(chatId, session, text, sendMessage) {
     return { done: true, cancel: true };
   }
 
-  // STEP 1: WORK TYPE
-  if (session.step === 'work_type') {
-    session.workTypes = [rawText];
-    session.step = 'test_execution_executed';
-    await sendMessage(chatId, `<b>How many test cases did you execute today?</b> (Enter a number)`, { reply_markup: { remove_keyboard: true } });
+  // STEP 1: WORKED TODAY
+  if (session.step === 'work_type' || session.step === 'worked_today') {
+    session.workedToday = rawText;
+    session.step = 'blocker';
+    await sendMessage(
+      chatId, 
+      `🚧 <b>Any Blocker?</b>\n\n<i>(Reply with any blockers or challenges, or type <b>No</b> if all clear)</i>`,
+      { reply_markup: { remove_keyboard: true } }
+    );
     return { done: false };
   }
 
-  // STEP 2: TEST EXECUTION
-  if (session.step === 'test_execution_executed') {
-    const executed = parseInt(rawText, 10);
-    if (isNaN(executed) || executed < 0) {
-      await sendMessage(chatId, `⚠️ Please enter a valid number.`);
-      return { done: false };
-    }
-    session.executed = executed;
-    session.step = 'test_execution_passed';
-    await sendMessage(chatId, `<b>How many passed?</b>`);
-    return { done: false };
-  }
-  if (session.step === 'test_execution_passed') {
-    session.passed = parseInt(rawText, 10) || 0;
-    session.step = 'test_execution_failed';
-    await sendMessage(chatId, `<b>How many failed?</b>`);
-    return { done: false };
-  }
-  if (session.step === 'test_execution_failed') {
-    session.failed = parseInt(rawText, 10) || 0;
-    session.step = 'test_execution_blocked';
-    await sendMessage(chatId, `<b>How many are blocked?</b>`);
-    return { done: false };
-  }
-  if (session.step === 'test_execution_blocked') {
-    session.blocked = parseInt(rawText, 10) || 0;
+  // STEP 2: BLOCKER
+  if (session.step === 'blocker') {
+    const isNone = lower === 'none' || lower === 'no' || lower === '0' || lower === 'clear';
+    session.blocker = isNone ? null : rawText;
     
-    if (!validateTestExecution(session.executed, session.passed, session.failed, session.blocked)) {
-      await sendMessage(chatId, `⚠️ Validation Failed: passed + failed + blocked exceeds total executed. Let's try again. How many did you execute?`);
-      session.step = 'test_execution_executed';
+    if (session.blocker && notifyCallbacks.notifyIssue) {
+      await notifyCallbacks.notifyIssue(
+        session.profile?.projectName || 'unknown',
+        session.profile?.fullName || 'Tester',
+        chatId,
+        'Blocker',
+        session.blocker
+      );
+    }
+
+    session.step = 'next_plan';
+    await sendMessage(
+      chatId, 
+      `📌 <b>Next Plan?</b>\n\n<i>(What is your primary testing task or plan next?)</i>`
+    );
+    return { done: false };
+  }
+
+  // STEP 3: NEXT PLAN
+  if (session.step === 'next_plan') {
+    session.nextPlan = rawText;
+    session.step = 'achievement';
+    await sendMessage(
+      chatId, 
+      `🏆 <b>Major achievement today?</b>\n\n<i>(Key accomplishment, milestone, critical bug found/verified, or type <b>None</b>)</i>`
+    );
+    return { done: false };
+  }
+
+  // STEP 4: ACHIEVEMENT
+  if (session.step === 'achievement') {
+    const isNone = lower === 'none' || lower === 'no' || lower === '0' || lower === 'nothing';
+    session.achievement = isNone ? 'None' : rawText;
+
+    if (session.achievement !== 'None' && notifyCallbacks.notifyAchievement) {
+      await notifyCallbacks.notifyAchievement(
+        session.profile?.projectName || 'unknown',
+        session.profile?.fullName || 'Tester',
+        chatId,
+        session.achievement
+      );
+    }
+
+    session.step = 'metrics';
+    await sendMessage(
+      chatId, 
+      `📊 <b>Testing Summary</b>\n\nEnter your testing numbers in this exact format:\n<b>Executed / Passed / Failed / Blocked</b>\n\n<i>Example: 20/15/3/2</i>`
+    );
+    return { done: false };
+  }
+
+  // STEP 5: METRICS
+  if (session.step === 'metrics') {
+    const metrics = parseMetricsString(rawText);
+    
+    if (!metrics) {
+      await sendMessage(chatId, `⚠️ <b>Invalid format.</b>\nPlease enter 4 numbers separated by slashes (e.g. <b>20/15/3/2</b>)\nExecuted / Passed / Failed / Blocked`);
       return { done: false };
     }
 
-    if (session.failed > 0) {
-      session.step = 'new_bugs_desc';
-      await sendMessage(chatId, `<b>What was the bug? Mention it:</b>`);
-    } else if (session.blocked > 0) {
-      session.step = 'blocker_reason';
-      await sendMessage(chatId, `<b>What is blocking you?</b>`, { reply_markup: { remove_keyboard: true } });
-    } else {
-      session.step = 'remaining_work';
-      await sendMessage(chatId, `<b>What remains?</b>`);
+    if (!validateTestExecution(metrics.executed, metrics.passed, metrics.failed, metrics.blocked)) {
+      await sendMessage(chatId, `⚠️ <b>Validation Failed:</b> Passed (${metrics.passed}) + Failed (${metrics.failed}) + Blocked (${metrics.blocked}) exceeds total Executed (${metrics.executed}).\n\nPlease try again (e.g. 20/15/3/2):`);
+      return { done: false };
     }
-    return { done: false };
-  }
 
-  // STEP 3: NEW BUGS
-  if (session.step === 'new_bugs_desc') {
-    session.newBugs = rawText;
-    if (session.blocked > 0) {
-      session.step = 'blocker_reason';
-      await sendMessage(chatId, `<b>What is blocking you?</b>`, { reply_markup: { remove_keyboard: true } });
-    } else {
-      session.step = 'remaining_work';
-      await sendMessage(chatId, `<b>What remains?</b>`);
-    }
-    return { done: false };
-  }
+    session.executed = metrics.executed;
+    session.passed = metrics.passed;
+    session.failed = metrics.failed;
+    session.blocked = metrics.blocked;
 
-  // STEP 4: BLOCKER
-  if (session.step === 'blocker_reason') {
-    session.blocker = rawText;
-    session.step = 'remaining_work';
-    await sendMessage(chatId, `<b>What remains?</b>`);
-    return { done: false };
-  }
-
-  // STEP 5: REMAINING WORK
-  if (session.step === 'remaining_work') {
-    session.remainingWork = [rawText];
-    session.step = 'eta';
-    await sendMessage(chatId, `<b>When do you expect to complete your current QA work?</b> (e.g. Today, Tomorrow)`);
-    return { done: false };
-  }
-
-  // STEP 6: ETA
-  if (session.step === 'eta') {
-    session.eta = rawText;
-    session.step = 'comment';
-    await sendMessage(chatId, `<b>Anything else the QA Lead should know?</b> (Or type "Skip")`);
-    return { done: false };
-  }
-
-  // STEP 7: COMMENT
-  if (session.step === 'comment') {
-    session.comment = lower === 'skip' ? '' : rawText;
-
-    // SAVE CHECKIN
     const stats = calculateExecutionStats(session.executed, session.passed, session.failed, session.blocked);
     
     saveCheckin({
       testerId: `usr-${chatId}`,
       projectId: session.profile?.projectId || 'unknown',
-      workTypes: session.workTypes,
+      workedToday: session.workedToday,
+      blocker: session.blocker,
+      nextPlan: session.nextPlan,
+      achievement: session.achievement,
       executed: session.executed,
       passed: session.passed,
       failed: session.failed,
       blocked: session.blocked,
-      newBugs: session.newBugs,
-      blocker: session.blocker,
-      remainingWork: session.remainingWork || [],
-      eta: session.eta,
-      comment: session.comment
     });
 
     let summary = `✅ <b>Daily QA Check-in Recorded</b>\n\n`;
-    summary += `Project: ${session.profile?.projectName || 'N/A'}\n`;
-    summary += `Tester: ${session.profile?.fullName || 'N/A'}\n\n`;
-    summary += `📊 <b>Testing</b>\n`;
+    summary += `📁 Project: ${session.profile?.projectName || 'N/A'}\n`;
+    summary += `👤 Tester: ${session.profile?.fullName || 'N/A'}\n\n`;
+    
+    summary += `📝 <b>Worked Today</b>\n• ${session.workedToday}\n\n`;
+    summary += `🚧 <b>Blocker</b>\n• ${session.blocker ? session.blocker : 'None'}\n\n`;
+    summary += `📌 <b>Next Plan</b>\n• ${session.nextPlan}\n\n`;
+    summary += `🏆 <b>Achievement</b>\n• ${session.achievement}\n\n`;
+
+    summary += `📊 <b>Testing Summary</b>\n`;
     summary += `• Executed: ${session.executed}\n`;
     summary += `• Passed: ${session.passed}\n`;
     summary += `• Failed: ${session.failed}\n`;
     summary += `• Blocked: ${session.blocked}\n`;
     summary += `• Pass Rate: ${stats.passRate}%\n\n`;
-    
-    if (session.newBugs) {
-      summary += `🐛 <b>Bugs Mentioned</b>\n`;
-      summary += `• ${session.newBugs}\n\n`;
-    }
-    
-    summary += `🚧 <b>Blockers</b>\n`;
-    summary += `• ${session.blocker ? session.blocker : 'None'}\n\n`;
-
-    summary += `📌 <b>Remaining</b>\n`;
-    (session.remainingWork || []).forEach(w => summary += `• ${w}\n`);
-    summary += `\n⏱ <b>ETA</b>\n• ${session.eta}\n`;
 
     await sendMessage(chatId, summary);
     return { done: true };
