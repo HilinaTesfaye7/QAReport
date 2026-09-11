@@ -2471,6 +2471,7 @@ async function handleCheckinStep(chatId, user, text) {
         `<i>(Feature, module, test cases executed, API testing, regression, bugs retested, etc.)</i>`
       );
     } else {
+      await sendMessage(
         chatId,
         `Understood, keeping blocker(s) active on the dashboard.\n\n` +
         `Now let's proceed with your daily standup.\n\n` +
