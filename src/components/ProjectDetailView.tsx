@@ -80,6 +80,8 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
   const [selectedMemberToAdd, setSelectedMemberToAdd] = useState<string>('');
   const [memberToast, setMemberToast] = useState<string | null>(null);
+  const [showWorkloadWarning, setShowWorkloadWarning] = useState(false);
+  const [pendingWorkloadMessage, setPendingWorkloadMessage] = useState('');
 
   // Figma Link States & Handler
   const [isEditingFigmaUrl, setIsEditingFigmaUrl] = useState(false);
@@ -163,14 +165,27 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
     setIsUpdatingVelocity(false);
   };
 
-  const handleAssignNewMember = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleAssignNewMember = (e?: React.FormEvent, force: boolean = false) => {
+    if (e) e.preventDefault();
     if (!selectedMemberToAdd) return;
+
+    const targetUser = allUsers.find((u) => u.id === selectedMemberToAdd);
+    if (!targetUser) return;
+
+    if (!force) {
+      const totalAlloc = targetUser.projectAllocations?.reduce((sum, a) => sum + a.percentage, 0) || 0;
+      if (totalAlloc >= 100) {
+        setPendingWorkloadMessage(`⚠️ Workload Warning: ${targetUser.name} is already at ${totalAlloc}% global capacity across all projects.`);
+        setShowWorkloadWarning(true);
+        return;
+      }
+    }
+
+    setShowWorkloadWarning(false);
 
     try {
       const updatedProj = ProjectService.assignMember(currentProject.id, selectedMemberToAdd, currentUser.id);
       setCurrentProject({ ...updatedProj });
-      const targetUser = allUsers.find((u) => u.id === selectedMemberToAdd);
       const memberName = targetUser ? targetUser.name : 'QA Member';
 
       // Update assigned project in Supabase telegram_profiles
@@ -2081,6 +2096,61 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
               >
                 <Trash2 size={14} />
                 <span>{isDeleting ? 'Deleting...' : 'Delete Project'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Workload Warning Modal */}
+      {showWorkloadWarning && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0, left: 0, right: 0, bottom: 0,
+            background: 'rgba(0, 0, 0, 0.75)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 9999, padding: '20px',
+          }}
+        >
+          <div
+            style={{
+              background: '#0f172a',
+              border: '1px solid rgba(245, 158, 11, 0.3)',
+              borderRadius: '14px',
+              maxWidth: '400px',
+              width: '100%',
+              padding: '24px',
+              boxShadow: '0 20px 40px rgba(0, 0, 0, 0.5), 0 0 20px rgba(245, 158, 11, 0.15)',
+            }}
+          >
+            <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#f59e0b', margin: '0 0 12px 0' }}>
+              Workload Warning
+            </h3>
+            <p style={{ fontSize: '0.86rem', color: '#cbd5e1', lineHeight: 1.5, margin: '0 0 20px 0' }}>
+              {pendingWorkloadMessage}
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button
+                onClick={() => { setShowWorkloadWarning(false); setSelectedMemberToAdd(''); }}
+                style={{
+                  padding: '8px 16px', fontSize: '0.84rem', fontWeight: 600,
+                  borderRadius: '8px', background: 'rgba(255, 255, 255, 0.06)',
+                  color: '#94a3b8', border: 'none', cursor: 'pointer',
+                }}
+              >
+                Choose Another Tester
+              </button>
+              <button
+                onClick={() => handleAssignNewMember(undefined, true)}
+                style={{
+                  padding: '8px 16px', fontSize: '0.84rem', fontWeight: 700,
+                  borderRadius: '8px', background: '#f59e0b', color: '#000',
+                  border: 'none', cursor: 'pointer',
+                }}
+              >
+                Assign Anyway
               </button>
             </div>
           </div>

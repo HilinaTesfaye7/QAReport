@@ -81,6 +81,7 @@ export class TelegramProvider implements NotificationProvider {
                 chatId: targetChatId,
                 text,
                 botToken,
+                replyMarkup: notification.payload?.replyMarkup,
               }),
             });
             if (proxyRes.ok) {
@@ -102,6 +103,7 @@ export class TelegramProvider implements NotificationProvider {
               chat_id: targetChatId,
               text,
               parse_mode: 'HTML',
+              reply_markup: notification.payload?.replyMarkup,
             }),
           }
         );
@@ -218,44 +220,43 @@ class NotificationServiceManager {
     const users = StorageService.getUsers();
     const lead = users.find((u) => u.id === leadId);
     const leadName = lead ? lead.name : 'Sarah Jenkins';
-    const productOwner = project.projectOwner || 'Elena Rostova';
+    const coreProject = project.coreProjectName || 'Banking';
 
-    // Format PRD link or file
-    const prdDoc = project.resources?.prdDocuments?.[0];
-    let prdText = '';
+    let prdText = 'Not provided';
     if (project.resources?.prdUrl) {
-      prdText = project.resources?.prdTitle
-        ? `${project.resources.prdTitle} - ${project.resources.prdUrl}`
-        : project.resources.prdUrl;
-      if (prdDoc?.fileName) {
-        prdText += ` | File: ${prdDoc.fileName}`;
-      }
-    } else if (prdDoc?.fileName) {
-      prdText = project.resources?.prdTitle
-        ? `${project.resources.prdTitle} (File: ${prdDoc.fileName})`
-        : `File: ${prdDoc.fileName}`;
-    } else {
-      prdText = project.resources?.prdTitle || 'Available in PRD & Specs';
+      prdText = `<a href="${project.resources.prdUrl}">Open PRD</a>`;
     }
 
-    // Format Figma link
-    const figmaText = project.resources?.figmaUrl || 'Available in Design (Figma) tab';
-
-    // Format Resources list
-    let resourcesBlock = `📄 PRD: ${prdText}\n🎨 Figma: ${figmaText}`;
-    if (project.resources?.testCaseUrl) {
-      resourcesBlock += `\n🧪 Test Cases: ${project.resources.testCaseUrl}`;
+    let figmaText = 'Not provided';
+    if (project.resources?.figmaUrl) {
+      figmaText = `<a href="${project.resources.figmaUrl}">Open Figma</a>`;
     }
 
-    const message = `New QA Project Assignment\n\nYou have been assigned to:\n${project.name}\n\nQA Lead: ${leadName}\nProduct Owner: ${productOwner}\n\nResources:\n${resourcesBlock}\n\nYour initial responsibility:\n${responsibility}`;
+    const message = `🎉 You have been assigned to a new project!\n\n` +
+      `📁 Project: ${project.name}\n` +
+      `👩💼 QA Lead: ${leadName}\n` +
+      `📂 Core Project: ${coreProject}\n\n` +
+      `You have been assigned to this project as:\n` +
+      `👤 QA Tester\n\n` +
+      `Please review the project requirements before starting testing.\n\n` +
+      `📄 PRD: ${prdText}\n` +
+      `🎨 Figma: ${figmaText}\n\n` +
+      `🧪 After reviewing the PRD and Figma,\n` +
+      `please submit your test cases.`;
+
+    const replyMarkup = {
+      inline_keyboard: [
+        [{ text: '🧪 Submit Test Cases', callback_data: `submit_testcases_${project.id}` }]
+      ]
+    };
 
     this.dispatch({
       recipientId: memberId,
-      title: `Assigned to ${project.name}`,
+      title: `NEW PROJECT ASSIGNMENT`,
       message,
       type: 'assignment',
       actionUrl: `projects?id=${project.id}`,
-      payload: { projectId: project.id },
+      payload: { projectId: project.id, replyMarkup },
     });
   }
 

@@ -2002,7 +2002,6 @@ async function startCheckin(chatId, user) {
   const memberKey = `usr-${chatId}`;
 
   const assignedList = [];
-  const otherList = [];
 
   for (const p of allProjects) {
     const isAssigned =
@@ -2012,42 +2011,60 @@ async function startCheckin(chatId, user) {
 
     if (isAssigned) {
       assignedList.push(p);
-    } else {
-      otherList.push(p);
     }
   }
 
-  const projectsList = [...assignedList, ...otherList];
+  if (assignedList.length === 0) {
+    await sendMessage(chatId, '⚠️ You currently have no active project assignments.');
+    return;
+  }
 
   userSessions.set(chatId, {
     type: 'checkin',
     step: 'choose_checkin_project',
     profile,
     answers: {},
-    projectsList,
+    projectsList: assignedList,
+  });
+
+  // Group by QA Lead
+  const users = loadProfiles(); // Fallback if local users map isn't perfectly identical to users schema, but we can just use qaLeadId directly
+  const grouped = {};
+  assignedList.forEach(p => {
+    const leadId = p.qaLeadId || 'Unknown Lead';
+    if (!grouped[leadId]) grouped[leadId] = [];
+    grouped[leadId].push(p);
   });
 
   let listText = '';
-  projectsList.forEach((p, idx) => {
-    const emoji = NUMBER_EMOJIS[idx] || `[${idx + 1}]`;
-    const isCurrent = (profile.projectId === p.id || (profile.projectName && profile.projectName.toLowerCase() === p.name.toLowerCase()));
-    const isAssigned = assignedList.some((ap) => ap.id === p.id);
+  let counter = 1;
+  for (const [leadId, projs] of Object.entries(grouped)) {
+    // Attempt to map leadId to a name (e.g., usr-sarah -> Sarah)
+    let leadName = leadId;
+    for (const [cid, u] of Object.entries(users)) {
+      if (`usr-${cid}` === leadId || u.id === leadId) {
+         leadName = u.fullName || leadId;
+         break;
+      }
+    }
+    // Hardcoded fallback for seed data if needed
+    if (leadId === 'usr-sarah') leadName = 'Sarah Jenkins';
 
-    let badge = '';
-    if (isAssigned) badge += ' ⭐ <i>(Assigned)</i>';
-    if (isCurrent && !isAssigned) badge += ' <i>(Current)</i>';
-    else if (isCurrent && isAssigned) badge += ' <i>(Active)</i>';
-
-    listText += `${emoji} <b>${escapeHtml(p.name)}</b>${badge}\n`;
-  });
+    listText += `\n👩‍💼 <b>${escapeHtml(leadName)}</b>\n`;
+    for (const p of projs) {
+      const emoji = NUMBER_EMOJIS[counter - 1] || `[${counter}]`;
+      listText += `${emoji} <b>${escapeHtml(p.name)}</b>\n`;
+      counter++;
+    }
+  }
 
   await sendMessage(
     chatId,
     `👋 <b>Good day, ${escapeHtml(profile.fullName)}!</b>\n\n` +
     `📁 <b>Select Project for Daily Standup:</b>\n` +
-    `Which project are you checking in for today?\n\n` +
-    `${listText}\n` +
-    `<i>Reply with the number (1-${projectsList.length}) or type the project name:</i>`
+    `Which project are you checking in for today?` +
+    `${listText}\n\n` +
+    `<i>Reply with the number (1-${assignedList.length}) or type the project name:</i>`
   );
   return;
 }
@@ -2174,6 +2191,30 @@ async function handleCheckinStep(chatId, user, text) {
   const profile = session.profile;
   const trimmed = text.trim();
   const lower = trimmed.toLowerCase();
+
+  if (session.step === 'duplicate_checkin_warning') {
+    if (lower === 'cancel') {
+      userSessions.delete(chatId);
+      await sendMessage(chatId, '❌ Check-in cancelled.');
+      return true;
+    } else if (lower === 'update') {
+      // Proceed to the normal blocker step logic by pretending we just chose it
+      session.step = 'resolve_previous_blocker'; // we let it fall through to the next steps naturally
+      // But we need to ensure project associations are kept
+      // We will re-execute the block below manually since we are skipping it.
+      const selectedName = typeof session.duplicateProject === 'object' ? session.duplicateProject.name : session.duplicateProject;
+      // skip to work_type
+      session.step = 'work_type';
+      await sendMessage(
+        chatId,
+        `📝 <b>What did you work on today?</b>\n\n<i>(Briefly describe the work/testing completed today)</i>`
+      );
+      return true;
+    } else {
+      await sendMessage(chatId, `⚠️ Type <b>Update</b> or <b>Cancel</b>.`);
+      return true;
+    }
+  }
   if (session.step === 'choose_checkin_project') {
     const list = session.projectsList || [];
     let selected = null;
@@ -2204,7 +2245,44 @@ async function handleCheckinStep(chatId, user, text) {
       const allProjects = await refreshProjectsFromCloud();
       const matchedProj = allProjects.find((p) => p.name.toLowerCase() === selectedName.toLowerCase());
       matchedId = matchedProj ? matchedProj.id : `prj-${Date.now().toString(36)}`;
+      if (matchedProj) selected = matchedProj;
     }
+
+    // Check duplicate checkin
+    try {
+      const fs = await import('fs');
+      const path = await import('path');
+      const CHECKINS_FILE = path.resolve(process.cwd(), 'checkins.json');
+      if (fs.existsSync(CHECKINS_FILE)) {
+        const checkins = JSON.parse(fs.readFileSync(CHECKINS_FILE, 'utf-8'));
+        const today = new Date().toISOString().split('T')[0];
+        const existing = checkins.find(c => c.testerId === `usr-${chatId}` && c.projectId === matchedId && (c.date === today || (c.createdAt && c.createdAt.startsWith(today))));
+        
+        if (existing) {
+          session.step = 'duplicate_checkin_warning';
+          session.duplicateProject = selected;
+          await sendMessage(chatId, `⚠️ You already submitted a check-in for this project today.\n\nType <b>Update</b> to submit a new check-in for today, or <b>Cancel</b> to abort.`);
+          return true;
+        }
+      }
+    } catch(err) {
+       console.error(err);
+    }
+
+    // Capture auto-association logic
+    session.qaLeadId = selected.qaLeadId || 'usr-sarah';
+    let assignedLeadName = 'Sarah Jenkins';
+    const users = loadProfiles();
+    for (const [cid, u] of Object.entries(users)) {
+      if (`usr-${cid}` === session.qaLeadId || u.id === session.qaLeadId) {
+         assignedLeadName = u.fullName || session.qaLeadId;
+         break;
+      }
+    }
+    if (session.qaLeadId === 'usr-sarah') assignedLeadName = 'Sarah Jenkins';
+    session.qaLeadName = assignedLeadName;
+    session.coreProjectName = selected.coreProjectName || 'Unknown';
+    session.coreProjectId = selected.coreProjectId || 'unknown';
 
     // Update active project in profile and session
     profile.projectId = matchedId;
@@ -3936,6 +4014,45 @@ async function handleMessage(message) {
 }
 
 // Long Polling Loop & Keepalive State
+async function handleCallbackQuery(callbackQuery) {
+  try {
+    const data = callbackQuery.data;
+    const chatId = callbackQuery.message.chat.id;
+    
+    if (data.startsWith('submit_testcases_')) {
+      const projectId = data.replace('submit_testcases_', '');
+      const allProjects = await refreshProjectsFromCloud();
+      const matchedProj = allProjects.find(p => p.id === projectId);
+      
+      if (matchedProj) {
+        userSessions.set(chatId, {
+          type: 'testcase_wizard',
+          step: 'provide_link',
+          projectId: matchedProj.id,
+          projectName: matchedProj.name,
+          projects: allProjects
+        });
+        
+        await fetch(`${TELEGRAM_API}/answerCallbackQuery`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ callback_query_id: callbackQuery.id, text: "Let's submit your test cases!" })
+        });
+        
+        await sendMessage(
+          chatId,
+          `🧪 <b>Submit Test Cases Link</b>\n\n` +
+          `📁 <b>Selected Project:</b> <b>${escapeHtml(matchedProj.name)}</b>\n` +
+          `Please provide the link to your test cases (Google Sheets, Notion, TestRail, Jira, or Docs):\n\n` +
+          `<i>👉 Reply with the URL below, or type <code>cancel</code> to abort:</i>`
+        );
+      }
+    }
+  } catch (err) {
+    console.error('[CallbackQuery Error]', err);
+  }
+}
+
 let lastUpdateId = 0;
 let lastPollSuccess = Date.now();
 let isPolling = false;
@@ -3961,6 +4078,12 @@ async function pollUpdates() {
             await handleMessage(update.message);
           } catch (handlerErr) {
             console.error('[Message Handler Error]', handlerErr);
+          }
+        } else if (update.callback_query) {
+          try {
+            await handleCallbackQuery(update.callback_query);
+          } catch (handlerErr) {
+            console.error('[CallbackQuery Handler Error]', handlerErr);
           }
         }
       }

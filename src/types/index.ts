@@ -116,6 +116,8 @@ export interface Project {
   targetReleaseDate: string;
   projectOwner: string;
   qaLeadId: string;
+  coreProjectId?: string;
+  coreProjectName?: string;
   memberIds: string[];
   resources: ProjectResources;
   qaProgress: number;

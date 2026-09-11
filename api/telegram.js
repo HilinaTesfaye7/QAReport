@@ -581,30 +581,36 @@ function formatQARisksText(project, openBlockers = [], memberReports = [], bugs 
   return out;
 }
 
-async function sendTelegramMessage(chatId, text, tokenOverride = null) {
+async function sendTelegramMessage(chatId, text, tokenOverride = null, replyMarkup = null) {
   const token = tokenOverride || BOT_TOKEN;
   if (!token) return { ok: false, description: 'No bot token configured' };
   try {
+    const payload = {
+      chat_id: chatId,
+      text,
+      parse_mode: 'HTML',
+    };
+    if (replyMarkup) {
+      payload.reply_markup = replyMarkup;
+    }
     const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text,
-        parse_mode: 'HTML',
-      }),
+      body: JSON.stringify(payload),
     });
     const data = await res.json();
     if (!data.ok) {
       console.warn('Telegram sendMessage HTML rejected:', data.description);
       if (data.description && (data.description.includes('parse entities') || data.description.includes('tag'))) {
+        const fallbackPayload = {
+          chat_id: chatId,
+          text: stripHtml(text),
+        };
+        if (replyMarkup) fallbackPayload.reply_markup = replyMarkup;
         const fallbackRes = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            chat_id: chatId,
-            text: stripHtml(text),
-          }),
+          body: JSON.stringify(fallbackPayload),
         });
         return await fallbackRes.json();
       }
@@ -741,9 +747,9 @@ export default async function handler(req, res) {
 
   // Support direct outbound notification dispatch from the web portal (bypasses browser CORS)
   if (req.body && (req.body.action === 'send_message' || req.body.action === 'send_notification')) {
-    const { chatId, text, botToken } = req.body;
+    const { chatId, text, botToken, replyMarkup } = req.body;
     if (chatId && text) {
-      const sendResult = await sendTelegramMessage(chatId, text, botToken);
+      const sendResult = await sendTelegramMessage(chatId, text, botToken, replyMarkup);
       return res.status(200).json(sendResult);
     }
     return res.status(400).json({ ok: false, description: 'Missing chatId or text' });

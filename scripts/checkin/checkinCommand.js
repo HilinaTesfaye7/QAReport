@@ -98,9 +98,15 @@ export async function handleNewCheckinStep(chatId, session, text, sendMessage, n
 
     const stats = calculateExecutionStats(session.executed, session.passed, session.failed, session.blocked);
     
+    // Auto-associate with QA Lead, Core Project, Project
+    const qaLead = session.qaLeadName || 'Sarah Jenkins';
+    const coreProjectName = session.coreProjectName || 'Unknown';
+
     saveCheckin({
       testerId: `usr-${chatId}`,
       projectId: session.profile?.projectId || 'unknown',
+      coreProjectId: session.coreProjectId || 'unknown',
+      qaLeadId: session.qaLeadId || 'unknown',
       workedToday: session.workedToday,
       blocker: session.blocker,
       nextPlan: session.nextPlan,
@@ -109,18 +115,20 @@ export async function handleNewCheckinStep(chatId, session, text, sendMessage, n
       passed: session.passed,
       failed: session.failed,
       blocked: session.blocked,
+      passRate: stats.passRate
     });
 
-    let summary = `✅ <b>Daily QA Check-in Recorded</b>\n\n`;
+    let summary = `✅ Daily QA Check-in Recorded\n\n`;
     summary += `📁 Project: ${session.profile?.projectName || 'N/A'}\n`;
+    summary += `👩‍💼 QA Lead: ${qaLead}\n`;
     summary += `👤 Tester: ${session.profile?.fullName || 'N/A'}\n\n`;
     
-    summary += `📝 <b>Worked Today</b>\n• ${session.workedToday}\n\n`;
-    summary += `🚧 <b>Blocker</b>\n• ${session.blocker ? session.blocker : 'None'}\n\n`;
-    summary += `📌 <b>Next Plan</b>\n• ${session.nextPlan}\n\n`;
-    summary += `🏆 <b>Achievement</b>\n• ${session.achievement}\n\n`;
+    summary += `📝 Worked Today\n• ${session.workedToday}\n\n`;
+    summary += `🚧 Blocker\n• ${session.blocker ? session.blocker : 'No blocker'}\n\n`;
+    summary += `📌 Next Plan\n• ${session.nextPlan}\n\n`;
+    summary += `🏆 Achievement\n• ${session.achievement}\n\n`;
 
-    summary += `📊 <b>Testing Summary</b>\n`;
+    summary += `📊 Testing Summary\n`;
     summary += `• Executed: ${session.executed}\n`;
     summary += `• Passed: ${session.passed}\n`;
     summary += `• Failed: ${session.failed}\n`;
