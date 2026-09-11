@@ -1,4 +1,4 @@
-export type UserRole = 'qa_lead' | 'qa_engineer';
+export type UserRole = 'QA Director' | 'QA Tester' | 'QA Lead' | 'Automation QA Engineer' | 'qa_lead' | 'qa_engineer';
 
 export type TestingSkill =
   | 'Manual Testing'
@@ -52,6 +52,13 @@ export interface User {
   baselineContext?: BaselineContext;
   telegramUsername?: string;
   telegramChatId?: string;
+  // New auth fields
+  username?: string;
+  passwordHash?: string;
+  isActive?: boolean;
+  mustChangePassword?: boolean;
+  passwordChangedAt?: string;
+  lastLoginAt?: string;
 }
 
 export type ProjectStatus =
@@ -105,6 +112,44 @@ export interface ProjectResources {
   testCredentials: TestCredential[];
   releaseInfo: string;
   importantNotes: string;
+}
+
+export interface CoreProject {
+  id: string;
+  name: string;
+  qaLeadId: string;
+  status: ProjectStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Module {
+  id: string;
+  projectId: string;
+  name: string;
+  description?: string;
+  priority?: string;
+  complexity?: string;
+  testingScope?: string;
+  weightPercentage?: number;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ModuleAssignment {
+  id: string;
+  moduleId: string;
+  projectId: string;
+  testerId: string;
+  leadId: string;
+  allocationPercentage: number;
+  testCaseDeadline?: string;
+  startDate?: string;
+  endDate?: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Project {
@@ -280,6 +325,8 @@ export interface Blocker {
   description: string;
   projectId: string;
   projectName?: string;
+  moduleId?: string;
+  moduleName?: string;
   taskId?: string;
   memberId: string;
   reportedBy?: string;
@@ -341,6 +388,19 @@ export interface RuleEvaluationResult {
   details: string;
 }
 
+export interface ModuleReleaseReadiness {
+  moduleId: string;
+  moduleName: string;
+  projectId: string;
+  status: ReleaseStatus;
+  testCompletionRate: number;
+  passRate: number;
+  criticalBugsCount: number;
+  highBugsCount: number;
+  openBlockersCount: number;
+  rulesEvaluated: RuleEvaluationResult[];
+}
+
 export interface ProjectReleaseReadiness {
   projectId: string;
   projectName: string;
@@ -355,6 +415,7 @@ export interface ProjectReleaseReadiness {
   regressionStatus: string;
   uatStatus: string;
   rulesEvaluated: RuleEvaluationResult[];
+  modulesReadiness?: ModuleReleaseReadiness[];
 }
 
 export interface AuditLog {

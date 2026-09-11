@@ -114,7 +114,25 @@ const REPORTS_FILE = path.resolve(process.cwd(), 'telegram_daily_reports.json');
 const BLOCKERS_FILE = path.resolve(process.cwd(), 'telegram_blockers.json');
 const PROJECTS_FILE = path.resolve(process.cwd(), 'projects.json');
 const PUBLIC_PROJECTS_FILE = path.resolve(process.cwd(), 'public', 'projects.json');
+const MODULES_FILE = path.resolve(process.cwd(), 'modules.json');
+const PUBLIC_MODULES_FILE = path.resolve(process.cwd(), 'public', 'modules.json');
 const GROUP_MESSAGES_FILE = path.resolve(process.cwd(), 'telegram_group_messages.json');
+
+function getModules() {
+  let list = [];
+  for (const file of [MODULES_FILE, PUBLIC_MODULES_FILE]) {
+    if (fs.existsSync(file)) {
+      try {
+        const parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          list = parsed;
+          break;
+        }
+      } catch {}
+    }
+  }
+  return list;
+}
 
 const NUMBER_EMOJIS = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟', '1️⃣1️⃣', '1️⃣2️⃣', '1️⃣3️⃣', '1️⃣4️⃣', '1️⃣5️⃣'];
 
@@ -1533,7 +1551,10 @@ function formatProjectReportText(projectName, memberReports, openBlockers = [], 
     out += `━━━━━━━━━━━━━━━━━━━━\n`;
     out += `👤 <b>${escapeHtml(r.memberName || 'QA Member')}</b> <i>(${escapeHtml(r.role || 'QA Engineer')})</i>${dateTag}\n`;
     out += `• <b>Status:</b> ${statusEmoji} ${escapeHtml(workStatus)}\n`;
-    out += `• <b>Worked Today:</b> ${escapeHtml(r.todayWorkingOn || 'In progress')}\n`;
+    if (r.moduleName) {
+      out += `• <b>Module:</b> 📦 ${escapeHtml(r.moduleName)}\n`;
+    }
+    out += `• <b>Worked Today:</b> ${escapeHtml(r.todayWorkingOn || r.workedToday || 'In progress')}\n`;
     out += `• ${blockerTag}\n`;
     if (r.risks && r.risks.toLowerCase() !== 'none') {
       out += `• <b>Risk:</b> <i>${escapeHtml(r.risks)}</i>\n`;
@@ -2304,6 +2325,29 @@ async function handleCheckinStep(chatId, user, text) {
       }).eq('chat_id', String(chatId)).then(() => {});
     }
 
+    const modules = getModules().filter(m => m.projectId === matchedId);
+    if (modules.length > 0) {
+      session.step = 'choose_module';
+      session.modules = modules;
+      
+      let listText = '';
+      modules.forEach((m, idx) => {
+        const emoji = NUMBER_EMOJIS[idx] || `[${idx + 1}]`;
+        listText += `${emoji} <b>${m.name}</b>\n`;
+      });
+      listText += `\n0️⃣ <b>Skip / Entire Project</b>\n`;
+
+      await sendMessage(
+        chatId,
+        `✅ <b>Project Selected: ${selectedName}</b>\n\n` +
+        `This project has multiple active modules.\n` +
+        `<b>Which module did you test today?</b>\n\n` +
+        listText + '\n' +
+        `<i>Reply with a number or type a module name:</i>`
+      );
+      return true;
+    }
+
     // Check if user previously reported an active blocker for this project
     const openBlockers = await getOpenBlockersForUser(chatId, profile.fullName);
     const projectBlockers = openBlockers.filter((b) => !b.projectName || b.projectName.toLowerCase() === selectedName.toLowerCase());
@@ -2339,6 +2383,64 @@ async function handleCheckinStep(chatId, user, text) {
     );
     return true;
   }
+  
+  if (session.step === 'choose_module') {
+    const modules = session.modules;
+    let moduleName = text.trim();
+    let selectedModule = null;
+
+    if (moduleName === '0' || moduleName.toLowerCase() === 'skip' || moduleName.toLowerCase() === 'entire project') {
+      // Skipped
+    } else {
+      const num = parseInt(moduleName, 10);
+      if (!isNaN(num) && num >= 1 && num <= modules.length) {
+        selectedModule = modules[num - 1];
+      } else {
+        selectedModule = modules.find(
+          (m) => m.name.toLowerCase() === moduleName.toLowerCase() || m.id.toLowerCase() === moduleName.toLowerCase()
+        ) || modules.find((m) => m.name.toLowerCase().includes(moduleName.toLowerCase()));
+      }
+    }
+
+    session.moduleId = selectedModule ? selectedModule.id : null;
+    session.moduleName = selectedModule ? selectedModule.name : null;
+    
+    // Check if user previously reported an active blocker for this project
+    const openBlockers = await getOpenBlockersForUser(chatId, profile ? profile.fullName : 'QA Member');
+    const projectBlockers = openBlockers.filter((b) => !b.projectName || b.projectName.toLowerCase() === session.profile.projectName.toLowerCase());
+
+    if (projectBlockers.length > 0) {
+      session.step = 'resolve_previous_blocker';
+      session.pendingBlockers = projectBlockers;
+      const blockerCountText = projectBlockers.length === 1 ? 'an active blocker' : `${projectBlockers.length} active blockers`;
+      const blockerItemsList = projectBlockers
+        .map((b) => `• <b>${escapeHtml(b.title || 'Blocker')}</b>: <i>"${escapeHtml(b.description)}"</i>`)
+        .join('\n');
+
+      await sendMessage(
+        chatId,
+        `📁 <b>Project:</b> <b>${escapeHtml(session.profile.projectName)}</b>\n\n` +
+        `⚠️ <b>Reminder from Yesterday:</b>\n` +
+        `You previously reported ${blockerCountText} on <b>${escapeHtml(session.profile.projectName)}</b>:\n` +
+        `${blockerItemsList}\n\n` +
+        `<b>Are these blocker(s) now resolved?</b>\n\n` +
+        `1️⃣ <b>Yes, mark resolved</b> (Remove from blocked tasks on QA Command Center)\n` +
+        `2️⃣ <b>No, still blocked</b>\n\n` +
+        `<i>Reply 1 to mark resolved, or 2 to keep active:</i>`
+      );
+      return true;
+    }
+
+    session.step = 'worked_today';
+    const modText = selectedModule ? `\n📦 <b>Module:</b> <b>${escapeHtml(selectedModule.name)}</b>` : '';
+    await sendMessage(
+      chatId,
+      `📁 <b>Project:</b> <b>${escapeHtml(session.profile.projectName)}</b>${modText}\n\n` +
+      `📝 <b>What did you work on today?</b>\n` +
+      `<i>(Briefly describe the work/testing completed today)</i>`
+    );
+    return true;
+  }
 
   if (session.step === 'resolve_previous_blocker') {
     const isYes = lower === '1' || lower.includes('yes') || lower.includes('resolved') || lower === 'y' || lower.includes('fixed');
@@ -2369,7 +2471,6 @@ async function handleCheckinStep(chatId, user, text) {
         `<i>(Feature, module, test cases executed, API testing, regression, bugs retested, etc.)</i>`
       );
     } else {
-      await sendMessage(
         chatId,
         `Understood, keeping blocker(s) active on the dashboard.\n\n` +
         `Now let's proceed with your daily standup.\n\n` +
@@ -2377,6 +2478,8 @@ async function handleCheckinStep(chatId, user, text) {
         `<i>(Feature, module, test cases executed, API testing, regression, bugs retested, etc.)</i>`
       );
     }
+    
+    // We already chose the project (and optionally module). Just transition to worked_today.
     session.step = 'worked_today';
     return true;
   }
@@ -2446,62 +2549,130 @@ async function handleProjectSwitch(chatId, text) {
   const session = userSessions.get(chatId);
   if (!session || session.type !== 'switch_project') return false;
 
-  const projects = session.projects || getProjects();
-  let projectName = text.trim();
-  let projectId = 'prj-custom';
-  let selected = null;
+  if (session.step === 1) {
+    const projects = session.projects || getProjects();
+    let projectName = text.trim();
+    let projectId = 'prj-custom';
+    let selected = null;
 
-  const num = parseInt(projectName, 10);
-  if (!isNaN(num) && num >= 1 && num <= projects.length) {
-    selected = projects[num - 1];
-  } else {
-    selected = projects.find(
-      (p) => p.name.toLowerCase() === projectName.toLowerCase() || p.id.toLowerCase() === projectName.toLowerCase()
-    ) || projects.find((p) => p.name.toLowerCase().includes(projectName.toLowerCase()));
-  }
+    const num = parseInt(projectName, 10);
+    if (!isNaN(num) && num >= 1 && num <= projects.length) {
+      selected = projects[num - 1];
+    } else {
+      selected = projects.find(
+        (p) => p.name.toLowerCase() === projectName.toLowerCase() || p.id.toLowerCase() === projectName.toLowerCase()
+      ) || projects.find((p) => p.name.toLowerCase().includes(projectName.toLowerCase()));
+    }
 
-  if (selected) {
-    projectId = selected.id;
-    projectName = selected.name;
-  } else {
-    projectId = `prj-${Date.now().toString(36)}`;
-    const newProj = {
-      id: projectId,
-      name: projectName,
-      description: `QA Project ${projectName}`,
-      status: 'Testing',
-      memberIds: [`usr-${chatId}`],
-    };
-    projects.push(newProj);
-    saveProjects(projects);
-
-    if (supabase) {
-      supabase.from('projects').upsert({
+    if (selected) {
+      projectId = selected.id;
+      projectName = selected.name;
+    } else {
+      projectId = `prj-${Date.now().toString(36)}`;
+      const newProj = {
         id: projectId,
         name: projectName,
         description: `QA Project ${projectName}`,
         status: 'Testing',
-        member_ids: [`usr-${chatId}`],
-      }).then(({ error }) => {
-        if (error) console.error('[Supabase] Error creating project:', error.message);
-      });
+        memberIds: [`usr-${chatId}`],
+      };
+      projects.push(newProj);
+      saveProjects(projects);
+
+      if (supabase) {
+        supabase.from('projects').upsert({
+          id: projectId,
+          name: projectName,
+          description: `QA Project ${projectName}`,
+          status: 'Testing',
+          member_ids: [`usr-${chatId}`],
+        }).then(({ error }) => {
+          if (error) console.error('[Supabase] Error creating project:', error.message);
+        });
+      }
     }
+
+    const modules = getModules().filter(m => m.projectId === projectId);
+    
+    if (modules.length > 0) {
+      session.step = 2;
+      session.selectedProjectId = projectId;
+      session.selectedProjectName = projectName;
+      session.modules = modules;
+      
+      let listText = '';
+      modules.forEach((m, idx) => {
+        const emoji = NUMBER_EMOJIS[idx] || `[${idx + 1}]`;
+        listText += `${emoji} <b>${m.name}</b>\n`;
+      });
+      listText += `\n0️⃣ <b>Skip / Entire Project</b>\n`;
+
+      await sendMessage(
+        chatId,
+        `✅ <b>Project Selected: ${projectName}</b>\n\n` +
+        `This project has multiple active modules.\n` +
+        `<b>Which module are you primarily testing?</b>\n\n` +
+        listText + '\n' +
+        `<i>Reply with a number or type a module name:</i>`
+      );
+      return true;
+    }
+
+    saveProfile(chatId, {
+      projectId,
+      projectName,
+      moduleId: null,
+      moduleName: null
+    });
+
+    userSessions.delete(chatId);
+
+    await sendMessage(
+      chatId,
+      `✅ <b>Active Project Switched!</b>\n\n` +
+      `You are now assigned to: <b>${projectName}</b>.\n` +
+      `Your next <code>/checkin</code> and blocker alerts will be recorded for this project.`
+    );
+    return true;
   }
+  
+  if (session.step === 2) {
+    const modules = session.modules;
+    let moduleName = text.trim();
+    let selectedModule = null;
 
-  saveProfile(chatId, {
-    projectId,
-    projectName,
-  });
+    if (moduleName === '0' || moduleName.toLowerCase() === 'skip' || moduleName.toLowerCase() === 'entire project') {
+      // Skipped
+    } else {
+      const num = parseInt(moduleName, 10);
+      if (!isNaN(num) && num >= 1 && num <= modules.length) {
+        selectedModule = modules[num - 1];
+      } else {
+        selectedModule = modules.find(
+          (m) => m.name.toLowerCase() === moduleName.toLowerCase() || m.id.toLowerCase() === moduleName.toLowerCase()
+        ) || modules.find((m) => m.name.toLowerCase().includes(moduleName.toLowerCase()));
+      }
+    }
 
-  userSessions.delete(chatId);
+    saveProfile(chatId, {
+      projectId: session.selectedProjectId,
+      projectName: session.selectedProjectName,
+      moduleId: selectedModule ? selectedModule.id : null,
+      moduleName: selectedModule ? selectedModule.name : null
+    });
 
-  await sendMessage(
-    chatId,
-    `✅ <b>Active Project Switched!</b>\n\n` +
-    `You are now assigned to: <b>${projectName}</b>.\n` +
-    `Your next <code>/checkin</code> and blocker alerts will be recorded for this project.`
-  );
-  return true;
+    userSessions.delete(chatId);
+
+    const modText = selectedModule ? `\n<b>Module:</b> ${selectedModule.name}` : `\n<b>Module:</b> Entire Project`;
+    
+    await sendMessage(
+      chatId,
+      `✅ <b>Active Project & Module Switched!</b>\n\n` +
+      `You are now assigned to:\n<b>Project:</b> ${session.selectedProjectName}${modText}\n\n` +
+      `Your next <code>/checkin</code> and blocker alerts will be recorded for this project and module.`
+    );
+    return true;
+  }
 }
 
 async function handleTestCaseWizardStep(chatId, user, rawText) {
@@ -2537,6 +2708,33 @@ async function handleTestCaseWizardStep(chatId, user, rawText) {
       return true;
     }
 
+    const modules = getModules().filter(m => m.projectId === selected.id);
+    
+    if (modules.length > 0) {
+      session.step = 'choose_module';
+      session.projectId = selected.id;
+      session.projectName = selected.name;
+      session.modules = modules;
+      userSessions.set(chatId, session);
+      
+      let listText = '';
+      modules.forEach((m, idx) => {
+        const emoji = NUMBER_EMOJIS[idx] || `[${idx + 1}]`;
+        listText += `${emoji} <b>${m.name}</b>\n`;
+      });
+      listText += `\n0️⃣ <b>Skip / Entire Project</b>\n`;
+      
+      await sendMessage(
+        chatId,
+        `✅ <b>Project Selected: ${selected.name}</b>\n\n` +
+        `This project has multiple active modules.\n` +
+        `<b>Which module do these test cases cover?</b>\n\n` +
+        listText + '\n' +
+        `<i>Reply with a number or type a module name:</i>`
+      );
+      return true;
+    }
+
     // If user already supplied a URL in the initial command
     if (session.pendingUrl) {
       let finalUrl = session.pendingUrl;
@@ -2562,6 +2760,8 @@ async function handleTestCaseWizardStep(chatId, user, rawText) {
     session.step = 'provide_link';
     session.projectId = selected.id;
     session.projectName = selected.name;
+    session.moduleId = null;
+    session.moduleName = null;
     userSessions.set(chatId, session);
 
     let currentLinkMsg = '';
@@ -2573,6 +2773,67 @@ async function handleTestCaseWizardStep(chatId, user, rawText) {
       chatId,
       `🧪 <b>Submit Test Cases Link</b>\n\n` +
       `📁 <b>Selected Project:</b> <b>${escapeHtml(selected.name)}</b>${currentLinkMsg}\n` +
+      `Please provide the link to your test cases (Google Sheets, Notion, TestRail, Jira, or Docs):\n\n` +
+      `<i>👉 Reply with the URL below, or type <code>cancel</code> to abort:</i>`
+    );
+    return true;
+  }
+  
+  if (session.step === 'choose_module') {
+    const modules = session.modules;
+    let moduleName = input;
+    let selectedModule = null;
+
+    if (moduleName === '0' || moduleName.toLowerCase() === 'skip' || moduleName.toLowerCase() === 'entire project') {
+      // Skipped
+    } else {
+      const num = parseInt(moduleName, 10);
+      if (!isNaN(num) && num >= 1 && num <= modules.length) {
+        selectedModule = modules[num - 1];
+      } else {
+        selectedModule = modules.find(
+          (m) => m.name.toLowerCase() === moduleName.toLowerCase() || m.id.toLowerCase() === moduleName.toLowerCase()
+        ) || modules.find((m) => m.name.toLowerCase().includes(moduleName.toLowerCase()));
+      }
+    }
+    
+    session.moduleId = selectedModule ? selectedModule.id : null;
+    session.moduleName = selectedModule ? selectedModule.name : null;
+    
+    // If user already supplied a URL in the initial command
+    if (session.pendingUrl) {
+      let finalUrl = session.pendingUrl;
+      if (!finalUrl.startsWith('http://') && !finalUrl.startsWith('https://')) {
+        finalUrl = `https://${finalUrl}`;
+      }
+      
+      // Save for project and module if appropriate (for now we save at project level)
+      const savedProj = await saveProjectTestCaseUrl(session.projectId, finalUrl);
+      userSessions.delete(chatId);
+      const finalName = savedProj?.name || session.projectName;
+      
+      const modText = selectedModule ? `\n📦 <b>Module:</b> <b>${escapeHtml(selectedModule.name)}</b>` : '';
+
+      await sendMessage(
+        chatId,
+        `✅ <b>Test Cases Link Submitted!</b>\n\n` +
+        `📁 <b>Project:</b> <b>${escapeHtml(finalName)}</b>${modText}\n` +
+        `🔗 <b>Test Cases Link:</b> <a href="${escapeHtml(finalUrl)}">${escapeHtml(finalUrl)}</a>\n\n` +
+        `<i>The link has been saved and is now placed right beside PRD and Figma in the project dashboard.</i>\n\n` +
+        `💡 Type <code>/checkin</code> when you are ready to submit your daily standup.`
+      );
+      return true;
+    }
+    
+    // Advance to STEP 2: Ask for the test case link
+    session.step = 'provide_link';
+    userSessions.set(chatId, session);
+    
+    const modText = selectedModule ? `\n📦 <b>Selected Module:</b> <b>${escapeHtml(selectedModule.name)}</b>` : '';
+    await sendMessage(
+      chatId,
+      `🧪 <b>Submit Test Cases Link</b>\n\n` +
+      `📁 <b>Selected Project:</b> <b>${escapeHtml(session.projectName)}</b>${modText}\n` +
       `Please provide the link to your test cases (Google Sheets, Notion, TestRail, Jira, or Docs):\n\n` +
       `<i>👉 Reply with the URL below, or type <code>cancel</code> to abort:</i>`
     );
@@ -2609,6 +2870,7 @@ async function handleTestCaseWizardStep(chatId, user, rawText) {
       chatId,
       `✅ <b>Test Cases Link Submitted!</b>\n\n` +
       `📁 <b>Project:</b> <b>${escapeHtml(finalProjectName)}</b>\n` +
+      (session.moduleName ? `📦 <b>Module:</b> <b>${escapeHtml(session.moduleName)}</b>\n` : '') +
       `🔗 <b>Test Cases Link:</b> <a href="${escapeHtml(testCaseUrl)}">${escapeHtml(testCaseUrl)}</a>\n\n` +
       `<i>The link has been saved and is now placed right beside PRD and Figma in the project dashboard.</i>\n\n` +
       `💡 Type <code>/checkin</code> when you are ready to submit your daily standup.`
@@ -2787,6 +3049,33 @@ async function handleBlockerWizardStep(chatId, user, text) {
     const projectId = selected.id;
     const projectName = selected.name;
 
+    const modules = getModules().filter(m => m.projectId === projectId);
+    
+    if (modules.length > 0) {
+      session.step = 'choose_module';
+      session.projectId = projectId;
+      session.projectName = projectName;
+      session.modules = modules;
+      userSessions.set(chatId, session);
+      
+      let listText = '';
+      modules.forEach((m, idx) => {
+        const emoji = NUMBER_EMOJIS[idx] || `[${idx + 1}]`;
+        listText += `${emoji} <b>${m.name}</b>\n`;
+      });
+      listText += `\n0️⃣ <b>Skip / Entire Project</b>\n`;
+
+      await sendMessage(
+        chatId,
+        `✅ <b>Project Selected: ${projectName}</b>\n\n` +
+        `This project has multiple active modules.\n` +
+        `<b>Which module is currently blocked?</b>\n\n` +
+        listText + '\n' +
+        `<i>Reply with a number or type a module name:</i>`
+      );
+      return true;
+    }
+
     // If pendingReason was already provided in the original /blocker command
     if (session.pendingReason) {
       const reason = session.pendingReason;
@@ -2818,6 +3107,8 @@ async function handleBlockerWizardStep(chatId, user, text) {
         description: reason,
         projectId,
         projectName,
+        moduleId: null,
+        moduleName: null,
         severity: 'Critical',
         status: 'Open',
         reportedBy: memberName,
@@ -2834,6 +3125,8 @@ async function handleBlockerWizardStep(chatId, user, text) {
         username: user.username || user.first_name,
         projectName,
         projectId,
+        moduleId: null,
+        moduleName: null,
         reason,
         severity: 'Critical',
         createdAt: blockerItem.createdAt,
@@ -2855,12 +3148,120 @@ async function handleBlockerWizardStep(chatId, user, text) {
     session.step = 'enter_reason';
     session.projectId = projectId;
     session.projectName = projectName;
+    session.moduleId = null;
+    session.moduleName = null;
     userSessions.set(chatId, session);
 
     await sendMessage(
       chatId,
       `🚨 <b>Report Urgent Blocker</b>\n\n` +
       `📁 <b>Project:</b> <b>${escapeHtml(projectName)}</b>\n\n` +
+      `Please describe the blocker or critical challenge stopping your QA work:\n\n` +
+      `<i>👉 Reply with the description below (or type <code>cancel</code> to abort):</i>`
+    );
+    return true;
+  }
+  
+  if (session.step === 'choose_module') {
+    const modules = session.modules;
+    let moduleName = input;
+    let selectedModule = null;
+
+    if (moduleName === '0' || moduleName.toLowerCase() === 'skip' || moduleName.toLowerCase() === 'entire project') {
+      // Skipped
+    } else {
+      const num = parseInt(moduleName, 10);
+      if (!isNaN(num) && num >= 1 && num <= modules.length) {
+        selectedModule = modules[num - 1];
+      } else {
+        selectedModule = modules.find(
+          (m) => m.name.toLowerCase() === moduleName.toLowerCase() || m.id.toLowerCase() === moduleName.toLowerCase()
+        ) || modules.find((m) => m.name.toLowerCase().includes(moduleName.toLowerCase()));
+      }
+    }
+    
+    session.moduleId = selectedModule ? selectedModule.id : null;
+    session.moduleName = selectedModule ? selectedModule.name : null;
+
+    // If pendingReason was already provided in the original /blocker command
+    if (session.pendingReason) {
+      const reason = session.pendingReason;
+      const profile = getProfile(chatId);
+      const memberName = profile ? profile.fullName : (user.first_name || 'QA Tester');
+
+      if (profile) {
+        profile.projectId = session.projectId;
+        profile.projectName = session.projectName;
+        const profiles = loadProfiles();
+        if (profiles[String(chatId)]) {
+          profiles[String(chatId)].projectId = session.projectId;
+          profiles[String(chatId)].projectName = session.projectName;
+          profiles[String(chatId)].updatedAt = new Date().toISOString();
+          saveProfiles(profiles);
+        }
+        if (supabase) {
+          supabase.from('telegram_profiles').update({
+            project_id: session.projectId,
+            project_name: session.projectName,
+            updated_at: new Date().toISOString(),
+          }).eq('chat_id', String(chatId)).then(() => {});
+        }
+      }
+
+      const blockerItem = {
+        id: `blk-${Date.now().toString(36)}`,
+        title: `Blocker: ${memberName} (Blocked)`,
+        description: reason,
+        projectId: session.projectId,
+        projectName: session.projectName,
+        moduleId: session.moduleId,
+        moduleName: session.moduleName,
+        severity: 'Critical',
+        status: 'Open',
+        reportedBy: memberName,
+        createdAt: new Date().toISOString(),
+        chatId: String(chatId),
+      };
+
+      persistBlocker(blockerItem);
+      userSessions.delete(chatId);
+
+      notifyQALeadsOfBlocker({
+        senderChatId: chatId,
+        memberName,
+        username: user.username || user.first_name,
+        projectName: session.projectName,
+        projectId: session.projectId,
+        moduleId: session.moduleId,
+        moduleName: session.moduleName,
+        reason,
+        severity: 'Critical',
+        createdAt: blockerItem.createdAt,
+      }).catch((err) => console.error('[Notify Lead Error]', err.message));
+
+      const modText = session.moduleName ? `\n📦 <b>Module:</b> <b>${escapeHtml(session.moduleName)}</b>` : '';
+
+      await sendMessage(
+        chatId,
+        `🚨 <b>CRITICAL BLOCKER LOGGED</b>\n\n` +
+        `📁 <b>Project:</b> <b>${escapeHtml(session.projectName)}</b>${modText}\n` +
+        `👤 <b>Reported by:</b> ${escapeHtml(memberName)} (@${escapeHtml(user.username || user.first_name)})\n` +
+        `⚠️ <b>Issue:</b> <i>"${escapeHtml(reason)}"</i>\n` +
+        `🕒 <b>Time:</b> <code>${new Date().toLocaleTimeString()}</code>\n\n` +
+        `<i>The QA Leadership Command Center has been alerted.</i>`
+      );
+      return true;
+    }
+
+    // Advance to STEP 2: Ask for blocker description
+    session.step = 'enter_reason';
+    userSessions.set(chatId, session);
+
+    const modText = session.moduleName ? `\n📦 <b>Module:</b> <b>${escapeHtml(session.moduleName)}</b>` : '';
+    await sendMessage(
+      chatId,
+      `🚨 <b>Report Urgent Blocker</b>\n\n` +
+      `📁 <b>Project:</b> <b>${escapeHtml(session.projectName)}</b>${modText}\n\n` +
       `Please describe the blocker or critical challenge stopping your QA work:\n\n` +
       `<i>👉 Reply with the description below (or type <code>cancel</code> to abort):</i>`
     );
@@ -2900,6 +3301,8 @@ async function handleBlockerWizardStep(chatId, user, text) {
       description: reason,
       projectId,
       projectName,
+      moduleId: session.moduleId,
+      moduleName: session.moduleName,
       severity: 'Critical',
       status: 'Open',
       reportedBy: memberName,
@@ -2916,15 +3319,19 @@ async function handleBlockerWizardStep(chatId, user, text) {
       username: user.username || user.first_name,
       projectName,
       projectId,
+      moduleId: session.moduleId,
+      moduleName: session.moduleName,
       reason,
       severity: 'Critical',
       createdAt: blockerItem.createdAt,
     }).catch((err) => console.error('[Notify Lead Error]', err.message));
 
+    const modText = session.moduleName ? `\n📦 <b>Module:</b> <b>${escapeHtml(session.moduleName)}</b>` : '';
+
     await sendMessage(
       chatId,
       `🚨 <b>CRITICAL BLOCKER LOGGED</b>\n\n` +
-      `📁 <b>Project:</b> <b>${escapeHtml(projectName)}</b>\n` +
+      `📁 <b>Project:</b> <b>${escapeHtml(projectName)}</b>${modText}\n` +
       `👤 <b>Reported by:</b> ${escapeHtml(memberName)} (@${escapeHtml(user.username || user.first_name)})\n` +
       `⚠️ <b>Issue:</b> <i>"${escapeHtml(reason)}"</i>\n` +
       `🕒 <b>Time:</b> <code>${new Date().toLocaleTimeString()}</code>\n\n` +

@@ -42,6 +42,9 @@ const STORAGE_KEYS = {
   NOTIFICATIONS: 'aegis_notifications',
   AUDIT_LOGS: 'aegis_audit_logs',
   CHANNELS: 'aegis_channels_config',
+  CORE_PROJECTS: 'aegis_core_projects',
+  MODULES: 'aegis_modules',
+  MODULE_ASSIGNMENTS: 'aegis_module_assignments',
 };
 
 // Dispatch custom event for cross-component reactivity
@@ -210,6 +213,36 @@ export const StorageService = {
       }
     }
     return StorageService.getUsers();
+  },
+
+  // CORE PROJECTS
+  getCoreProjects: (): import('../types').CoreProject[] => {
+    const raw = localStorage.getItem(STORAGE_KEYS.CORE_PROJECTS);
+    return raw ? JSON.parse(raw) : [];
+  },
+  saveCoreProjects: (coreProjects: import('../types').CoreProject[]) => {
+    localStorage.setItem(STORAGE_KEYS.CORE_PROJECTS, JSON.stringify(coreProjects));
+    emitChange(STORAGE_KEYS.CORE_PROJECTS);
+  },
+
+  // MODULES
+  getModules: (): import('../types').Module[] => {
+    const raw = localStorage.getItem(STORAGE_KEYS.MODULES);
+    return raw ? JSON.parse(raw) : [];
+  },
+  saveModules: (modules: import('../types').Module[]) => {
+    localStorage.setItem(STORAGE_KEYS.MODULES, JSON.stringify(modules));
+    emitChange(STORAGE_KEYS.MODULES);
+  },
+
+  // MODULE ASSIGNMENTS
+  getModuleAssignments: (): import('../types').ModuleAssignment[] => {
+    const raw = localStorage.getItem(STORAGE_KEYS.MODULE_ASSIGNMENTS);
+    return raw ? JSON.parse(raw) : [];
+  },
+  saveModuleAssignments: (assignments: import('../types').ModuleAssignment[]) => {
+    localStorage.setItem(STORAGE_KEYS.MODULE_ASSIGNMENTS, JSON.stringify(assignments));
+    emitChange(STORAGE_KEYS.MODULE_ASSIGNMENTS);
   },
 
   // PROJECTS

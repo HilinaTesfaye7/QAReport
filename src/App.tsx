@@ -22,9 +22,11 @@ import { AuthService } from './services/authService';
 import { StorageService } from './services/storage';
 import { CreateProjectModal } from './components/CreateProjectModal';
 import { User } from './types';
+import { Login } from './components/Login';
+import { ChangePassword } from './components/ChangePassword';
 
 export const App: React.FC = () => {
-  const [currentUser, setCurrentUser] = useState<User>(AuthService.getCurrentUser());
+  const [currentUser, setCurrentUser] = useState<User | null>(AuthService.getCurrentUser());
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [activeTab, setActiveTab] = useState<string>('command-center');
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(false);
@@ -54,7 +56,7 @@ export const App: React.FC = () => {
     setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
   };
 
-  const handleUserChange = (newUser: User) => {
+  const handleUserChange = (newUser: User | null) => {
     setCurrentUser(newUser);
   };
 
@@ -62,6 +64,14 @@ export const App: React.FC = () => {
     setSelectedProjectId(projectId);
     setActiveTab('projects');
   };
+
+  if (!currentUser) {
+    return <Login onLoginSuccess={() => setCurrentUser(AuthService.getCurrentUser())} />;
+  }
+
+  if (currentUser.mustChangePassword) {
+    return <ChangePassword user={currentUser} onPasswordChanged={() => setCurrentUser(AuthService.getCurrentUser())} />;
+  }
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', background: 'var(--bg-app)', color: 'var(--text-primary)' }}>

@@ -173,9 +173,14 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
     if (!targetUser) return;
 
     if (!force) {
-      const totalAlloc = targetUser.projectAllocations?.reduce((sum, a) => sum + a.percentage, 0) || 0;
+      const moduleAssignments = StorageService.getModuleAssignments ? StorageService.getModuleAssignments().filter(a => a.testerId === targetUser.id && a.status === 'Active') : [];
+      let totalAlloc = moduleAssignments.reduce((sum, a) => sum + (a.allocationPercentage || 0), 0);
+      if (totalAlloc === 0) {
+        totalAlloc = targetUser.projectAllocations?.reduce((sum, a) => sum + a.percentage, 0) || 0;
+      }
+
       if (totalAlloc >= 100) {
-        setPendingWorkloadMessage(`⚠️ Workload Warning: ${targetUser.name} is already at ${totalAlloc}% global capacity across all projects.`);
+        setPendingWorkloadMessage(`⚠️ Workload Warning: ${targetUser.name} is already at ${totalAlloc}% global capacity across all projects/modules.`);
         setShowWorkloadWarning(true);
         return;
       }

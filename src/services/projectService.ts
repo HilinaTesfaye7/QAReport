@@ -1,4 +1,4 @@
-import { Project, ProjectResources } from '../types';
+import { Project, User, ProjectAllocation, QATask, TestCase, QABug, Blocker, Module, ProjectResources } from '../types';
 import { StorageService } from './storage';
 import { AuditService } from './auditService';
 import { NotificationService } from './notificationService';
@@ -8,6 +8,13 @@ import { supabase, isSupabaseConfigured } from './supabaseClient';
 export const ProjectService = {
   getProjects: (): Project[] => {
     return StorageService.getProjects();
+  },
+
+  getAuthorizedProjects: (user: User): Project[] => {
+    const all = StorageService.getProjects();
+    if (user.role === 'QA Director') return all;
+    if (user.role === 'QA Lead') return all.filter(p => p.qaLeadId === user.id);
+    return all.filter(p => p.memberIds.includes(user.id));
   },
 
   getProjectById: (projectId: string): Project | undefined => {
@@ -185,6 +192,12 @@ export const ProjectService = {
     const updatedProjects = projects.filter((p) => p.id !== projectId);
     StorageService.saveProjects(updatedProjects);
 
+    // Delete associated modules
+    const modules = StorageService.getModules().filter(m => m.projectId !== projectId);
+    StorageService.saveModules(modules);
+    const assignments = StorageService.getModuleAssignments().filter(ma => ma.projectId !== projectId);
+    StorageService.saveModuleAssignments(assignments);
+
     // 4. Remove project allocations from all users
     const users = StorageService.getUsers();
     let usersModified = false;
@@ -218,4 +231,85 @@ export const ProjectService = {
 
     return true;
   },
+
+  // --- CORE PROJECTS ---
+  getCoreProjects: () => {
+    return StorageService.getCoreProjects();
+  },
+
+  createCoreProject: (name: string, leadId: string): import('../types').CoreProject => {
+    AuthService.requireLeadPermission(leadId);
+    const coreProjects = StorageService.getCoreProjects();
+    const newCore = {
+      id: `core-${Date.now().toString(36)}`,
+      name,
+      qaLeadId: leadId,
+      status: 'Active' as const,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    coreProjects.unshift(newCore);
+    StorageService.saveCoreProjects(coreProjects);
+    return newCore;
+  },
+
+  // --- MODULES ---
+  getModulesByProject: (projectId: string) => {
+    return StorageService.getModules().filter(m => m.projectId === projectId);
+  },
+
+  createModule: (projectId: string, name: string, description: string = ''): import('../types').Module => {
+    const modules = StorageService.getModules();
+    const newModule = {
+      id: `mod-${Date.now().toString(36)}`,
+      projectId,
+      name,
+      description,
+      status: 'Active',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    modules.push(newModule);
+    StorageService.saveModules(modules);
+    return newModule;
+  },
+
+  // --- MODULE ASSIGNMENTS ---
+  getModuleAssignmentsByProject: (projectId: string) => {
+    return StorageService.getModuleAssignments().filter(ma => ma.projectId === projectId);
+  },
+  
+  assignTesterToModule: (moduleId: string, projectId: string, testerId: string, leadId: string, allocationPercentage: number, deadline?: string) => {
+    AuthService.requireLeadPermission(leadId);
+    const assignments = StorageService.getModuleAssignments();
+    
+    // Check if assignment exists
+    const existingIdx = assignments.findIndex(a => a.moduleId === moduleId && a.testerId === testerId);
+    if (existingIdx !== -1) {
+      assignments[existingIdx].allocationPercentage = allocationPercentage;
+      assignments[existingIdx].testCaseDeadline = deadline;
+      assignments[existingIdx].updatedAt = new Date().toISOString();
+    } else {
+      assignments.push({
+        id: `mass-${Date.now().toString(36)}`,
+        moduleId,
+        projectId,
+        testerId,
+        leadId,
+        allocationPercentage,
+        testCaseDeadline: deadline,
+        status: 'Active',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      });
+    }
+    
+    StorageService.saveModuleAssignments(assignments);
+
+    // Also update project.memberIds for backward compatibility
+    const project = ProjectService.getProjectById(projectId);
+    if (project && !project.memberIds.includes(testerId)) {
+      ProjectService.assignMember(projectId, testerId, leadId);
+    }
+  }
 };

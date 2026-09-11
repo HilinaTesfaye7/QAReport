@@ -105,6 +105,8 @@ export async function handleNewCheckinStep(chatId, session, text, sendMessage, n
     saveCheckin({
       testerId: `usr-${chatId}`,
       projectId: session.profile?.projectId || 'unknown',
+      moduleId: session.moduleId || null,
+      moduleName: session.moduleName || null,
       coreProjectId: session.coreProjectId || 'unknown',
       qaLeadId: session.qaLeadId || 'unknown',
       workedToday: session.workedToday,
@@ -120,6 +122,9 @@ export async function handleNewCheckinStep(chatId, session, text, sendMessage, n
 
     let summary = `✅ Daily QA Check-in Recorded\n\n`;
     summary += `📁 Project: ${session.profile?.projectName || 'N/A'}\n`;
+    if (session.moduleName) {
+      summary += `📦 Module: ${session.moduleName}\n`;
+    }
     summary += `👩‍💼 QA Lead: ${qaLead}\n`;
     summary += `👤 Tester: ${session.profile?.fullName || 'N/A'}\n\n`;
     
@@ -134,6 +139,22 @@ export async function handleNewCheckinStep(chatId, session, text, sendMessage, n
     summary += `• Failed: ${session.failed}\n`;
     summary += `• Blocked: ${session.blocked}\n`;
     summary += `• Pass Rate: ${stats.passRate}%\n\n`;
+
+    if (session.executed > 0 && stats.passRate === 100 && stats.failRate === 0 && stats.blockRate === 0) {
+      if (notifyCallbacks.notifyAchievement) {
+        const moduleText = session.moduleName ? ` on module ${session.moduleName}` : ``;
+        const autoAchievement = `Achieved 100% Pass Rate (${session.executed}/${session.executed} passed)${moduleText}!`;
+        await notifyCallbacks.notifyAchievement({
+          senderChatId: chatId,
+          memberName: session.profile?.fullName || 'Tester',
+          username: session.profile?.username || '',
+          projectName: session.profile?.projectName || 'unknown',
+          projectId: session.profile?.projectId || 'unknown',
+          achievementText: autoAchievement
+        });
+        summary += `🌟 <b>Auto-Achievement Triggered:</b> 100% Pass Rate! Great job!\n`;
+      }
+    }
 
     await sendMessage(chatId, summary);
     return { done: true };

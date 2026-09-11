@@ -1,22 +1,67 @@
 import { User, TestingSkill, ProjectAllocation, BaselineContext, UserRole } from '../types';
 import { StorageService } from './storage';
 
+import { CryptoService } from './cryptoService';
+
 export const AuthService = {
-  getCurrentUser: (): User => {
+  getCurrentUser: (): User | null => {
     const users = StorageService.getUsers();
     const currentId = StorageService.getCurrentUserId();
+    if (!currentId) return null;
     const found = users.find((u) => u.id === currentId);
-    if (found) return found;
-    return users[0] || ({} as User);
+    return found || null;
   },
 
   getAllUsers: (): User[] => {
     return StorageService.getUsers();
   },
 
-  switchUser: (userId: string): User => {
+  getAuthorizedUsers: (user: User): User[] => {
+    const all = StorageService.getUsers();
+    if (user.role === 'QA Director') return all;
+    // A QA Lead should see themselves and any users they are managing?
+    // Let's keep it simple: Directors see all, Leads see all (they need to assign them). 
+    // Actually, "QA Lead sees only authorized Lead data". But they need to be able to assign any tester to their projects.
+    // For now, let's return all, except maybe testers see only themselves.
+    if (user.role === 'QA Tester' || user.role === 'Automation QA Engineer') {
+      return all.filter(u => u.id === user.id);
+    }
+    return all;
+  },
+
+  switchUser: (userId: string): User | null => {
     StorageService.setCurrentUserId(userId);
     return AuthService.getCurrentUser();
+  },
+
+  login: async (username: string, passwordPlain: string): Promise<User> => {
+    const users = StorageService.getUsers();
+    const user = users.find(u => u.username === username);
+    
+    if (!user) {
+      throw new Error('Invalid username or password');
+    }
+    
+    if (!user.isActive) {
+      throw new Error('Account is inactive');
+    }
+
+    const hashed = await CryptoService.hashPassword(passwordPlain);
+    
+    if (user.passwordHash !== hashed) {
+      throw new Error('Invalid username or password');
+    }
+
+    // Success
+    user.lastLoginAt = new Date().toISOString();
+    StorageService.saveUsers(users);
+    StorageService.setCurrentUserId(user.id);
+    
+    return user;
+  },
+
+  logout: () => {
+    StorageService.setCurrentUserId('');
   },
 
   isQALead: (user?: User): boolean => {
@@ -39,6 +84,16 @@ export const AuthService = {
 
     if (!current || !AuthService.isQALead(current)) {
       throw new Error('FORBIDDEN: This operation requires QA Lead administration permissions.');
+    }
+  },
+
+  requireDirectorPermission: (actorId?: string): void => {
+    const current = actorId
+      ? StorageService.getUsers().find((u) => u.id === actorId)
+      : AuthService.getCurrentUser();
+
+    if (!current || current.role !== 'QA Director') {
+      throw new Error('FORBIDDEN: This operation requires QA Director permissions.');
     }
   },
 

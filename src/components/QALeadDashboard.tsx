@@ -23,6 +23,8 @@ import { WorkloadService } from '../services/workloadService';
 import { TaskService } from '../services/taskService';
 import { TestCaseService } from '../services/testCaseService';
 import { DailyReportService } from '../services/dailyReportService';
+import { ProjectService } from '../services/projectService';
+import { AuthService } from '../services/authService';
 import { BlockerService } from '../services/blockerService';
 import { WorkloadAssignmentModal } from './WorkloadAssignmentModal';
 
@@ -49,8 +51,8 @@ export const QALeadDashboard: React.FC<QALeadDashboardProps> = ({
   onNavigateToReports,
   onNavigateToTeam,
 }) => {
-  const [projects, setProjects] = useState<Project[]>(StorageService.getProjects());
-  const [users, setUsers] = useState<User[]>(StorageService.getUsers());
+  const [projects, setProjects] = useState<Project[]>(ProjectService.getAuthorizedProjects(currentUser));
+  const [users, setUsers] = useState<User[]>(AuthService.getAuthorizedUsers(currentUser));
   const [workloads, setWorkloads] = useState<MemberWorkload[]>(WorkloadService.getAllMembersWorkload());
   const [tasks, setTasks] = useState<QATask[]>(StorageService.getTasks());
   const [bugs, setBugs] = useState<QABug[]>(StorageService.getBugs());
@@ -69,8 +71,8 @@ export const QALeadDashboard: React.FC<QALeadDashboardProps> = ({
         StorageService.syncBlockersWithCloud(),
         DailyReportService.syncTelegramReports(),
       ]);
-      setProjects(syncedProjects);
-      setUsers(syncedUsers);
+      setProjects(ProjectService.getAuthorizedProjects(currentUser));
+      setUsers(AuthService.getAuthorizedUsers(currentUser));
       setBlockers(syncedBlockers);
       setReports(syncedReports);
     } catch (e) {

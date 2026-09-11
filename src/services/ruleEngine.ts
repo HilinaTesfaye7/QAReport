@@ -116,6 +116,89 @@ export const RuleEngine = {
     };
   },
 
+  // Evaluate readiness at the module level
+  evaluateModuleReadiness: (
+    moduleId: string,
+    config = DEFAULT_RELEASE_CONFIG
+  ): import('../types').ModuleReleaseReadiness => {
+    const module = StorageService.getModules().find((m) => m.id === moduleId);
+    const moduleName = module ? module.name : 'Unknown Module';
+    const projectId = module ? module.projectId : 'Unknown Project';
+
+    const bugs = StorageService.getBugs().filter(
+      (b) => b.module === moduleId && b.status !== 'Closed' && b.status !== 'Resolved'
+    );
+    const criticalBugs = bugs.filter((b) => b.severity === 'Critical');
+    const highBugs = bugs.filter((b) => b.severity === 'High');
+
+    const blockers = (StorageService.getBlockers ? StorageService.getBlockers() : []).filter(
+      (b) => b.moduleId === moduleId && b.status !== 'Resolved'
+    );
+    const criticalBlockers = blockers.filter((b) => b.severity === 'Critical');
+
+    const testCases = StorageService.getTestCases ? StorageService.getTestCases().filter(tc => tc.module === moduleId) : [];
+    const total = testCases.length;
+    const executed = testCases.filter(tc => tc.executionStatus && tc.executionStatus !== 'Not Run').length;
+    const passed = testCases.filter(tc => tc.executionStatus === 'Passed').length;
+
+    const testCompletionRate = total > 0 ? Math.round((executed / total) * 100) : 0;
+    const passRate = executed > 0 ? Math.round((passed / executed) * 100) : 0;
+
+    const rules: RuleEvaluationResult[] = [];
+
+    const r1Passed = criticalBugs.length === 0;
+    rules.push({
+      ruleName: 'Zero Critical Defects',
+      passed: r1Passed,
+      details: r1Passed ? 'No critical open bugs.' : `${criticalBugs.length} critical defect(s) unresolved.`,
+    });
+
+    const r2Passed = criticalBlockers.length === 0;
+    rules.push({
+      ruleName: 'Zero Critical Blockers',
+      passed: r2Passed,
+      details: r2Passed ? 'No critical blockers.' : `${criticalBlockers.length} critical blocker(s) active.`,
+    });
+
+    const r4Passed = testCompletionRate >= config.minTestExecutionRate;
+    rules.push({
+      ruleName: `Test Execution ≥ ${config.minTestExecutionRate}%`,
+      passed: r4Passed,
+      details: `Executed: ${testCompletionRate}% of total test cases.`,
+    });
+
+    const r5Passed = highBugs.length <= config.maxHighBugsAllowedForRisks;
+    rules.push({
+      ruleName: `High Severity Bugs ≤ ${config.maxHighBugsAllowedForRisks}`,
+      passed: r5Passed,
+      details: `${highBugs.length} high severity bug(s) open.`,
+    });
+
+    let status: ReleaseStatus = 'READY';
+    if (criticalBlockers.length > 0) {
+      status = 'BLOCKED';
+    } else if (!r1Passed) {
+      status = 'NOT_READY';
+    } else if (!r4Passed || !r5Passed || highBugs.length > 0) {
+      status = 'READY_WITH_RISKS';
+    } else {
+      status = 'READY';
+    }
+
+    return {
+      moduleId,
+      moduleName,
+      projectId,
+      status,
+      testCompletionRate,
+      passRate,
+      criticalBugsCount: criticalBugs.length,
+      highBugsCount: highBugs.length,
+      openBlockersCount: blockers.length,
+      rulesEvaluated: rules,
+    };
+  },
+
   // Deterministic Release Readiness Evaluator (No AI)
   evaluateReleaseReadiness: (
     projectId: string,
@@ -184,14 +267,27 @@ export const RuleEngine = {
       details: `${highBugs.length} high severity bug(s) open.`,
     });
 
+    // Evaluate Module Readiness
+    const projectModules = StorageService.getModules().filter(m => m.projectId === projectId);
+    const modulesReadiness = projectModules.map(m => RuleEngine.evaluateModuleReadiness(m.id, config));
+    const unreadyModules = modulesReadiness.filter(mr => mr.status === 'NOT_READY' || mr.status === 'BLOCKED');
+    
+    if (projectModules.length > 0) {
+      rules.push({
+        ruleName: `All Modules Ready`,
+        passed: unreadyModules.length === 0,
+        details: unreadyModules.length === 0 ? 'All modules are ready.' : `${unreadyModules.length} module(s) not ready.`,
+      });
+    }
+
     // Determine Final Release Status
     let status: ReleaseStatus = 'READY';
 
-    if (criticalBlockers.length > 0) {
+    if (criticalBlockers.length > 0 || modulesReadiness.some(m => m.status === 'BLOCKED')) {
       status = 'BLOCKED';
-    } else if (!r1Passed || !r3Passed) {
+    } else if (!r1Passed || !r3Passed || unreadyModules.length > 0) {
       status = 'NOT_READY';
-    } else if (!r4Passed || !r5Passed || highBugs.length > 0) {
+    } else if (!r4Passed || !r5Passed || highBugs.length > 0 || modulesReadiness.some(m => m.status === 'READY_WITH_RISKS')) {
       status = 'READY_WITH_RISKS';
     } else {
       status = 'READY';
@@ -209,6 +305,7 @@ export const RuleEngine = {
       regressionStatus: `${regressionPassRate}% Complete`,
       uatStatus: testCompletionRate > 90 ? 'Approved' : 'In Progress',
       rulesEvaluated: rules,
+      modulesReadiness,
     };
   },
 

@@ -142,6 +142,11 @@ export const ReleaseReadinessDashboard: React.FC<ReleaseReadinessDashboardProps>
                 <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                   UAT Status: <strong>{item.uatStatus}</strong> • Regression: <strong>{item.regressionStatus}</strong>
                 </div>
+                {item.modulesReadiness && item.modulesReadiness.length === 0 && (
+                  <div style={{ marginTop: '8px', fontSize: '0.8rem', color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <AlertTriangle size={14} /> <strong>Module Setup Required:</strong> This project has no active modules.
+                  </div>
+                )}
               </div>
               {getStatusBadge(item.status)}
             </div>
@@ -175,6 +180,28 @@ export const ReleaseReadinessDashboard: React.FC<ReleaseReadinessDashboardProps>
                 </div>
               </div>
             </div>
+
+            {/* Modules Section */}
+            {item.modulesReadiness && item.modulesReadiness.length > 0 && (
+              <div style={{ marginBottom: '16px', padding: '12px', background: 'rgba(0,0,0,0.15)', borderRadius: '8px' }}>
+                <div style={{ fontSize: '0.85rem', fontWeight: 700, marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Layers size={14} /> Module Readiness
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {item.modulesReadiness.map((mod) => (
+                    <div key={mod.moduleId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem', padding: '6px 10px', background: 'var(--bg-card)', borderRadius: '6px' }}>
+                      <div style={{ fontWeight: 600 }}>{mod.moduleName}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <span title="Test Execution">{mod.testCompletionRate}% Exec</span>
+                        <span title="Pass Rate" style={{ color: '#10b981' }}>{mod.passRate}% Pass</span>
+                        <span title="Critical Bugs" style={{ color: mod.criticalBugsCount > 0 ? '#f43f5e' : 'inherit' }}>{mod.criticalBugsCount} Crit Bugs</span>
+                        {getStatusBadge(mod.status)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Rule Checklist */}
             <div style={{ padding: '12px', background: 'rgba(0,0,0,0.2)', borderRadius: '8px' }}>

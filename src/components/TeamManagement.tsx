@@ -24,6 +24,7 @@ import { User, Project, MemberWorkload, DailyReport } from '../types';
 import { StorageService } from '../services/storage';
 import { WorkloadService } from '../services/workloadService';
 import { DailyReportService } from '../services/dailyReportService';
+import { ProjectService } from '../services/projectService';
 import { supabase, isSupabaseConfigured } from '../services/supabaseClient';
 
 interface TeamManagementProps {
@@ -51,6 +52,7 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
   const [newSkills, setNewSkills] = useState('Manual Testing, API Testing');
   const [newExp, setNewExp] = useState(3);
   const [selectedProjectId, setSelectedProjectId] = useState('prj-banking');
+  const [selectedModuleId, setSelectedModuleId] = useState('all');
   const [copiedLink, setCopiedLink] = useState(false);
   const [deleteConfirmMember, setDeleteConfirmMember] = useState<User | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -336,11 +338,12 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
   const handleAddMember = (e: React.FormEvent) => {
     e.preventDefault();
     const cleanTg = newTelegram.trim().replace(/^@/, '');
+    const newUserId = `usr-${Date.now().toString(36)}`;
     const newMember: User = {
-      id: `usr-${Date.now().toString(36)}`,
+      id: newUserId,
       name: newName,
       email: newEmail,
-      role: newRole,
+      role: newRole as any,
       avatar: `https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80`,
       experienceYears: newExp,
       skills: newSkills.split(',').map((s) => s.trim()).filter(Boolean) as any,
@@ -352,6 +355,20 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
     const updated = [...users, newMember];
     StorageService.saveUsers(updated);
     setUsers(updated);
+    
+    // Assign to module or project
+    if (selectedModuleId !== 'all') {
+      ProjectService.assignTesterToModule(selectedModuleId, selectedProjectId, newUserId, currentUser.id, 100);
+    } else {
+      const allProjects = StorageService.getProjects();
+      const proj = allProjects.find(p => p.id === selectedProjectId);
+      if (proj && !proj.memberIds.includes(newUserId)) {
+        proj.memberIds.push(newUserId);
+        StorageService.saveProjects(allProjects);
+        setProjects(allProjects);
+      }
+    }
+
     setIsAddModalOpen(false);
     setNewName('');
     setNewEmail('');

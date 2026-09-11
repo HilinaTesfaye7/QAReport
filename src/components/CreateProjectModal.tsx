@@ -35,7 +35,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
   currentUser,
   onProjectCreated,
 }) => {
-  const [activeTab, setActiveTab] = useState<'info' | 'prd' | 'design' | 'members'>('info');
+  const [activeTab, setActiveTab] = useState<'info' | 'prd' | 'design' | 'modules' | 'members'>('info');
 
   // Step 1: Project Info
   const [name, setName] = useState('');
@@ -61,8 +61,15 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
   const [testCaseUrl, setTestCaseUrl] = useState('');
   const [figmaPreviewTitle, setFigmaPreviewTitle] = useState('Mobile & Web UI Design Specs');
   const [figmaDescription, setFigmaDescription] = useState('Includes all responsive viewports, state machines, and micro-interaction tokens.');
+  const [figmaVersion, setFigmaVersion] = useState('Draft 3');
+  const [totalEstimatedTestCases, setTotalEstimatedTestCases] = useState<number>(120);
 
-  // Step 4: QA Team Members & Notifications
+  // Step 4: Modules
+  const [modules, setModules] = useState<{name: string, description: string}[]>([
+    { name: 'Core Feature', description: 'Main functionality' }
+  ]);
+
+  // Step 5: QA Team Members & Notifications
   const [allUsers, setAllUsers] = useState<User[]>(StorageService.getUsers());
   const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]); // Starts empty, no forced default members
   const [allowWithoutMembers, setAllowWithoutMembers] = useState(false);
@@ -86,6 +93,9 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
       setFeedbackMsg(null);
       setIsSubmitting(false);
       setActiveTab('info');
+      setModules([
+        { name: 'Core Feature', description: 'Main functionality' }
+      ]);
     }
   }, [isOpen]);
 
@@ -121,7 +131,8 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
     if (activeTab !== 'members') {
       if (activeTab === 'info') setActiveTab('prd');
       else if (activeTab === 'prd') setActiveTab('design');
-      else if (activeTab === 'design') setActiveTab('members');
+      else if (activeTab === 'design') setActiveTab('modules');
+      else if (activeTab === 'modules') setActiveTab('members');
       return;
     }
 
@@ -139,7 +150,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
         {
           id: `doc-${Date.now()}`,
           name: prdTitle || `${name} PRD Specification`,
-          fileName: `${name.toLowerCase().replace(/\\s+/g, '-')}-prd.pdf`,
+          fileName: `${name.toLowerCase().replace(/\s+/g, '-')}-prd.pdf`,
           fileSize: '2.4 MB',
           uploadedBy: currentUser.name,
           uploadedAt: new Date().toISOString().split('T')[0],
@@ -167,7 +178,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
             figmaName: `${name} UI Prototype`,
             figmaPreviewTitle: figmaPreviewTitle || `${name} UI/UX Specifications`,
             figmaDescription,
-            figmaVersion: 'v2.4',
+            figmaVersion: figmaVersion || 'v2.4',
             testCaseUrl: testCaseUrl.trim() || undefined,
             testCaseTitle: testCaseUrl.trim() ? `${name} Test Cases` : undefined,
             requirements: [
@@ -176,7 +187,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
               'REQ-03: Responsive Design Breakpoints Verification',
             ],
             testEnvUrl,
-            repoUrl: `https://github.com/company/${name.toLowerCase().replace(/\\s+/g, '-')}`,
+            repoUrl: `https://github.com/company/${name.toLowerCase().replace(/\s+/g, '-')}`,
             buildVersion: 'v1.0.0-rc1',
             apiDocUrl: `${testEnvUrl}/swagger-ui`,
             testCredentials: [
@@ -284,6 +295,13 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
           : `Project "${newProject.name}" created (0 members assigned).`
       );
 
+      // Create modules
+      modules.forEach(m => {
+        if (m.name.trim()) {
+          ProjectService.createModule(newProject.id, m.name.trim(), m.description.trim());
+        }
+      });
+
       setTimeout(() => {
         onProjectCreated(newProject);
         onClose();
@@ -381,13 +399,15 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
             borderBottom: '1px solid var(--border-subtle)',
             background: 'rgba(0, 0, 0, 0.2)',
             padding: '0 16px',
+            overflowX: 'auto',
           }}
         >
           {[
             { id: 'info', label: '1. Project Essentials', icon: FolderKanban },
             { id: 'prd', label: '2. PRD & Specs', icon: FileText },
             { id: 'design', label: '3. Design (Figma)', icon: Palette },
-            { id: 'members', label: `4. Members & Notify (${selectedMemberIds.length})`, icon: Users },
+            { id: 'modules', label: '4. Modules', icon: Layers },
+            { id: 'members', label: `5. Members & Notify (${selectedMemberIds.length})`, icon: Users },
           ].map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -409,6 +429,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                   fontWeight: isActive ? 700 : 500,
                   cursor: 'pointer',
                   transition: 'all 0.15s ease',
+                  whiteSpace: 'nowrap',
                 }}
               >
                 <Icon size={15} color={isActive ? '#38bdf8' : 'currentColor'} />
@@ -1021,7 +1042,8 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                   onClick={() => {
                     if (activeTab === 'prd') setActiveTab('info');
                     if (activeTab === 'design') setActiveTab('prd');
-                    if (activeTab === 'members') setActiveTab('design');
+                    if (activeTab === 'modules') setActiveTab('design');
+                    if (activeTab === 'members') setActiveTab('modules');
                   }}
                   style={{
                     padding: '8px 16px',
@@ -1063,7 +1085,8 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                   onClick={() => {
                     if (activeTab === 'info') setActiveTab('prd');
                     else if (activeTab === 'prd') setActiveTab('design');
-                    else if (activeTab === 'design') setActiveTab('members');
+                    else if (activeTab === 'design') setActiveTab('modules');
+                    else if (activeTab === 'modules') setActiveTab('members');
                   }}
                   style={{
                     padding: '8px 18px',
@@ -1076,7 +1099,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                     cursor: 'pointer',
                   }}
                 >
-                  Next: {activeTab === 'info' ? 'PRD & Specs →' : activeTab === 'prd' ? 'Design (Figma) →' : 'Members →'}
+                  Next: {activeTab === 'info' ? 'PRD & Specs →' : activeTab === 'prd' ? 'Design (Figma) →' : activeTab === 'design' ? 'Modules →' : 'Members →'}
                 </button>
               ) : (
                 <button
