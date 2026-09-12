@@ -41,7 +41,8 @@ export default async function handler(req, res) {
         // Try to match the username (e.g., 'sewi') to the first name of a profile
         const matchingProfile = profiles.find(p => {
           const fn = p.full_name ? p.full_name.trim().split(' ')[0].toLowerCase() : '';
-          return fn === username.toLowerCase();
+          const un = username.toLowerCase();
+          return fn === un || un.startsWith(fn + '.');
         });
 
         if (matchingProfile) {
