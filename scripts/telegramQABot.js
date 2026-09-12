@@ -1166,6 +1166,7 @@ async function handleOnboardingStep(chatId, user, text) {
         projectName: '',
         assignedProjectIds: [],
         assignedProjects: [],
+        status: 'Pending Assignment',
         telegramUsername: user.username ? user.username.replace(/^@/, '') : '',
       });
 
@@ -1175,7 +1176,12 @@ async function handleOnboardingStep(chatId, user, text) {
       const isLead = isQALead(profile);
       const isAutomation = profile.role === 'Automation QA Engineer';
 
-      if (isLead || isAutomation) {
+      if (isLead) {
+        await sendMessage(
+          chatId,
+          `✅ <b>Registration successful!</b>\n\nYour QA Lead account has been created.\n\nPlease wait for the QA Director to assign you to a Main Project. You will receive your AegisQA Portal credentials here once your assignment is completed.`
+        );
+      } else if (isAutomation) {
         // Generate Username + Temporary Password + Portal Link
         const nameParts = profile.fullName.trim().split(' ');
         const firstName = nameParts[0].toLowerCase();
