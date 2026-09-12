@@ -341,21 +341,23 @@ export const DirectorDashboard: React.FC<DirectorDashboardProps> = ({
                   
                   {user.role === 'QA Lead' && (
                     <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
-                      <button
-                        onClick={() => setSelectedLeadForChange(user)}
-                        style={{
-                          padding: '4px 8px',
-                          borderRadius: '6px',
-                          border: '1px solid var(--border-color)',
-                          background: 'rgba(255,255,255,0.05)',
-                          color: 'var(--text-secondary)',
-                          fontSize: '0.7rem',
-                          cursor: 'pointer',
-                        }}
-                        title="Change Lead"
-                      >
-                        Change
-                      </button>
+                      {coreProjects.filter(p => p.qaLeadId === user.id).length > 0 && (
+                        <button
+                          onClick={() => setSelectedLeadForChange(user)}
+                          style={{
+                            padding: '4px 8px',
+                            borderRadius: '6px',
+                            border: '1px solid var(--border-color)',
+                            background: 'rgba(255,255,255,0.05)',
+                            color: 'var(--text-secondary)',
+                            fontSize: '0.7rem',
+                            cursor: 'pointer',
+                          }}
+                          title="Change Lead"
+                        >
+                          Change
+                        </button>
+                      )}
                       <button
                         onClick={() => setSelectedLeadForDelete(user)}
                         style={{
