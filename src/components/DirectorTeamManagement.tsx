@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { User, Project, MemberWorkload, Blocker } from '../types';
 import { StorageService } from '../services/storage';
 import { WorkloadService } from '../services/workloadService';
-import { Users, Plus, Edit, Shield, FolderKanban } from 'lucide-react';
+import { Users, Plus, Edit, Shield, FolderKanban, Trash2 } from 'lucide-react';
 import { NotificationService } from '../services/notificationService';
+import { DeleteLeadModal } from './DeleteLeadModal';
 
 interface DirectorTeamManagementProps {
   currentUser: User;
@@ -18,6 +19,7 @@ export const DirectorTeamManagement: React.FC<DirectorTeamManagementProps> = ({ 
   const [isAddLeadOpen, setIsAddLeadOpen] = useState(false);
   const [isAssignProjectsOpen, setIsAssignProjectsOpen] = useState(false);
   const [selectedLeadForAssign, setSelectedLeadForAssign] = useState<User | null>(null);
+  const [selectedLeadForDelete, setSelectedLeadForDelete] = useState<User | null>(null);
   
   // New Lead Form State
   const [newFullName, setNewFullName] = useState('');
@@ -42,7 +44,7 @@ export const DirectorTeamManagement: React.FC<DirectorTeamManagementProps> = ({ 
     return () => window.removeEventListener('aegis_storage_change', loadData);
   }, []);
 
-  const qaLeads = users.filter(u => u.role === 'QA Lead');
+  const qaLeads = users.filter(u => u.role === 'QA Lead' && u.isActive !== false);
 
   const handleAddLead = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -230,25 +232,55 @@ export const DirectorTeamManagement: React.FC<DirectorTeamManagementProps> = ({ 
                   <td style={{ padding: '16px', color: 'var(--text-primary)' }}>{totalProjects}</td>
                   <td style={{ padding: '16px', color: 'var(--text-primary)' }}>{teamSize}</td>
                   <td style={{ padding: '16px' }}>
-                    <button 
-                      onClick={() => handleOpenAssign(lead)}
-                      style={{ 
-                        background: 'transparent', 
-                        border: '1px solid var(--border-subtle)', 
-                        padding: '6px 12px', 
-                        borderRadius: '6px', 
-                        color: 'var(--text-primary)',
-                        cursor: 'pointer',
-                        fontSize: '0.75rem',
-                        fontWeight: 600,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px'
-                      }}
-                    >
-                      <FolderKanban size={14} />
-                      Assign Projects
-                    </button>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <button 
+                        onClick={() => handleOpenAssign(lead)}
+                        style={{ 
+                          background: 'transparent', 
+                          border: '1px solid var(--border-subtle)', 
+                          padding: '6px 12px', 
+                          borderRadius: '6px', 
+                          color: 'var(--text-primary)',
+                          cursor: 'pointer',
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px'
+                        }}
+                      >
+                        <FolderKanban size={14} />
+                        Assign Projects
+                      </button>
+                      <button 
+                        onClick={() => setSelectedLeadForDelete(lead)}
+                        style={{ 
+                          background: 'transparent', 
+                          border: '1px solid rgba(225, 29, 72, 0.3)', 
+                          padding: '6px 12px', 
+                          borderRadius: '6px', 
+                          color: '#e11d48',
+                          cursor: 'pointer',
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          transition: 'all 0.2s'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = 'rgba(225, 29, 72, 0.1)';
+                          e.currentTarget.style.borderColor = '#e11d48';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = 'transparent';
+                          e.currentTarget.style.borderColor = 'rgba(225, 29, 72, 0.3)';
+                        }}
+                      >
+                        <Trash2 size={14} />
+                        Delete
+                      </button>
+                    </div>
                   </td>
                 </tr>
               );
@@ -387,6 +419,19 @@ export const DirectorTeamManagement: React.FC<DirectorTeamManagementProps> = ({ 
             </div>
           </div>
         </div>
+      )}
+
+      {selectedLeadForDelete && (
+        <DeleteLeadModal
+          leadToDelete={selectedLeadForDelete}
+          onClose={() => setSelectedLeadForDelete(null)}
+          onDeleted={() => {
+            loadData();
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('aegis_storage_change', { detail: { key: 'ALL' } }));
+            }
+          }}
+        />
       )}
     </div>
   );

@@ -93,6 +93,32 @@ async function usersHandler(req, res) {
     }
   }
 
+  if (req.method === 'DELETE') {
+    if (req.user.role !== 'QA Director') {
+      return res.status(403).json({ error: 'Only QA Director can delete users' });
+    }
+
+    const { id } = req.query;
+    if (!id) {
+      return res.status(400).json({ error: 'Missing user ID' });
+    }
+
+    try {
+      // 1. Deactivate in users table
+      await supabase.from('users').update({ is_active: false }).eq('id', String(id));
+
+      // 2. If it is a telegram-linked user (usr-<chatId>), deactivate in telegram_profiles
+      if (String(id).startsWith('usr-')) {
+        const chatId = String(id).replace('usr-', '');
+        await supabase.from('telegram_profiles').update({ status: 'Inactive' }).eq('chat_id', chatId);
+      }
+
+      return res.status(200).json({ success: true, message: 'User deactivated successfully' });
+    } catch (e) {
+      return res.status(500).json({ error: e.message });
+    }
+  }
+
   return res.status(405).json({ error: 'Method Not Allowed' });
 }
 
