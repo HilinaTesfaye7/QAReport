@@ -392,6 +392,9 @@ export interface RuleEvaluationResult {
   ruleName: string;
   passed: boolean;
   details: string;
+  isOverridden?: boolean;
+  overrideReason?: string;
+  overrideBy?: string;
 }
 
 export interface ModuleReleaseReadiness {
@@ -468,9 +471,10 @@ export interface AppNotification {
     | 'blocker'
     | 'blocker_created'
     | 'blocker_resolved'
-    | 'announcement';
+    | 'announcement'
+    | 'report_submitted';
   read: boolean;
   createdAt: string;
   actionUrl?: string;
-  payload?: Record<string, unknown>;
+  payload?: Record<string, any>;
 }

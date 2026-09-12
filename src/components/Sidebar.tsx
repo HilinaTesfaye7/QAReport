@@ -7,6 +7,7 @@ import {
   ChevronRight,
   Shield,
   Plus,
+  TrendingUp,
 } from 'lucide-react';
 import { User } from '../types';
 import { StorageService } from '../services/storage';
@@ -40,6 +41,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'command-center', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'projects', label: 'Projects', icon: FolderKanban },
     { id: 'team', label: 'Team', icon: Users },
+    { id: 'performance', label: 'Performance', icon: TrendingUp },
   ];
 
   return (

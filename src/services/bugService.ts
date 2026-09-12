@@ -70,10 +70,14 @@ export const BugService = {
 
     // Notify QA Lead if Critical
     if (newBug.severity === 'Critical') {
+      const projects = StorageService.getProjects();
+      const project = projects.find(p => p.id === newBug.projectId);
+      const leadId = project ? project.qaLeadId : 'usr-sarah';
+
       NotificationService.dispatch({
-        recipientId: 'usr-sarah',
+        recipientId: leadId,
         title: `🚨 Critical Defect Filed: ${newBug.title}`,
-        message: `A new Critical defect was reported on project ${newBug.projectId}: "${newBug.description}".`,
+        message: `A new Critical defect was reported on project ${project?.name || newBug.projectId}: "${newBug.description}".`,
         type: 'bug_assigned',
         actionUrl: 'bugs',
       });

@@ -51,10 +51,14 @@ export const BlockerService = {
 
     // Alert QA Lead
     const user = currentUser;
+    const projects = StorageService.getProjects();
+    const project = projects.find(p => p.id === newBlocker.projectId);
+    const leadId = project ? project.qaLeadId : 'usr-sarah';
+    
     NotificationService.dispatch({
-      recipientId: 'usr-sarah',
+      recipientId: leadId,
       title: `⚠️ Blocker Reported: ${newBlocker.title}`,
-      message: `${user?.name || 'QA Member'} reported a ${newBlocker.severity} blocker: "${newBlocker.description}".`,
+      message: `${user?.name || 'QA Member'} reported a ${newBlocker.severity} blocker for ${project?.name || 'General'}: "${newBlocker.description}".`,
       type: 'blocker_created',
       actionUrl: 'blockers',
     });

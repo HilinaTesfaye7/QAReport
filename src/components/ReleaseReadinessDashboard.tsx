@@ -30,9 +30,43 @@ export const ReleaseReadinessDashboard: React.FC<ReleaseReadinessDashboardProps>
   });
   const [isConfigOpen, setIsConfigOpen] = useState(false);
 
-  const evaluations: ProjectReleaseReadiness[] = projects.map((p) =>
+  const [overrides, setOverrides] = useState<Record<string, { reason: string, by: string }>>({});
+  const [overrideModal, setOverrideModal] = useState<{ projectId: string, ruleName: string } | null>(null);
+  const [overrideReason, setOverrideReason] = useState('');
+
+  const rawEvaluations: ProjectReleaseReadiness[] = projects.map((p) =>
     RuleEngine.evaluateReleaseReadiness(p.id, config)
   );
+
+  const evaluations = rawEvaluations.map(evaluation => {
+    let unpassedCount = 0;
+    const computedRules = evaluation.rulesEvaluated.map(rule => {
+      const overrideKey = `${evaluation.projectId}-${rule.ruleName}`;
+      if (!rule.passed && overrides[overrideKey]) {
+        return {
+          ...rule,
+          isOverridden: true,
+          overrideReason: overrides[overrideKey].reason,
+          overrideBy: overrides[overrideKey].by,
+        };
+      }
+      if (!rule.passed) unpassedCount++;
+      return rule;
+    });
+
+    let newStatus = evaluation.status;
+    if (unpassedCount === 0) {
+      newStatus = 'READY';
+    } else if (newStatus === 'BLOCKED' && unpassedCount < 2) {
+      newStatus = 'NOT_READY';
+    }
+
+    return {
+      ...evaluation,
+      status: newStatus,
+      rulesEvaluated: computedRules
+    };
+  });
 
   const getStatusBadge = (status: ReleaseStatus) => {
     switch (status) {
@@ -220,15 +254,37 @@ export const ReleaseReadinessDashboard: React.FC<ReleaseReadinessDashboardProps>
                       padding: '4px 0',
                     }}
                   >
-                    {rule.passed ? (
+                    {rule.passed || rule.isOverridden ? (
                       <CheckCircle2 size={16} color="#10b981" />
                     ) : (
                       <AlertOctagon size={16} color="#f43f5e" />
                     )}
-                    <div>
+                    <div style={{ flex: 1 }}>
                       <span style={{ fontWeight: 600 }}>{rule.ruleName}:</span>{' '}
-                      <span style={{ color: rule.passed ? 'var(--text-muted)' : '#f43f5e' }}>{rule.details}</span>
+                      <span style={{ color: rule.passed || rule.isOverridden ? 'var(--text-muted)' : '#f43f5e' }}>{rule.details}</span>
+                      {rule.isOverridden && (
+                        <div style={{ fontSize: '0.7rem', color: '#10b981', marginTop: '2px' }}>
+                          ✓ Overridden by {rule.overrideBy}: {rule.overrideReason}
+                        </div>
+                      )}
                     </div>
+                    
+                    {!rule.passed && !rule.isOverridden && (currentUser.role === 'QA Lead' || currentUser.role === 'QA Director') && (
+                      <button
+                        onClick={() => setOverrideModal({ projectId: item.projectId, ruleName: rule.ruleName })}
+                        style={{
+                          padding: '2px 8px',
+                          borderRadius: '4px',
+                          background: 'rgba(255,255,255,0.05)',
+                          border: '1px solid var(--border-color)',
+                          color: 'var(--text-secondary)',
+                          fontSize: '0.7rem',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Override
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
@@ -236,6 +292,51 @@ export const ReleaseReadinessDashboard: React.FC<ReleaseReadinessDashboardProps>
           </div>
         ))}
       </div>
+
+      {/* Override Modal */}
+      {overrideModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
+          <div style={{ background: 'var(--bg-card)', padding: '24px', borderRadius: '12px', width: '400px', border: '1px solid var(--border-color)' }}>
+            <h3 style={{ marginTop: 0, marginBottom: '16px', fontSize: '1.1rem' }}>Override Release Gate</h3>
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>
+              You are overriding the failed rule <strong>{overrideModal.ruleName}</strong>. Please provide a business justification.
+            </p>
+            <textarea
+              value={overrideReason}
+              onChange={(e) => setOverrideReason(e.target.value)}
+              placeholder="e.g., Business approved risk, known issue not blocking release..."
+              style={{ width: '100%', minHeight: '80px', padding: '8px', borderRadius: '6px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', color: 'white', marginBottom: '16px' }}
+            />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+              <button
+                onClick={() => { setOverrideModal(null); setOverrideReason(''); }}
+                style={{ padding: '6px 12px', background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  if (overrideReason.trim()) {
+                    setOverrides({
+                      ...overrides,
+                      [`${overrideModal.projectId}-${overrideModal.ruleName}`]: {
+                        reason: overrideReason.trim(),
+                        by: currentUser.name
+                      }
+                    });
+                    setOverrideModal(null);
+                    setOverrideReason('');
+                  }
+                }}
+                disabled={!overrideReason.trim()}
+                style={{ padding: '6px 12px', background: '#38bdf8', color: '#0f172a', border: 'none', borderRadius: '6px', cursor: overrideReason.trim() ? 'pointer' : 'not-allowed', fontWeight: 600 }}
+              >
+                Confirm Override
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

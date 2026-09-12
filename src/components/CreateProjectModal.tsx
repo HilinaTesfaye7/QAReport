@@ -75,6 +75,10 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
   const [allUsers, setAllUsers] = useState<User[]>(StorageService.getUsers());
   const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]); // Starts empty, no forced default members
   const [allowWithoutMembers, setAllowWithoutMembers] = useState(false);
+  const [testCaseDeadline, setTestCaseDeadline] = useState(
+    new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+  );
+  const [moduleAllocations, setModuleAllocations] = useState<Record<string, string[]>>({}); // moduleName -> memberIds
   const [memberValidationError, setMemberValidationError] = useState<string | null>(null);
   const [notificationNote, setNotificationNote] = useState('Please prepare the test cases and submit them using /testcase');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -91,6 +95,8 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
       setStatus('Testing');
       setSelectedMemberIds([]);
       setAllowWithoutMembers(false);
+      setTestCaseDeadline(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
+      setModuleAllocations({});
       setMemberValidationError(null);
       setFeedbackMsg(null);
       setIsSubmitting(false);
@@ -245,6 +251,11 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
         }).catch(() => {});
       }
 
+      // Create modules FIRST so they exist for assignment
+      const createdModules = modules
+        .filter(m => m.name.trim() !== '')
+        .map(m => ProjectService.createModule(newProject.id, m.name.trim(), m.description.trim()));
+
       // Explicitly trigger instant assignment notifications for all selected members
       if (selectedMemberIds.length > 0) {
         for (const mId of selectedMemberIds) {
@@ -252,8 +263,23 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
             newProject,
             mId,
             currentUser.id,
-            notificationNote
+            notificationNote,
+            modules.filter(m => m.name.trim() !== '').map(m => m.name),
+            testCaseDeadline
           );
+
+          // Create module assignments for this member
+          createdModules.forEach(mod => {
+            // Allocate tester equally across all project modules if no specific allocation
+            ProjectService.assignTesterToModule(
+              mod.id,
+              newProject.id,
+              mId,
+              currentUser.id,
+              100, // 100% allocation or custom based on your requirement
+              testCaseDeadline
+            );
+          });
 
           // Update assigned project in Supabase telegram_profiles
           if (isSupabaseConfigured() && supabase) {
@@ -295,13 +321,6 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
           ? `Project "${newProject.name}" created! ${selectedMemberIds.length} member(s) assigned & notified.`
           : `Project "${newProject.name}" created (0 members assigned).`
       );
-
-      // Create modules
-      modules.forEach(m => {
-        if (m.name.trim()) {
-          ProjectService.createModule(newProject.id, m.name.trim(), m.description.trim());
-        }
-      });
 
       setTimeout(() => {
         onProjectCreated(newProject);
@@ -998,6 +1017,26 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                       />
                       <span>Create project without assigning team members now (Draft / Planning mode)</span>
                     </label>
+                  </div>
+
+                  <div style={{ marginBottom: '16px' }}>
+                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                      Test-Case Deadline (For assigned members) <span style={{ color: '#f43f5e' }}>*</span>
+                    </label>
+                    <input
+                      type="date"
+                      value={testCaseDeadline}
+                      onChange={(e) => setTestCaseDeadline(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        background: 'rgba(255, 255, 255, 0.03)',
+                        border: '1px solid var(--border-color)',
+                        borderRadius: '8px',
+                        color: 'var(--text-primary)',
+                      }}
+                      required
+                    />
                   </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '10px' }}>

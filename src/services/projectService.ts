@@ -141,6 +141,61 @@ export const ProjectService = {
     return project;
   },
 
+  reassignProjectLead: (oldLeadId: string, newLeadId: string): void => {
+    const currentUser = AuthService.getCurrentUser();
+    if (!currentUser || currentUser.role !== 'QA Director') {
+      throw new Error('Only QA Director can reassign leads');
+    }
+
+    const projects = StorageService.getProjects();
+    const coreProjects = StorageService.getCoreProjects();
+    
+    let updatedCore = false;
+    coreProjects.forEach(cp => {
+      if (cp.qaLeadId === oldLeadId) {
+        cp.qaLeadId = newLeadId;
+        updatedCore = true;
+      }
+    });
+    if (updatedCore) StorageService.saveCoreProjects(coreProjects);
+
+    let updatedProjects = false;
+    projects.forEach(p => {
+      if (p.qaLeadId === oldLeadId) {
+        p.qaLeadId = newLeadId;
+        if (!p.memberIds.includes(newLeadId)) {
+          p.memberIds.push(newLeadId);
+        }
+        updatedProjects = true;
+      }
+    });
+    if (updatedProjects) {
+      StorageService.saveProjects(projects);
+      if (isSupabaseConfigured() && supabase) {
+        supabase
+          .from('projects')
+          .update({
+            qa_lead_id: newLeadId,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('qa_lead_id', oldLeadId)
+          .then(({ error }) => {
+            if (error) console.error('Supabase reassignProjectLead sync error:', error.message);
+          });
+      }
+    }
+
+    AuditService.log({
+      actorId: currentUser.id,
+      action: 'Reassigned QA Lead',
+      entityType: 'project',
+      entityId: 'multiple',
+      previousValue: oldLeadId,
+      newValue: newLeadId,
+    });
+  },
+
+
   unassignMember: (
     projectId: string,
     memberId: string

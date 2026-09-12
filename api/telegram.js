@@ -873,33 +873,38 @@ export default async function handler(req, res) {
           await supabase.from('telegram_profiles').upsert([newProfile]);
           profile = newProfile;
           
-          // Generate a temp web login
-          const baseUsername = (fromUser.username || fromUser.first_name || `user_${chatId}`).toLowerCase().replace(/[^a-z0-9]/g, '');
-          const tempUsername = `${baseUsername}_${Math.floor(Math.random() * 1000)}`;
-          const tempPassword = `Temp${Math.floor(Math.random() * 10000)}!`;
-          
-          try {
-            const bcrypt = await import('bcryptjs');
-            const password_hash = await bcrypt.default.hash(tempPassword, 10);
+          if (chosenRole === 'QA Tester') {
+            const waitMsg = `⏳ <b>Registration Pending</b>\n\nYour registration as a QA Tester has been received. Please wait for a QA Lead to assign you to a project. You will receive your login credentials at that time.`;
+            await sendTelegramMessage(chatId, waitMsg, BOT_TOKEN);
+          } else {
+            // Generate a temp web login for Leads and Automation QA Engineers
+            const baseUsername = (fromUser.username || fromUser.first_name || `user_${chatId}`).toLowerCase().replace(/[^a-z0-9]/g, '');
+            const tempUsername = `${baseUsername}_${Math.floor(Math.random() * 1000)}`;
+            const tempPassword = `Temp${Math.floor(Math.random() * 10000)}!`;
             
-            const newUserWeb = {
-              id: `usr-${chatId}`,
-              full_name: defaultName,
-              username: tempUsername,
-              password_hash: password_hash,
-              role: chosenRole,
-              is_active: true,
-              must_change_password: true,
-              telegram_chat_id: String(chatId),
-              telegram_username: fromUser.username ? `@${fromUser.username}` : ''
-            };
-            await supabase.from('users').upsert([newUserWeb]);
-            
-            // Send login info to user
-            const loginMsg = `🔐 <b>Your Web Portal Login:</b>\n\nUsername: <code>${tempUsername}</code>\nPassword: <code>${tempPassword}</code>\n\n<i>Please log in to the web dashboard and change your password.</i>`;
-            await sendTelegramMessage(chatId, loginMsg, BOT_TOKEN);
-          } catch (webErr) {
-            console.warn('[Webhook] Failed to create web user:', webErr);
+            try {
+              const bcrypt = await import('bcryptjs');
+              const password_hash = await bcrypt.default.hash(tempPassword, 10);
+              
+              const newUserWeb = {
+                id: `usr-${chatId}`,
+                full_name: defaultName,
+                username: tempUsername,
+                password_hash: password_hash,
+                role: chosenRole,
+                is_active: true,
+                must_change_password: true,
+                telegram_chat_id: String(chatId),
+                telegram_username: fromUser.username ? `@${fromUser.username}` : ''
+              };
+              await supabase.from('users').upsert([newUserWeb]);
+              
+              // Send login info to user
+              const loginMsg = `🔐 <b>Your Web Portal Login:</b>\n\nUsername: <code>${tempUsername}</code>\nPassword: <code>${tempPassword}</code>\n\n<i>Please log in to the web dashboard and change your password.</i>`;
+              await sendTelegramMessage(chatId, loginMsg, BOT_TOKEN);
+            } catch (webErr) {
+              console.warn('[Webhook] Failed to create web user:', webErr);
+            }
           }
           
           // Hide the keyboard after selection

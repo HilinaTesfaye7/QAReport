@@ -9,6 +9,7 @@ import { TestCaseManagement } from './components/TestCaseManagement';
 import { RegressionManagement } from './components/RegressionManagement';
 import { BlockerManagement } from './components/BlockerManagement';
 import { ReleaseReadinessDashboard } from './components/ReleaseReadinessDashboard';
+import { QAPerformanceDashboard } from './components/QAPerformanceDashboard';
 import { ReportsAndExportView } from './components/ReportsAndExportView';
 import { DailyReportsView } from './components/DailyReportsView';
 import { TeamManagement } from './components/TeamManagement';
@@ -157,6 +158,8 @@ export const App: React.FC = () => {
           {activeTab === 'blockers' && <BlockerManagement currentUser={currentUser} />}
 
           {activeTab === 'readiness' && <ReleaseReadinessDashboard currentUser={currentUser} />}
+
+          {activeTab === 'performance' && <QAPerformanceDashboard currentUser={currentUser} />}
 
           {activeTab === 'workload' && <ReleaseReadinessDashboard currentUser={currentUser} />}
 

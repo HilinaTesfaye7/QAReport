@@ -190,14 +190,31 @@ export const DailyReportService = {
     });
 
     if (report.isBlocked && report.blockers.trim().length > 0) {
+      const projects = StorageService.getProjects();
+      const project = projects.find((p) => p.id === report.projectId);
+      const leadId = project ? project.qaLeadId : 'usr-sarah'; // fallback if no project
+
       NotificationService.dispatch({
-        recipientId: 'usr-sarah',
+        recipientId: leadId,
         title: `⚠️ Blocker in Daily Report: ${memberName}`,
         message: `${memberName} reported: "${report.blockers}".`,
         type: 'blocker_created',
         actionUrl: 'daily-report',
       });
     }
+
+    // Also notify Lead of the check-in submission itself
+    const projects = StorageService.getProjects();
+    const project = projects.find((p) => p.id === report.projectId);
+    const leadId = project ? project.qaLeadId : 'usr-sarah'; // fallback
+    
+    NotificationService.dispatch({
+      recipientId: leadId,
+      title: `📝 Check-in Submitted: ${memberName}`,
+      message: `${memberName} submitted their daily report for ${project?.name || 'General QA'}.\n\nWorked on: ${report.todayWorkingOn}\nAchievement: ${report.majorAchievement || 'None'}\nBlocker: ${report.isBlocked ? report.blockers : 'None'}\nRisk: ${report.risks || 'None'}\nNext Plan: ${report.nextPlan}`,
+      type: 'report_submitted',
+      actionUrl: 'daily-report',
+    });
 
     if (supabase) {
       const projects = StorageService.getProjects();

@@ -1,4 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { ChangeLeadModal } from './ChangeLeadModal';
+import { ProjectService } from '../services/projectService';
 import {
   Users,
   FolderKanban,
@@ -43,6 +45,8 @@ export const DirectorDashboard: React.FC<DirectorDashboardProps> = ({
   onNavigateToBlockers,
   onNavigateToProjects,
 }) => {
+  const [selectedLeadForChange, setSelectedLeadForChange] = useState<User | null>(null);
+
   // A. Organization Overview KPIs
   const totalMembers = users.filter(u => u.role !== 'QA Director').length;
   const qaLeads = users.filter((u) => u.role === 'QA Lead').length;
@@ -277,6 +281,25 @@ export const DirectorDashboard: React.FC<DirectorDashboardProps> = ({
                   >
                     {wl.classification}
                   </span>
+                  
+                  {user.role === 'QA Lead' && (
+                    <button
+                      onClick={() => setSelectedLeadForChange(user)}
+                      style={{
+                        padding: '4px 8px',
+                        borderRadius: '6px',
+                        border: '1px solid var(--border-color)',
+                        background: 'rgba(255,255,255,0.05)',
+                        color: 'var(--text-secondary)',
+                        fontSize: '0.7rem',
+                        cursor: 'pointer',
+                        flexShrink: 0,
+                      }}
+                      title="Change Lead"
+                    >
+                      Change
+                    </button>
+                  )}
                 </div>
               );
             })}
@@ -443,6 +466,21 @@ export const DirectorDashboard: React.FC<DirectorDashboardProps> = ({
           )}
         </div>
       </div>
+
+      {selectedLeadForChange && (
+        <ChangeLeadModal
+          currentLead={selectedLeadForChange}
+          allLeads={users}
+          projects={projects}
+          onClose={() => setSelectedLeadForChange(null)}
+          onConfirm={(newLeadId) => {
+            ProjectService.reassignProjectLead(selectedLeadForChange.id, newLeadId);
+            setSelectedLeadForChange(null);
+            // Optionally reload page to reflect changes
+            window.location.reload();
+          }}
+        />
+      )}
     </div>
   );
 };

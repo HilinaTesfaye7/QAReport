@@ -215,7 +215,9 @@ class NotificationServiceManager {
     project: Project,
     memberId: string,
     leadId: string,
-    responsibility = 'Please prepare the test cases and submit them using /testcase'
+    responsibility = 'Please prepare the test cases and submit them using /testcase',
+    moduleNames?: string[],
+    testCaseDeadline?: string
   ) {
     const users = StorageService.getUsers();
     const lead = users.find((u) => u.id === leadId);
@@ -232,10 +234,20 @@ class NotificationServiceManager {
       figmaText = `<a href="${project.resources.figmaUrl}">Open Figma</a>`;
     }
 
+    let modulesText = '';
+    if (moduleNames && moduleNames.length > 0) {
+      modulesText = `\n🧩 Modules: ${moduleNames.join(', ')}`;
+    }
+
+    let deadlineText = '';
+    if (testCaseDeadline) {
+      deadlineText = `\n⏰ Test-Case Deadline: ${testCaseDeadline}`;
+    }
+
     const message = `🎉 You have been assigned to a new project!\n\n` +
       `📁 Project: ${project.name}\n` +
       `👩💼 QA Lead: ${leadName}\n` +
-      `📂 Core Project: ${coreProject}\n\n` +
+      `📂 Core Project: ${coreProject}${modulesText}${deadlineText}\n\n` +
       `You have been assigned to this project as:\n` +
       `👤 QA Tester\n\n` +
       `Please review the project requirements before starting testing.\n\n` +
