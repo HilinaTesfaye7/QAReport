@@ -49,7 +49,7 @@ export const AssignPendingLeadModal: React.FC<AssignPendingLeadModalProps> = ({ 
       // Extract telegram Chat ID from user ID (e.g. usr-123456 -> 123456)
       const telegramChatId = pendingLead.id.replace('usr-', '');
       
-      const res = await fetch('/api/assign-lead', {
+      const res = await fetch('/api/users?action=assign-lead', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
