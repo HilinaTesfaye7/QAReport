@@ -81,7 +81,6 @@ export class TelegramProvider implements NotificationProvider {
                 action: 'send_message',
                 chatId: targetChatId,
                 text,
-                botToken,
                 replyMarkup: notification.payload?.replyMarkup,
               }),
             });
