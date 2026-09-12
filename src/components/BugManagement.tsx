@@ -51,7 +51,7 @@ export const BugManagement: React.FC<BugManagementProps> = ({ currentUser }) => 
   }, []);
 
   const handleStatusChange = (bugId: string, newStatus: BugStatus) => {
-    BugService.updateBugStatus(bugId, newStatus, currentUser.id);
+    BugService.updateBugStatus(bugId, newStatus);
     reload();
   };
 
@@ -75,8 +75,7 @@ export const BugManagement: React.FC<BugManagementProps> = ({ currentUser }) => 
         stepsToReproduce: steps,
         expectedResult,
         actualResult,
-      },
-      currentUser.id
+      }
     );
 
     setIsCreateModalOpen(false);

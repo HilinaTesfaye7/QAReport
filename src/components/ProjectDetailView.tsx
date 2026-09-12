@@ -65,7 +65,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
   const handleDeleteProject = async () => {
     setIsDeleting(true);
     try {
-      await ProjectService.deleteProject(currentProject.id, currentUser.id);
+      await ProjectService.deleteProject(currentProject.id);
       setIsDeleteModalOpen(false);
       onBackToProjects();
     } catch (err: any) {
@@ -189,7 +189,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
     setShowWorkloadWarning(false);
 
     try {
-      const updatedProj = ProjectService.assignMember(currentProject.id, selectedMemberToAdd, currentUser.id);
+      const updatedProj = ProjectService.assignMember(currentProject.id, selectedMemberToAdd);
       setCurrentProject({ ...updatedProj });
       const memberName = targetUser ? targetUser.name : 'QA Member';
 
@@ -234,7 +234,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
 
   const handleUnassignMember = (memberId: string) => {
     try {
-      const updatedProj = ProjectService.unassignMember(currentProject.id, memberId, currentUser.id);
+      const updatedProj = ProjectService.unassignMember(currentProject.id, memberId);
       setCurrentProject({ ...updatedProj });
       const targetUser = allUsers.find((u) => u.id === memberId);
       const memberName = targetUser ? targetUser.name : 'QA Member';
@@ -263,8 +263,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
     try {
       ProjectService.updateProject(
         currentProject.id,
-        { resources: { ...currentProject.resources, figmaUrl: trimmed } },
-        currentUser.id
+        { resources: { ...currentProject.resources, figmaUrl: trimmed } }
       );
     } catch {}
 
@@ -308,8 +307,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
     try {
       ProjectService.updateProject(
         currentProject.id,
-        { resources: { ...currentProject.resources, testCaseUrl: trimmed } },
-        currentUser.id
+        { resources: { ...currentProject.resources, testCaseUrl: trimmed } }
       );
     } catch {}
 
@@ -531,7 +529,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
                   textTransform: 'uppercase',
                 }}
               >
-                {currentUser.role === 'qa_lead' ? 'QA LEAD' : 'QA ENGINEER'}
+                {(currentUser.role || '').toUpperCase()}
               </span>
             </div>
             <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0, maxWidth: '850px', lineHeight: 1.5 }}>
@@ -1530,12 +1528,12 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
                           borderRadius: '6px',
                           fontSize: '0.68rem',
                           fontWeight: 800,
-                          background: m.role === 'qa_lead' ? 'rgba(99, 102, 241, 0.2)' : 'rgba(56, 189, 248, 0.2)',
-                          color: m.role === 'qa_lead' ? '#a5b4fc' : '#38bdf8',
-                          border: m.role === 'qa_lead' ? '1px solid rgba(99, 102, 241, 0.3)' : '1px solid rgba(56, 189, 248, 0.3)',
+                          background: m.role === 'QA Lead' ? 'rgba(99, 102, 241, 0.2)' : 'rgba(56, 189, 248, 0.2)',
+                          color: m.role === 'QA Lead' ? '#a5b4fc' : '#38bdf8',
+                          border: m.role === 'QA Lead' ? '1px solid rgba(99, 102, 241, 0.3)' : '1px solid rgba(56, 189, 248, 0.3)',
                         }}
                       >
-                        {m.role === 'qa_lead' ? 'QA Lead' : 'QA Engineer'}
+                        {m.role}
                       </span>
                       {isLead && m.id !== currentUser.id && (
                         <button
@@ -1697,7 +1695,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
                                 <img src={u.avatar} alt={u.name} style={{ width: '32px', height: '32px', borderRadius: '50%' }} />
                                 <div>
                                   <div style={{ fontWeight: 700, fontSize: '0.84rem', color: 'var(--text-primary)' }}>{u.name}</div>
-                                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{u.role === 'qa_lead' ? 'QA Lead' : 'QA Engineer'}</div>
+                                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{u.role}</div>
                                 </div>
                               </div>
                               <input type="radio" checked={isSelected} onChange={() => {}} style={{ cursor: 'pointer' }} />
@@ -1873,7 +1871,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
                                 {standup.memberName || 'QA Tester'}
                               </div>
                               <div style={{ fontSize: '0.68rem', color: '#a5b4fc', fontWeight: 700 }}>
-                                {(standup.role || 'QA_ENGINEER').toUpperCase()}
+                                {(standup.role || 'QA Tester').toUpperCase()}
                               </div>
                             </div>
                           </div>

@@ -20,6 +20,7 @@ interface SidebarProps {
   onToggleCollapse: () => void;
   onUserChange?: (user: User) => void;
   onOpenCreateProject?: () => void;
+  onLogout?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -30,6 +31,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onToggleCollapse,
   onUserChange,
   onOpenCreateProject,
+  onLogout,
 }) => {
   const users = StorageService.getUsers();
   const isLead = AuthService.isQALead(currentUser);
@@ -179,7 +181,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 {!collapsed && (
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flex: 1 }}>
                     <span>{item.label}</span>
-                    {item.id === 'projects' && isLead && onOpenCreateProject && (
+                    {item.id === 'projects' && currentUser.role === 'QA Lead' && onOpenCreateProject && (
                       <span
                         onClick={(e) => {
                           e.stopPropagation();
@@ -297,35 +299,38 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   {currentUser.name}
                 </div>
                 <div style={{ fontSize: '0.68rem', color: '#38bdf8', fontWeight: 700, textTransform: 'uppercase' }}>
-                  {currentUser.role === 'qa_lead' ? 'QA Lead' : 'QA Engineer'}
+                  {currentUser.role}
                 </div>
               </div>
             </div>
 
-            {onUserChange && (
-              <select
-                aria-label="Switch Active QA User"
-                value={currentUser.id}
-                onChange={(e) => {
-                  const u = users.find((x) => x.id === e.target.value);
-                  if (u) onUserChange(u);
-                }}
+            {onLogout && (
+              <button
+                aria-label="Logout"
+                onClick={onLogout}
                 style={{
-                  background: 'var(--bg-card-subtle)',
-                  border: '1px solid var(--border-subtle)',
+                  background: 'rgba(239, 68, 68, 0.1)',
+                  border: '1px solid rgba(239, 68, 68, 0.2)',
                   borderRadius: '6px',
-                  color: 'var(--text-secondary)',
-                  fontSize: '0.68rem',
-                  padding: '4px 6px',
+                  color: '#ef4444',
+                  fontSize: '0.72rem',
+                  fontWeight: 600,
+                  padding: '5px 10px',
                   cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'rgba(239, 68, 68, 0.2)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)';
                 }}
               >
-                {users.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.name.split(' ')[0]}
-                  </option>
-                ))}
-              </select>
+                Logout
+              </button>
             )}
           </div>
         )}

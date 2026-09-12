@@ -2,6 +2,7 @@ import { Blocker, BlockerStatus, BlockerSeverity } from '../types';
 import { StorageService } from './storage';
 import { AuditService } from './auditService';
 import { NotificationService } from './notificationService';
+import { AuthService } from './authService';
 
 export const BlockerService = {
   syncBlockers: async (): Promise<Blocker[]> => {
@@ -25,9 +26,10 @@ export const BlockerService = {
   },
 
   createBlocker: (
-    data: Omit<Blocker, 'id' | 'createdAt' | 'resolvedAt'>,
-    actorId: string
+    data: Omit<Blocker, 'id' | 'createdAt' | 'resolvedAt'>
   ): Blocker => {
+    const currentUser = AuthService.getCurrentUser();
+    if (!currentUser) throw new Error('Unauthenticated access');
     const blockers = StorageService.getBlockers();
     const now = new Date().toISOString().split('T')[0];
     const newBlocker: Blocker = {
@@ -40,7 +42,7 @@ export const BlockerService = {
     StorageService.saveBlockers(blockers);
 
     AuditService.log({
-      actorId,
+      actorId: currentUser.id,
       action: 'Reported QA Blocker',
       entityType: 'blocker',
       entityId: newBlocker.id,
@@ -48,7 +50,7 @@ export const BlockerService = {
     });
 
     // Alert QA Lead
-    const user = StorageService.getUsers().find((u) => u.id === actorId);
+    const user = currentUser;
     NotificationService.dispatch({
       recipientId: 'usr-sarah',
       title: `⚠️ Blocker Reported: ${newBlocker.title}`,
@@ -62,9 +64,10 @@ export const BlockerService = {
 
   updateBlockerStatus: (
     blockerId: string,
-    status: BlockerStatus,
-    actorId: string
+    status: BlockerStatus
   ): Blocker => {
+    const currentUser = AuthService.getCurrentUser();
+    if (!currentUser) throw new Error('Unauthenticated access');
     const blockers = StorageService.getBlockers();
     const blocker = blockers.find((b) => b.id === blockerId);
     if (!blocker) throw new Error('Blocker not found');
@@ -78,7 +81,7 @@ export const BlockerService = {
     StorageService.saveBlockers(blockers);
 
     AuditService.log({
-      actorId,
+      actorId: currentUser.id,
       action: `Blocker Status Changed to ${status}`,
       entityType: 'blocker',
       entityId: blockerId,

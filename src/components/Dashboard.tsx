@@ -27,8 +27,9 @@ import { ProjectService } from '../services/projectService';
 import { AuthService } from '../services/authService';
 import { BlockerService } from '../services/blockerService';
 import { WorkloadAssignmentModal } from './WorkloadAssignmentModal';
+import { DirectorDashboard } from './DirectorDashboard';
 
-interface QALeadDashboardProps {
+interface DashboardProps {
   currentUser: User;
   onNavigateToProject: (projectId: string) => void;
   onNavigateToTasks: () => void;
@@ -38,9 +39,10 @@ interface QALeadDashboardProps {
   onNavigateToReadiness?: () => void;
   onNavigateToReports?: () => void;
   onNavigateToTeam?: () => void;
+  onNavigateToProjects?: () => void;
 }
 
-export const QALeadDashboard: React.FC<QALeadDashboardProps> = ({
+export const Dashboard: React.FC<DashboardProps> = ({
   currentUser,
   onNavigateToProject,
   onNavigateToTasks,
@@ -50,8 +52,9 @@ export const QALeadDashboard: React.FC<QALeadDashboardProps> = ({
   onNavigateToReadiness,
   onNavigateToReports,
   onNavigateToTeam,
+  onNavigateToProjects,
 }) => {
-  const [projects, setProjects] = useState<Project[]>(ProjectService.getAuthorizedProjects(currentUser));
+  const [projects, setProjects] = useState<Project[]>(ProjectService.getAuthorizedProjects());
   const [users, setUsers] = useState<User[]>(AuthService.getAuthorizedUsers(currentUser));
   const [workloads, setWorkloads] = useState<MemberWorkload[]>(WorkloadService.getAllMembersWorkload());
   const [tasks, setTasks] = useState<QATask[]>(StorageService.getTasks());
@@ -71,7 +74,7 @@ export const QALeadDashboard: React.FC<QALeadDashboardProps> = ({
         StorageService.syncBlockersWithCloud(),
         DailyReportService.syncTelegramReports(),
       ]);
-      setProjects(ProjectService.getAuthorizedProjects(currentUser));
+      setProjects(ProjectService.getAuthorizedProjects());
       setUsers(AuthService.getAuthorizedUsers(currentUser));
       setBlockers(syncedBlockers);
       setReports(syncedReports);
@@ -86,14 +89,11 @@ export const QALeadDashboard: React.FC<QALeadDashboardProps> = ({
 
   useEffect(() => {
     reloadData();
-    const handleStorage = () => reloadData();
-    window.addEventListener('aegis_storage_change', handleStorage);
     // Poll every 5 seconds to ensure real-time reflection of Telegram check-ins and blockers
     const pollInterval = setInterval(() => {
       reloadData();
     }, 5000);
     return () => {
-      window.removeEventListener('aegis_storage_change', handleStorage);
       clearInterval(pollInterval);
     };
   }, []);
@@ -132,34 +132,37 @@ export const QALeadDashboard: React.FC<QALeadDashboardProps> = ({
   const metrics = TestCaseService.getMetrics();
   const passRate = filteredTestCases.length > 0
     ? Math.round((passedTestsCount / filteredTestCases.length) * 1000) / 10
-    : (metrics.passRate || 96.4);
+    : 0;
 
   // Determine Primary Project for Release Readiness Donut Gauge
-  const primaryProject = (selectedProjectFilter !== 'all'
+  const primaryProject = selectedProjectFilter !== 'all'
     ? projects.find((p) => p.id === selectedProjectFilter)
-    : projects[0]) || { id: 'prj-banking', name: 'Banking SuperApp', qaProgress: 74, status: 'Testing' as const };
+    : (projects.length > 0 ? projects[0] : null);
 
-  const projProgress = primaryProject.qaProgress || 0;
-  const projCritBugs = bugs.filter(
-    (b) => (selectedProjectFilter === 'all' || b.projectId === primaryProject.id) &&
+  const projProgress = primaryProject?.qaProgress || 0;
+  const projCritBugs = primaryProject ? bugs.filter(
+    (b) => b.projectId === primaryProject.id &&
       (b.severity === 'Critical' || b.severity === 'High') &&
       b.status !== 'Closed'
-  ).length;
-  const projBlockers = blockers.filter(
-    (b) => (selectedProjectFilter === 'all' || b.projectId === primaryProject.id) && b.status !== 'Resolved'
-  ).length;
+  ).length : 0;
+  const projBlockers = primaryProject ? blockers.filter(
+    (b) => b.projectId === primaryProject.id && b.status !== 'Resolved'
+  ).length : 0;
 
-  let readinessStatus = 'Ready to release';
-  let readinessColor = '#10b981';
-  let readinessBg = 'rgba(16, 185, 129, 0.15)';
-  if (projCritBugs > 0 || projBlockers > 0) {
-    readinessStatus = 'Ready with risks';
-    readinessColor = '#fbbf24';
-    readinessBg = 'rgba(245, 158, 11, 0.15)';
-  } else if (projProgress < 60) {
-    readinessStatus = 'In testing';
-    readinessColor = '#38bdf8';
-    readinessBg = 'rgba(56, 189, 248, 0.15)';
+  let readinessStatus = primaryProject ? 'Ready to release' : 'N/A';
+  let readinessColor = primaryProject ? '#10b981' : 'var(--text-muted)';
+  let readinessBg = primaryProject ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255,255,255,0.05)';
+  
+  if (primaryProject) {
+    if (projCritBugs > 0 || projBlockers > 0) {
+      readinessStatus = 'Ready with risks';
+      readinessColor = '#fbbf24';
+      readinessBg = 'rgba(245, 158, 11, 0.15)';
+    } else if (projProgress < 60) {
+      readinessStatus = 'In testing';
+      readinessColor = '#38bdf8';
+      readinessBg = 'rgba(56, 189, 248, 0.15)';
+    }
   }
 
   // SVG Gauge calculations
@@ -190,7 +193,7 @@ export const QALeadDashboard: React.FC<QALeadDashboardProps> = ({
   const recentActivities = [
     ...reports.map((r) => ({
       id: `rep-${r.id}`,
-      name: r.memberName || 'QA Engineer',
+      name: r.memberName || 'Unassigned',
       action: 'submitted daily standup',
       subtext: `${r.projectName} • ${r.todayWorkingOn || r.yesterdayCompleted || 'Standup completed'}`,
       tag: r.source === 'telegram' || r.chatId ? '✈️ Telegram' : 'Standup',
@@ -262,12 +265,33 @@ export const QALeadDashboard: React.FC<QALeadDashboardProps> = ({
   ) => {
     e.stopPropagation();
     if (issue.isBlocker) {
-      BlockerService.updateBlockerStatus(issue.id, 'Resolved', currentUser.id);
+      BlockerService.updateBlockerStatus(issue.id, 'Resolved');
     } else if (issue.isTask) {
-      TaskService.updateTaskStatus(issue.id, 'In Progress', currentUser.id);
+      TaskService.updateTaskStatus(issue.id, 'In Progress');
     }
     await reloadData();
   };
+
+  if (currentUser.role === 'QA Director') {
+    return (
+      <DirectorDashboard
+        currentUser={currentUser}
+        projects={projects}
+        users={users}
+        tasks={tasks}
+        bugs={bugs}
+        testCases={testCases}
+        blockers={blockers}
+        reports={reports}
+        workloads={workloads}
+        onNavigateToProject={onNavigateToProject}
+        onNavigateToTeam={onNavigateToTeam}
+        onNavigateToBugs={onNavigateToBugs}
+        onNavigateToBlockers={onNavigateToBlockers}
+        onNavigateToProjects={onNavigateToProjects}
+      />
+    );
+  }
 
   return (
     <div style={{ maxWidth: '1440px', margin: '0 auto', padding: '24px 32px' }}>
@@ -430,7 +454,7 @@ export const QALeadDashboard: React.FC<QALeadDashboardProps> = ({
             {users.length}
           </div>
           <div style={{ fontSize: '0.72rem', color: '#a855f7', display: 'flex', alignItems: 'center', gap: '2px' }}>
-            <span>{users.filter((u) => u.role === 'qa_engineer' || (u.role as string) === 'tester').length} active engineers</span>
+            <span>{users.filter((u) => u.role === 'QA Tester' || (u.role as string) === 'QA Tester').length} active engineers</span>
             <span>→</span>
           </div>
         </div>
@@ -564,7 +588,7 @@ export const QALeadDashboard: React.FC<QALeadDashboardProps> = ({
 
           {/* Member Workload Bars */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', maxHeight: '280px', overflowY: 'auto', paddingRight: '4px' }}>
-            {users.map((user) => {
+            {users.filter(u => u.role === 'QA Tester' || u.role === 'Automation QA Engineer').map((user) => {
               const wl = workloads.find((w) => w.memberId === user.id) || WorkloadService.computeMemberWorkload(user.id);
               const badgeColor =
                 wl.classification === 'Overloaded'
@@ -574,72 +598,65 @@ export const QALeadDashboard: React.FC<QALeadDashboardProps> = ({
                   : wl.classification === 'Balanced'
                   ? '#38bdf8'
                   : '#10b981';
-              const roleTitle = user.role === 'qa_lead' ? 'QA Lead' : (user.role as string) === 'tester' ? 'QA Tester' : 'QA Engineer';
+              const roleTitle = user.role;
 
               return (
-                <div key={user.id} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <div
-                    style={{
-                      width: '32px',
-                      height: '32px',
-                      borderRadius: '50%',
-                      background: 'var(--bg-card-subtle)',
-                      border: '1px solid var(--border-subtle)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontWeight: 800,
-                      fontSize: '0.75rem',
-                      color: '#38bdf8',
-                      flexShrink: 0,
-                    }}
-                  >
-                    {user.name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()}
-                  </div>
-
-                  <div style={{ width: '130px', flexShrink: 0 }}>
-                    <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {user.name}
+                <div key={user.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: '160px' }}>
+                    <div
+                      style={{
+                        width: '32px',
+                        height: '32px',
+                        borderRadius: '50%',
+                        background: 'rgba(56, 189, 248, 0.1)',
+                        color: '#38bdf8',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontWeight: 700,
+                        fontSize: '0.75rem',
+                      }}
+                    >
+                      {(user.name || 'U').slice(0, 2).toUpperCase()}
                     </div>
-                    <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
-                      {roleTitle} {user.telegramChatId ? '• ✈️' : ''}
+                    <div>
+                      <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                        {user.name}
+                      </div>
+                      <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>{roleTitle}</div>
                     </div>
                   </div>
-
-                  <div style={{ flex: 1 }}>
-                    <div style={{ height: '6px', borderRadius: '3px', background: 'rgba(255, 255, 255, 0.08)' }}>
-                      <div
-                        style={{
-                          height: '100%',
-                          width: `${Math.min(100, Math.max(5, wl.score))}%`,
-                          background: badgeColor,
-                          borderRadius: '3px',
-                          transition: 'width 0.3s ease',
-                        }}
-                      />
-                    </div>
+                  
+                  {/* Progress bar container */}
+                  <div style={{ flex: 1, height: '6px', background: 'var(--bg-app)', borderRadius: '3px', overflow: 'hidden' }}>
+                    <div
+                      style={{
+                        height: '100%',
+                        width: `${Math.min(wl.score, 100)}%`,
+                        background: badgeColor,
+                        borderRadius: '3px',
+                        transition: 'width 0.3s ease',
+                      }}
+                    />
                   </div>
-
-                  <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', width: '32px', textAlign: 'right' }}>
-                    {wl.score}%
-                  </span>
-
-                  <span
-                    style={{
-                      padding: '2px 8px',
-                      borderRadius: '10px',
-                      fontSize: '0.68rem',
-                      fontWeight: 700,
-                      background: `${badgeColor}20`,
-                      color: badgeColor,
-                      border: `1px solid ${badgeColor}40`,
-                      width: '76px',
-                      textAlign: 'center',
-                      flexShrink: 0,
-                    }}
-                  >
-                    {wl.classification}
-                  </span>
+                  
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: '70px', justifyContent: 'flex-end' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                      {wl.score}%
+                    </span>
+                    <span
+                      style={{
+                        padding: '2px 8px',
+                        background: `${badgeColor}15`,
+                        color: badgeColor,
+                        borderRadius: '12px',
+                        fontSize: '0.65rem',
+                        fontWeight: 700,
+                      }}
+                    >
+                      {wl.classification}
+                    </span>
+                  </div>
                 </div>
               );
             })}
@@ -654,7 +671,7 @@ export const QALeadDashboard: React.FC<QALeadDashboardProps> = ({
                 Release readiness
               </h3>
               <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '2px', margin: 0 }}>
-                {primaryProject.name}
+                {primaryProject?.name || 'No active projects'}
               </p>
             </div>
             <span

@@ -11,6 +11,14 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      window.addEventListener('error', function(e) {
+        document.body.innerHTML += '<div style="position:fixed;top:0;left:0;width:100%;background:red;color:white;z-index:9999;padding:20px;font-family:monospace">' + 
+          '<h3>ERROR: ' + e.message + '</h3>' + 
+          '<pre>' + e.error.stack + '</pre>' + 
+          '</div>';
+      });
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

@@ -30,15 +30,17 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     }
   };
 
-  const handleForgot = (e: React.FormEvent) => {
+  const handleForgot = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     if (!username.trim()) {
       setError('Please enter your username first.');
       return;
     }
-    // Simulate secure forgot password without leaking info
-    setForgotMsg('If the account exists, password reset instructions have been sent.');
+    setIsLoading(true);
+    const msg = await AuthService.forgotPassword(username);
+    setIsLoading(false);
+    setForgotMsg(msg);
     setTimeout(() => {
       setIsForgotMode(false);
       setForgotMsg(null);

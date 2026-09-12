@@ -1,4 +1,4 @@
-export type UserRole = 'QA Director' | 'QA Tester' | 'QA Lead' | 'Automation QA Engineer' | 'qa_lead' | 'qa_engineer';
+export type UserRole = 'QA Director' | 'QA Tester' | 'QA Lead' | 'Automation QA Engineer';
 
 export type TestingSkill =
   | 'Manual Testing'
@@ -20,6 +20,9 @@ export type TestingSkill =
   | 'Database Testing'
   | 'Telegram Standup'
   | 'Functional QA'
+  | 'QA Strategy'
+  | 'Leadership'
+  | 'Test Management'
   | 'Other';
 
 export interface ProjectAllocation {
@@ -53,12 +56,14 @@ export interface User {
   telegramUsername?: string;
   telegramChatId?: string;
   // New auth fields
-  username?: string;
-  passwordHash?: string;
-  isActive?: boolean;
+  username: string;
+  passwordHash: string;
+  isActive: boolean;
   mustChangePassword?: boolean;
   passwordChangedAt?: string;
   lastLoginAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export type ProjectStatus =
@@ -291,6 +296,7 @@ export interface TestCase {
   linkedBugId?: string;
   executionNotes?: string;
   notes?: string;
+  isAutomated?: boolean;
 }
 
 export interface TestSuite {

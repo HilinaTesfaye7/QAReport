@@ -34,7 +34,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
   // Step 1: Personal Info
   const [name, setName] = useState('Alex Rivera');
   const [email, setEmail] = useState('alex.rivera@qa-aegis.com');
-  const [role, setRole] = useState<UserRole>('qa_engineer');
+  const [role, setRole] = useState<UserRole>('QA Tester');
   const [experienceYears, setExperienceYears] = useState(4);
   const [selectedSkills, setSelectedSkills] = useState<TestingSkill[]>([
     'Manual Testing',
@@ -209,8 +209,8 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                   onChange={(e) => setRole(e.target.value as UserRole)}
                   style={{ width: '100%' }}
                 >
-                  <option value="qa_engineer">QA Engineer / Tester</option>
-                  <option value="qa_lead">QA Lead / Manager</option>
+                  <option value='QA Tester'>QA Engineer / Tester</option>
+                  <option value='QA Lead'>QA Lead / Manager</option>
                 </select>
               </div>
               <div>

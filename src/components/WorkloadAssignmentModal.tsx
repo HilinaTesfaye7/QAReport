@@ -39,7 +39,7 @@ export const WorkloadAssignmentModal: React.FC<WorkloadAssignmentModalProps> = (
 
   const handleConfirmAssignment = (assigneeId: string) => {
     if (!currentTask) return;
-    TaskService.assignTask(currentTask.id, assigneeId, leadId);
+    TaskService.assignTask(currentTask.id, assigneeId);
     setAssignmentSuccess(`Successfully assigned "${currentTask.title}"!`);
     setTimeout(() => {
       setAssignmentSuccess(null);

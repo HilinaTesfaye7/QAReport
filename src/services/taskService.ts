@@ -22,11 +22,13 @@ export const TaskService = {
   },
 
   createTask: (
-    taskData: Omit<QATask, 'id' | 'createdAt' | 'updatedAt'>,
-    actorId: string
+    taskData: Omit<QATask, 'id' | 'createdAt' | 'updatedAt'>
   ): QATask => {
+    const currentUser = AuthService.getCurrentUser();
+    if (!currentUser) throw new Error('Unauthenticated access');
+
     // RBAC: Only QA Lead creates tasks
-    AuthService.requireLeadPermission(actorId);
+    AuthService.requireLeadPermission(currentUser.id);
 
     const tasks = StorageService.getTasks();
     const now = new Date().toISOString().split('T')[0];
@@ -41,7 +43,7 @@ export const TaskService = {
     StorageService.saveTasks(tasks);
 
     AuditService.log({
-      actorId,
+      actorId: currentUser.id,
       action: 'Created QA Task',
       entityType: 'task',
       entityId: newTask.id,
@@ -58,9 +60,11 @@ export const TaskService = {
   updateTaskStatus: (
     taskId: string,
     newStatus: TaskStatus,
-    actorId: string,
     notes?: string
   ): QATask => {
+    const currentUser = AuthService.getCurrentUser();
+    if (!currentUser) throw new Error('Unauthenticated access');
+
     const tasks = StorageService.getTasks();
     const task = tasks.find((t) => t.id === taskId);
     if (!task) throw new Error('Task not found');
@@ -79,7 +83,7 @@ export const TaskService = {
     StorageService.saveTasks(tasks);
 
     AuditService.log({
-      actorId,
+      actorId: currentUser.id,
       action: 'Task Status Updated',
       entityType: 'task',
       entityId: taskId,
@@ -92,10 +96,11 @@ export const TaskService = {
 
   assignTask: (
     taskId: string,
-    newAssigneeId: string,
-    actorId: string
+    newAssigneeId: string
   ): QATask => {
-    AuthService.requireLeadPermission(actorId);
+    const currentUser = AuthService.getCurrentUser();
+    if (!currentUser) throw new Error('Unauthenticated access');
+    AuthService.requireLeadPermission(currentUser.id);
 
     const tasks = StorageService.getTasks();
     const task = tasks.find((t) => t.id === taskId);
@@ -107,7 +112,7 @@ export const TaskService = {
     StorageService.saveTasks(tasks);
 
     AuditService.log({
-      actorId,
+      actorId: currentUser.id,
       action: 'Reassigned QA Task',
       entityType: 'task',
       entityId: taskId,
@@ -122,9 +127,12 @@ export const TaskService = {
 
   updateTask: (
     taskId: string,
-    updates: Partial<QATask>,
-    actorId: string
+    updates: Partial<QATask>
   ): QATask => {
+    const currentUser = AuthService.getCurrentUser();
+    if (!currentUser) throw new Error('Unauthenticated access');
+    AuthService.requireLeadPermission(currentUser.id);
+
     const tasks = StorageService.getTasks();
     const idx = tasks.findIndex((t) => t.id === taskId);
     if (idx === -1) throw new Error('Task not found');
@@ -138,8 +146,8 @@ export const TaskService = {
     StorageService.saveTasks(tasks);
 
     AuditService.log({
-      actorId,
-      action: 'Updated QA Task Details',
+      actorId: currentUser.id,
+      action: 'Updated Task Status',
       entityType: 'task',
       entityId: taskId,
       newValue: updates.title || 'Task updated',

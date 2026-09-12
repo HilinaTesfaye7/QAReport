@@ -42,7 +42,7 @@ export const BlockerManagement: React.FC<BlockerManagementProps> = ({ currentUse
   }, []);
 
   const handleStatusChange = (blockerId: string, newStatus: BlockerStatus) => {
-    BlockerService.updateBlockerStatus(blockerId, newStatus, currentUser.id);
+    BlockerService.updateBlockerStatus(blockerId, newStatus);
     reload();
   };
 
@@ -56,8 +56,7 @@ export const BlockerManagement: React.FC<BlockerManagementProps> = ({ currentUse
         memberId: currentUser.id,
         severity,
         status: 'Open',
-      },
-      currentUser.id
+      }
     );
 
     setIsCreateModalOpen(false);

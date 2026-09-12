@@ -4,6 +4,7 @@ import { WorkloadService } from './workloadService';
 import { TestCaseService } from './testCaseService';
 import { AuditService } from './auditService';
 import { NotificationService } from './notificationService';
+import { AuthService } from './authService';
 import { supabase, isSupabaseConfigured } from './supabaseClient';
 
 export const DailyReportService = {
@@ -165,7 +166,9 @@ export const DailyReportService = {
     return report;
   },
 
-  submitDailyReport: (reportId: string, actorId: string): DailyReport => {
+  submitDailyReport: (reportId: string): DailyReport => {
+    const currentUser = AuthService.getCurrentUser();
+    if (!currentUser) throw new Error('Unauthenticated access');
     const reports = StorageService.getDailyReports();
     const report = reports.find((r) => r.id === reportId);
     if (!report) throw new Error('Daily report not found');
@@ -179,8 +182,8 @@ export const DailyReportService = {
     const memberName = member ? member.name : 'QA Member';
 
     AuditService.log({
-      actorId,
-      action: 'Submitted Daily QA Report',
+      actorId: currentUser.id,
+      action: 'Submitted Daily Report',
       entityType: 'report',
       entityId: reportId,
       newValue: `Submitted by ${memberName}`,
@@ -214,7 +217,7 @@ export const DailyReportService = {
           date: report.date,
           member_id: report.memberId,
           member_name: memberName,
-          role: member ? member.role : 'qa_engineer',
+          role: member ? member.role : 'QA Tester',
           project_id: report.projectId,
           project_name: projectName,
           today_working_on: report.todayWorkingOn,
@@ -236,7 +239,7 @@ export const DailyReportService = {
   // Generates aggregated QA Lead Daily Team Report (Section 16)
   generateAggregatedTeamReport: () => {
     const projects = StorageService.getProjects();
-    const engineers = StorageService.getUsers().filter((u) => u.role === 'qa_engineer');
+    const engineers = StorageService.getUsers().filter((u) => u.role === 'QA Tester');
     const tasks = StorageService.getTasks();
     const bugs = StorageService.getBugs();
     const metrics = TestCaseService.getMetrics();

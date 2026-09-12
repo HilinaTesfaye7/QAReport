@@ -75,11 +75,7 @@ export const StorageService = {
   // USERS
   getUsers: (): User[] => {
     const raw = localStorage.getItem(STORAGE_KEYS.USERS);
-    if (!raw) {
-      localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(INITIAL_USERS));
-      return INITIAL_USERS;
-    }
-    return JSON.parse(raw);
+    return raw ? JSON.parse(raw) : [];
   },
   saveUsers: (users: User[]) => {
     localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
@@ -93,123 +89,23 @@ export const StorageService = {
     emitChange(STORAGE_KEYS.CURRENT_USER_ID);
   },
   syncUsersWithCloud: async (): Promise<User[]> => {
-    if (isSupabaseConfigured() && supabase) {
+    if (typeof fetch !== 'undefined') {
       try {
         const deletedIds = new Set<string>(
           JSON.parse(localStorage.getItem('aegis_deleted_member_ids') || '[]')
         );
-
-        const { data: cloudProfiles, error } = await supabase
-          .from('telegram_profiles')
-          .select('*');
-
-        if (!error && cloudProfiles) {
-          let tombstoneChanged = false;
-          cloudProfiles.forEach((p) => {
-            const keysToRemove = [
-              p.chat_id,
-              `usr-${p.chat_id}`,
-              (p.full_name || '').trim().toLowerCase(),
-              p.telegram_username ? p.telegram_username.replace(/^@/, '').toLowerCase() : '',
-            ].filter(Boolean);
-
-            keysToRemove.forEach((k) => {
-              if (deletedIds.has(k)) {
-                deletedIds.delete(k);
-                tombstoneChanged = true;
-              }
-            });
-          });
-
-          if (tombstoneChanged) {
-            localStorage.setItem(
-              'aegis_deleted_member_ids',
-              JSON.stringify(Array.from(deletedIds))
-            );
+        const res = await fetch('/api/users', { cache: 'no-cache' });
+        if (res.ok) {
+          const users = await res.json();
+          if (Array.isArray(users)) {
+            const activeUsers = users.filter((u: any) => !deletedIds.has(u.id));
+            localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(activeUsers));
+            emitChange(STORAGE_KEYS.USERS);
+            return activeUsers;
           }
-
-          const currentUsers = StorageService.getUsers().filter(
-            (u) =>
-              !deletedIds.has(u.id) &&
-              !deletedIds.has(u.name.trim().toLowerCase()) &&
-              !(u.telegramChatId && deletedIds.has(u.telegramChatId))
-          );
-          let changed = false;
-
-          for (const p of cloudProfiles) {
-            const normalizedName = (p.full_name || '').trim();
-            if (!normalizedName) continue;
-
-            const existingIdx = currentUsers.findIndex(
-              (u) =>
-                u.id === `usr-${p.chat_id}` ||
-                (p.chat_id && u.telegramChatId === p.chat_id) ||
-                u.name.toLowerCase() === normalizedName.toLowerCase() ||
-                (p.telegram_username && u.telegramUsername?.toLowerCase().includes(p.telegram_username.toLowerCase()))
-            );
-
-            const roleVal: UserRole = (p.role || '').toLowerCase().includes('lead')
-              ? 'qa_lead'
-              : 'qa_engineer';
-
-            const assignedProjectIds: string[] = Array.isArray(p.assigned_project_ids) && p.assigned_project_ids.length > 0
-              ? p.assigned_project_ids
-              : p.project_id ? [p.project_id] : ['prj-banking'];
-
-            const allocations: ProjectAllocation[] = assignedProjectIds.map((pid: string) => ({
-              projectId: pid,
-              percentage: Math.round(100 / assignedProjectIds.length),
-            }));
-
-            if (existingIdx !== -1) {
-              const u = currentUsers[existingIdx];
-              let userUpdated = false;
-              if (u.name !== normalizedName) {
-                u.name = normalizedName;
-                userUpdated = true;
-              }
-              if (u.role !== roleVal) {
-                u.role = roleVal;
-                userUpdated = true;
-              }
-              if (p.chat_id && u.telegramChatId !== p.chat_id) {
-                u.telegramChatId = p.chat_id;
-                userUpdated = true;
-              }
-              if (p.telegram_username && u.telegramUsername !== `@${p.telegram_username.replace(/^@/, '')}`) {
-                u.telegramUsername = `@${p.telegram_username.replace(/^@/, '')}`;
-                userUpdated = true;
-              }
-              if (allocations.length > 0 && (!u.projectAllocations || u.projectAllocations.length === 0 || u.projectAllocations[0].projectId !== allocations[0].projectId)) {
-                u.projectAllocations = allocations;
-                userUpdated = true;
-              }
-              if (userUpdated) changed = true;
-            } else {
-              currentUsers.push({
-                id: `usr-${p.chat_id || Date.now().toString(36)}`,
-                name: normalizedName,
-                email: `${normalizedName.toLowerCase().replace(/[^a-z0-9]/g, '.')}@qa-aegis.com`,
-                role: roleVal,
-                avatar: `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80`,
-                experienceYears: 2,
-                skills: ['Manual Testing', 'Telegram Standup', 'Functional QA'],
-                projectAllocations: allocations,
-                onboardingCompleted: true,
-                telegramUsername: p.telegram_username ? `@${p.telegram_username.replace(/^@/, '')}` : undefined,
-                telegramChatId: p.chat_id,
-              });
-              changed = true;
-            }
-          }
-
-          if (changed) {
-            StorageService.saveUsers(currentUsers);
-          }
-          return currentUsers;
         }
-      } catch (err) {
-        console.warn('Supabase telegram_profiles sync error:', err);
+      } catch (e) {
+        console.warn('Backend /api/users fetch failed:', e);
       }
     }
     return StorageService.getUsers();
@@ -248,125 +144,9 @@ export const StorageService = {
   // PROJECTS
   getProjects: (): Project[] => {
     const raw = localStorage.getItem(STORAGE_KEYS.PROJECTS);
-    if (!raw) {
-      localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(INITIAL_PROJECTS));
-      return INITIAL_PROJECTS;
-    }
-    return JSON.parse(raw);
+    return raw ? JSON.parse(raw) : [];
   },
   syncProjectsWithDisk: async (): Promise<Project[]> => {
-    // 1. Try Supabase Cloud Database first
-    if (isSupabaseConfigured() && supabase) {
-      try {
-        // Check if there are local projects created before connecting to cloud
-        const localRaw = localStorage.getItem(STORAGE_KEYS.PROJECTS);
-        const localProjects: Project[] = localRaw ? JSON.parse(localRaw) : [];
-
-        const deletedProjectIds = new Set<string>(
-          JSON.parse(localStorage.getItem('aegis_deleted_project_ids') || '[]')
-        );
-
-        const { data, error } = await supabase
-          .from('projects')
-          .select('*')
-          .order('created_at', { ascending: false });
-
-        if (!error && data) {
-          const cloudIds = new Set(data.map((raw: any) => raw.id));
-          const records = data.filter((raw: any) => !deletedProjectIds.has(raw.id));
-
-          // Retain any fresh local project that was just created and may still be saving to cloud
-          const missingInCloud: Project[] = [];
-          for (const lp of localProjects) {
-            if (!cloudIds.has(lp.id) && !deletedProjectIds.has(lp.id)) {
-              missingInCloud.push(lp);
-              records.unshift({
-                id: lp.id,
-                name: lp.name,
-                description: lp.description || '',
-                status: lp.status,
-                start_date: lp.startDate,
-                target_release_date: lp.targetReleaseDate,
-                project_owner: lp.projectOwner,
-                qa_lead_id: lp.qaLeadId,
-                member_ids: lp.memberIds,
-                resources: lp.resources,
-                qa_progress: lp.qaProgress,
-                regression_progress: lp.regressionProgress,
-              });
-            }
-          }
-
-          // Auto-persist any missing local projects to Supabase Cloud so they never disappear
-          if (missingInCloud.length > 0) {
-            const missingRows = missingInCloud.map((p) => ({
-              id: p.id,
-              name: p.name,
-              description: p.description || '',
-              status: p.status,
-              start_date: p.startDate,
-              target_release_date: p.targetReleaseDate,
-              project_owner: p.projectOwner,
-              qa_lead_id: p.qaLeadId,
-              member_ids: p.memberIds,
-              resources: p.resources,
-              qa_progress: p.qaProgress,
-              regression_progress: p.regressionProgress,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-            }));
-            supabase.from('projects').upsert(missingRows).then(({ error: upErr }) => {
-              if (upErr) console.warn('Supabase auto-sync missing project error:', upErr);
-            });
-          }
-
-          const projectMap = new Map<string, Project>();
-          for (const raw of records) {
-            const p: Project = {
-              id: raw.id,
-              name: raw.name,
-              description: raw.description || '',
-              status: raw.status,
-              startDate: raw.start_date || '',
-              targetReleaseDate: raw.target_release_date || '',
-              projectOwner: raw.project_owner || '',
-              qaLeadId: raw.qa_lead_id || 'usr-sarah',
-              memberIds: Array.isArray(raw.member_ids) ? raw.member_ids : [],
-              resources: raw.resources || {},
-              qaProgress: Number(raw.qa_progress || 0),
-              regressionProgress: Number(raw.regression_progress || 0),
-            };
-
-            // Deduplicate exact clones (same name and identical description/resources)
-            const duplicateKey = `${p.name.trim().toLowerCase()}:::${(p.description || '').trim()}`;
-            const existingClone = Array.from(projectMap.values()).find(
-              (item) => `${item.name.trim().toLowerCase()}:::${(item.description || '').trim()}` === duplicateKey
-            );
-
-            if (!existingClone) {
-              projectMap.set(p.id, p);
-            } else {
-              // Keep the one with more resources or latest ID
-              const pCount = Object.keys(p.resources || {}).length;
-              const existCount = Object.keys(existingClone.resources || {}).length;
-              if (pCount > existCount || (pCount === existCount && p.id > existingClone.id)) {
-                projectMap.delete(existingClone.id);
-                projectMap.set(p.id, p);
-              }
-            }
-          }
-
-          const cloudProjects: Project[] = Array.from(projectMap.values());
-
-          localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(cloudProjects));
-          return cloudProjects;
-        }
-      } catch (err) {
-        console.warn('Supabase projects sync failed, checking local API/cache:', err);
-      }
-    }
-
-    // 2. Fall back to local dev-server API or localStorage (merge without destroying local additions)
     if (typeof fetch !== 'undefined') {
       try {
         const deletedProjectIds = new Set<string>(
@@ -374,20 +154,25 @@ export const StorageService = {
         );
         const res = await fetch('/api/projects', { cache: 'no-cache' });
         if (res.ok) {
-          const diskProjects = await res.json();
-          if (Array.isArray(diskProjects) && diskProjects.length > 0) {
-            const filteredDisk = diskProjects.filter((p: any) => !deletedProjectIds.has(p.id));
-            const diskIdSet = new Set(filteredDisk.map((p: any) => p.id));
+          const apiProjects = await res.json();
+          if (Array.isArray(apiProjects)) {
+            const filteredApi = apiProjects.filter((p: any) => !deletedProjectIds.has(p.id));
+            const apiIdSet = new Set(filteredApi.map((p: any) => p.id));
+            
+            // Retain un-synced local creations
             const localRaw = localStorage.getItem(STORAGE_KEYS.PROJECTS);
             const localProjects: Project[] = localRaw ? JSON.parse(localRaw) : [];
-            const preservedLocals = localProjects.filter((lp) => !diskIdSet.has(lp.id) && !deletedProjectIds.has(lp.id));
-            const merged = [...preservedLocals, ...filteredDisk];
+            const preservedLocals = localProjects.filter((lp) => !apiIdSet.has(lp.id) && !deletedProjectIds.has(lp.id));
+            
+            const merged = [...preservedLocals, ...filteredApi];
             localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(merged));
             emitChange(STORAGE_KEYS.PROJECTS);
             return merged;
           }
         }
-      } catch {}
+      } catch (err) {
+        console.warn('Backend /api/projects fetch failed:', err);
+      }
     }
     return StorageService.getProjects();
   },
@@ -442,11 +227,23 @@ export const StorageService = {
   // TASKS
   getTasks: (): QATask[] => {
     const raw = localStorage.getItem(STORAGE_KEYS.TASKS);
-    if (!raw) {
-      localStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(INITIAL_TASKS));
-      return INITIAL_TASKS;
+    return raw ? JSON.parse(raw) : [];
+  },
+  syncTasksWithCloud: async (): Promise<QATask[]> => {
+    try {
+      const res = await fetch('/api/tasks', { cache: 'no-cache' });
+      if (res.ok) {
+        const tasks = await res.json();
+        if (Array.isArray(tasks)) {
+          localStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(tasks));
+          emitChange(STORAGE_KEYS.TASKS);
+          return tasks;
+        }
+      }
+    } catch (e) {
+      console.warn('Local tasks API fetch failed:', e);
     }
-    return JSON.parse(raw);
+    return StorageService.getTasks();
   },
   saveTasks: (tasks: QATask[]) => {
     localStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(tasks));
@@ -456,11 +253,23 @@ export const StorageService = {
   // BUGS
   getBugs: (): QABug[] => {
     const raw = localStorage.getItem(STORAGE_KEYS.BUGS);
-    if (!raw) {
-      localStorage.setItem(STORAGE_KEYS.BUGS, JSON.stringify(INITIAL_BUGS));
-      return INITIAL_BUGS;
+    return raw ? JSON.parse(raw) : [];
+  },
+  syncBugsWithCloud: async (): Promise<QABug[]> => {
+    try {
+      const res = await fetch('/api/bugs', { cache: 'no-cache' });
+      if (res.ok) {
+        const items = await res.json();
+        if (Array.isArray(items)) {
+          localStorage.setItem(STORAGE_KEYS.BUGS, JSON.stringify(items));
+          emitChange(STORAGE_KEYS.BUGS);
+          return items;
+        }
+      }
+    } catch (e) {
+      console.warn('Local bugs API fetch failed:', e);
     }
-    return JSON.parse(raw);
+    return StorageService.getBugs();
   },
   saveBugs: (bugs: QABug[]) => {
     localStorage.setItem(STORAGE_KEYS.BUGS, JSON.stringify(bugs));
@@ -470,19 +279,27 @@ export const StorageService = {
   // TEST SUITES & CASES
   getTestSuites: (): TestSuite[] => {
     const raw = localStorage.getItem(STORAGE_KEYS.TEST_SUITES);
-    if (!raw) {
-      localStorage.setItem(STORAGE_KEYS.TEST_SUITES, JSON.stringify(INITIAL_TEST_SUITES));
-      return INITIAL_TEST_SUITES;
-    }
-    return JSON.parse(raw);
+    return raw ? JSON.parse(raw) : [];
   },
   getTestCases: (): TestCase[] => {
     const raw = localStorage.getItem(STORAGE_KEYS.TEST_CASES);
-    if (!raw) {
-      localStorage.setItem(STORAGE_KEYS.TEST_CASES, JSON.stringify(INITIAL_TEST_CASES));
-      return INITIAL_TEST_CASES;
+    return raw ? JSON.parse(raw) : [];
+  },
+  syncTestCasesWithCloud: async (): Promise<TestCase[]> => {
+    try {
+      const res = await fetch('/api/test-cases', { cache: 'no-cache' });
+      if (res.ok) {
+        const items = await res.json();
+        if (Array.isArray(items)) {
+          localStorage.setItem(STORAGE_KEYS.TEST_CASES, JSON.stringify(items));
+          emitChange(STORAGE_KEYS.TEST_CASES);
+          return items;
+        }
+      }
+    } catch (e) {
+      console.warn('Local test-cases API fetch failed:', e);
     }
-    return JSON.parse(raw);
+    return StorageService.getTestCases();
   },
   saveTestCases: (cases: TestCase[]) => {
     localStorage.setItem(STORAGE_KEYS.TEST_CASES, JSON.stringify(cases));
@@ -506,41 +323,21 @@ export const StorageService = {
   // BLOCKERS
   getBlockers: (): Blocker[] => {
     const raw = localStorage.getItem(STORAGE_KEYS.BLOCKERS);
-    if (!raw) {
-      localStorage.setItem(STORAGE_KEYS.BLOCKERS, JSON.stringify(INITIAL_BLOCKERS));
-      return INITIAL_BLOCKERS;
-    }
-    return JSON.parse(raw);
+    return raw ? JSON.parse(raw) : [];
   },
   syncBlockersWithCloud: async (): Promise<Blocker[]> => {
-    if (isSupabaseConfigured() && supabase) {
-      try {
-        const { data, error } = await supabase
-          .from('blockers')
-          .select('*')
-          .order('created_at', { ascending: false });
-
-        if (!error && data) {
-          const mapped: Blocker[] = data.map((b: any) => ({
-            id: b.id,
-            title: b.title,
-            description: b.description || '',
-            projectId: b.project_id,
-            projectName: b.project_name || '',
-            memberId: b.member_id || b.chat_id || 'usr-qa',
-            severity: b.severity || 'High',
-            status: b.status || 'Open',
-            reportedBy: b.reported_by || 'QA Engineer',
-            createdAt: b.created_at || new Date().toISOString(),
-          }));
-
-          localStorage.setItem(STORAGE_KEYS.BLOCKERS, JSON.stringify(mapped));
+    try {
+      const res = await fetch('/api/blockers', { cache: 'no-cache' });
+      if (res.ok) {
+        const items = await res.json();
+        if (Array.isArray(items)) {
+          localStorage.setItem(STORAGE_KEYS.BLOCKERS, JSON.stringify(items));
           emitChange(STORAGE_KEYS.BLOCKERS);
-          return mapped;
+          return items;
         }
-      } catch (e) {
-        console.warn('Supabase blockers sync error:', e);
       }
+    } catch (e) {
+      console.warn('Local blockers API fetch failed:', e);
     }
     return StorageService.getBlockers();
   },
@@ -573,61 +370,21 @@ export const StorageService = {
   // DAILY REPORTS
   getDailyReports: (): DailyReport[] => {
     const raw = localStorage.getItem(STORAGE_KEYS.DAILY_REPORTS);
-    if (!raw) {
-      localStorage.setItem(STORAGE_KEYS.DAILY_REPORTS, JSON.stringify(INITIAL_DAILY_REPORTS));
-      return INITIAL_DAILY_REPORTS;
-    }
-    return JSON.parse(raw);
+    return raw ? JSON.parse(raw) : [];
   },
   syncDailyReportsWithCloud: async (): Promise<DailyReport[]> => {
-    if (isSupabaseConfigured() && supabase) {
-      try {
-        const { data, error } = await supabase
-          .from('daily_reports')
-          .select('*')
-          .order('submitted_at', { ascending: false });
-
-        if (!error && data) {
-          const mapped: DailyReport[] = data.map((r: any) => {
-            let parsedNotes: any = {};
-            try {
-              if (r.notes && typeof r.notes === 'string' && r.notes.startsWith('{')) {
-                parsedNotes = JSON.parse(r.notes);
-              }
-            } catch {}
-
-            return {
-              id: r.id,
-              date: r.date,
-              chatId: r.chat_id,
-              memberId: r.member_id || `usr-${r.chat_id || 'unknown'}`,
-              memberName: r.member_name,
-              role: r.role || 'QA Tester',
-              projectId: r.project_id,
-              projectName: r.project_name,
-              yesterdayCompleted: r.yesterday_completed || parsedNotes.majorAchievement || '',
-              todayWorkingOn: r.today_working_on || '',
-              blockers: r.blockers || '',
-              isBlocked: Boolean(r.is_blocked),
-              risks: r.risks || parsedNotes.risks || '',
-              nextPlan: r.next_plan || parsedNotes.nextPlan || r.expected_completion || '',
-              majorAchievement: r.major_achievement || parsedNotes.majorAchievement || r.yesterday_completed || '',
-              progressPercentage: Number(r.progress_percentage || 50),
-              expectedCompletion: (r.expected_completion as any) || 'Today',
-              notes: r.notes || '',
-              status: 'submitted' as const,
-              submittedAt: r.submitted_at || new Date().toISOString(),
-              source: 'telegram' as const,
-            };
-          });
-
-          localStorage.setItem(STORAGE_KEYS.DAILY_REPORTS, JSON.stringify(mapped));
+    try {
+      const res = await fetch('/api/daily-reports', { cache: 'no-cache' });
+      if (res.ok) {
+        const items = await res.json();
+        if (Array.isArray(items)) {
+          localStorage.setItem(STORAGE_KEYS.DAILY_REPORTS, JSON.stringify(items));
           emitChange(STORAGE_KEYS.DAILY_REPORTS);
-          return mapped;
+          return items;
         }
-      } catch (e) {
-        console.warn('Supabase daily_reports sync error:', e);
       }
+    } catch (e) {
+      console.warn('Local daily-reports API fetch failed:', e);
     }
     return StorageService.getDailyReports();
   },

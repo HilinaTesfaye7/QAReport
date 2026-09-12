@@ -81,7 +81,7 @@ export const AuthorizedProjectsTable: React.FC<AuthorizedProjectsTableProps> = (
   const handleDeleteProject = async (projectToDelete: Project) => {
     setIsDeleting(true);
     try {
-      await ProjectService.deleteProject(projectToDelete.id, currentUser.id);
+      await ProjectService.deleteProject(projectToDelete.id);
       await loadData();
       setDeleteConfirmProject(null);
     } catch (err: any) {
@@ -230,7 +230,7 @@ export const AuthorizedProjectsTable: React.FC<AuthorizedProjectsTableProps> = (
     // 4. Background persistence without stalling or delaying UI
     (async () => {
       try {
-        ProjectService.updateProject(project.id, { status: statusVal }, currentUser.id);
+        ProjectService.updateProject(project.id, { status: statusVal });
       } catch {}
 
       if (supabase) {
@@ -252,7 +252,7 @@ export const AuthorizedProjectsTable: React.FC<AuthorizedProjectsTableProps> = (
         );
         for (const b of openBlks) {
           try {
-            BlockerService.updateBlockerStatus(b.id, 'Resolved', currentUser.id);
+            BlockerService.updateBlockerStatus(b.id, 'Resolved');
           } catch {}
         }
       } else {
@@ -273,9 +273,7 @@ export const AuthorizedProjectsTable: React.FC<AuthorizedProjectsTableProps> = (
                 projectName: project.name,
                 memberId: currentUser.id,
                 reportedBy: currentUser.name,
-              },
-              currentUser.id
-            );
+              });
           } catch {}
         }
       }
@@ -302,7 +300,7 @@ export const AuthorizedProjectsTable: React.FC<AuthorizedProjectsTableProps> = (
     // Direct cloud sync to Supabase projects table in background
     (async () => {
       try {
-        ProjectService.updateProject(project.id, { qaProgress: clamped }, currentUser.id);
+        ProjectService.updateProject(project.id, { qaProgress: clamped });
       } catch {}
 
       if (supabase) {
@@ -370,9 +368,9 @@ export const AuthorizedProjectsTable: React.FC<AuthorizedProjectsTableProps> = (
   const getUserRoleForProject = (project: Project): string => {
     if (project.qaLeadId === currentUser.id) return 'QA LEAD';
     if (project.memberIds.includes(currentUser.id)) {
-      return currentUser.role === 'qa_engineer' ? 'QA ENGINEER' : 'TESTER';
+      return currentUser.role === 'QA Tester' ? 'QA ENGINEER' : 'TESTER';
     }
-    return currentUser.role === 'qa_lead' ? 'QA LEAD' : 'PROJECT MANAGER';
+    return currentUser.role === 'QA Lead' ? 'QA LEAD' : 'PROJECT MANAGER';
   };
 
   return (
@@ -765,7 +763,7 @@ export const AuthorizedProjectsTable: React.FC<AuthorizedProjectsTableProps> = (
                             <div style={{ fontWeight: 800, color: '#38bdf8' }}>
                               {standup.memberName || 'QA Member'}{' '}
                               <span style={{ fontWeight: 500, color: 'var(--text-muted)', fontSize: '0.72rem' }}>
-                                ({standup.role ? standup.role.replace(/_/g, ' ') : 'QA_ENGINEER'})
+                                ({standup.role ? standup.role.replace(/_/g, ' ') : 'QA Tester'})
                               </span>
                             </div>
                             <span

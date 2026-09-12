@@ -1,6 +1,7 @@
 import { TestCase, TestSuite, TestExecutionStatus } from '../types';
 import { StorageService } from './storage';
 import { AuditService } from './auditService';
+import { AuthService } from './authService';
 
 export const TestCaseService = {
   getTestSuites: (): TestSuite[] => {
@@ -22,9 +23,10 @@ export const TestCaseService = {
   executeTestCase: (
     testCaseId: string,
     status: TestExecutionStatus,
-    actorId: string,
     details?: { notes?: string; linkedBugId?: string }
   ): TestCase => {
+    const currentUser = AuthService.getCurrentUser();
+    if (!currentUser) throw new Error('Unauthenticated access');
     const testCases = StorageService.getTestCases();
     const tc = testCases.find((c) => c.id === testCaseId);
     if (!tc) throw new Error('Test case not found');
@@ -32,14 +34,14 @@ export const TestCaseService = {
     const previousStatus = tc.executionStatus;
     tc.executionStatus = status;
     tc.lastExecutedAt = new Date().toISOString().split('T')[0];
-    tc.lastExecutedBy = actorId;
+    tc.lastExecutedBy = currentUser.id;
     if (details?.notes !== undefined) tc.executionNotes = details.notes;
     if (details?.linkedBugId !== undefined) tc.linkedBugId = details.linkedBugId;
 
     StorageService.saveTestCases(testCases);
 
     AuditService.log({
-      actorId,
+      actorId: currentUser.id,
       action: 'Test Case Executed',
       entityType: 'task',
       entityId: testCaseId,
@@ -51,9 +53,10 @@ export const TestCaseService = {
   },
 
   createTestCase: (
-    caseData: Omit<TestCase, 'id'>,
-    actorId: string
+    caseData: Omit<TestCase, 'id'>
   ): TestCase => {
+    const currentUser = AuthService.getCurrentUser();
+    if (!currentUser) throw new Error('Unauthenticated access');
     const testCases = StorageService.getTestCases();
     const newCase: TestCase = {
       ...caseData,
@@ -64,8 +67,8 @@ export const TestCaseService = {
     StorageService.saveTestCases(testCases);
 
     AuditService.log({
-      actorId,
-      action: 'Created QA Test Case',
+      actorId: currentUser.id,
+      action: 'Created Test Case',
       entityType: 'task',
       entityId: newCase.id,
       newValue: newCase.title,

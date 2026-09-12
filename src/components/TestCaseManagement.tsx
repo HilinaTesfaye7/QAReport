@@ -43,7 +43,7 @@ export const TestCaseManagement: React.FC<TestCaseManagementProps> = ({ currentU
     if (status === 'Failed' || status === 'Blocked') {
       notes = prompt(`Add test execution notes for ${status} status:`) || undefined;
     }
-    TestCaseService.executeTestCase(testCaseId, status, currentUser.id, notes);
+    TestCaseService.executeTestCase(testCaseId, status, notes);
     reload();
   };
 

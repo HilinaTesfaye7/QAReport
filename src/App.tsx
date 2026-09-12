@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { TopHeader } from './components/TopHeader';
-import { QALeadDashboard } from './components/QALeadDashboard';
+import { Dashboard } from './components/Dashboard';
 import { ProjectWorkspace } from './components/ProjectWorkspace';
 import { TaskManagement } from './components/TaskManagement';
 import { BugManagement } from './components/BugManagement';
@@ -12,6 +12,7 @@ import { ReleaseReadinessDashboard } from './components/ReleaseReadinessDashboar
 import { ReportsAndExportView } from './components/ReportsAndExportView';
 import { DailyReportsView } from './components/DailyReportsView';
 import { TeamManagement } from './components/TeamManagement';
+import { DirectorTeamManagement } from './components/DirectorTeamManagement';
 import { NotificationCenter } from './components/NotificationCenter';
 import { AuditTrailView } from './components/AuditTrailView';
 import { OnboardingModal } from './components/OnboardingModal';
@@ -26,7 +27,8 @@ import { Login } from './components/Login';
 import { ChangePassword } from './components/ChangePassword';
 
 export const App: React.FC = () => {
-  const [currentUser, setCurrentUser] = useState<User | null>(AuthService.getCurrentUser());
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isInitializing, setIsInitializing] = useState(true);
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [activeTab, setActiveTab] = useState<string>('command-center');
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(false);
@@ -46,10 +48,21 @@ export const App: React.FC = () => {
 
   // Initial cloud sync on mount from Supabase
   useEffect(() => {
-    StorageService.syncUsersWithCloud();
-    StorageService.syncProjectsWithDisk();
-    StorageService.syncDailyReportsWithCloud();
-    StorageService.syncBlockersWithCloud();
+    const init = async () => {
+      const user = await AuthService.fetchMe();
+      if (user) {
+        setCurrentUser(user);
+        StorageService.syncUsersWithCloud();
+        StorageService.syncProjectsWithDisk();
+        StorageService.syncTasksWithCloud();
+        StorageService.syncBugsWithCloud();
+        StorageService.syncTestCasesWithCloud();
+        StorageService.syncDailyReportsWithCloud();
+        StorageService.syncBlockersWithCloud();
+      }
+      setIsInitializing(false);
+    };
+    init();
   }, []);
 
   const toggleTheme = () => {
@@ -64,6 +77,10 @@ export const App: React.FC = () => {
     setSelectedProjectId(projectId);
     setActiveTab('projects');
   };
+
+  if (isInitializing) {
+    return <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-app)', color: 'var(--text-primary)' }}>Loading...</div>;
+  }
 
   if (!currentUser) {
     return <Login onLoginSuccess={() => setCurrentUser(AuthService.getCurrentUser())} />;
@@ -84,6 +101,10 @@ export const App: React.FC = () => {
         onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
         onUserChange={handleUserChange}
         onOpenCreateProject={() => setIsCreateProjectOpen(true)}
+        onLogout={async () => {
+          await AuthService.logout();
+          setCurrentUser(null);
+        }}
       />
 
       {/* Main Content View with Top Header */}
@@ -95,7 +116,7 @@ export const App: React.FC = () => {
           onOpenCheckIn={() => setIsCheckInOpen(true)}
           onOpenNotifications={() => setIsNotificationsOpen(true)}
           onOpenOnboarding={() => setIsOnboardingOpen(true)}
-          onOpenCreateProject={() => setIsCreateProjectOpen(true)}
+          onOpenCreateProject={currentUser.role === 'QA Lead' ? () => setIsCreateProjectOpen(true) : undefined}
           theme={theme}
           onToggleTheme={toggleTheme}
         />
@@ -103,7 +124,7 @@ export const App: React.FC = () => {
         {/* Content View Switcher */}
         <main style={{ flex: 1, overflowY: 'auto', paddingBottom: '60px' }}>
           {activeTab === 'command-center' && (
-            <QALeadDashboard
+            <Dashboard
               currentUser={currentUser}
               onNavigateToProject={handleNavigateToProject}
               onNavigateToTeam={() => setActiveTab('team')}
@@ -113,6 +134,7 @@ export const App: React.FC = () => {
               onNavigateToBlockers={() => setActiveTab('blockers')}
               onNavigateToReadiness={() => setActiveTab('readiness')}
               onNavigateToReports={() => setActiveTab('team')}
+              onNavigateToProjects={() => setActiveTab('projects')}
             />
           )}
 
@@ -138,7 +160,10 @@ export const App: React.FC = () => {
 
           {activeTab === 'workload' && <ReleaseReadinessDashboard currentUser={currentUser} />}
 
-          {activeTab === 'team' && (
+          {activeTab === 'team' && currentUser.role === 'QA Director' && (
+            <DirectorTeamManagement currentUser={currentUser} />
+          )}
+          {activeTab === 'team' && currentUser.role !== 'QA Director' && (
             <TeamManagement
               currentUser={currentUser}
               onNavigateToProject={handleNavigateToProject}

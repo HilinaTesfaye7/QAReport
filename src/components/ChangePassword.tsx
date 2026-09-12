@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { ShieldAlert, Eye, EyeOff } from 'lucide-react';
-import { StorageService } from '../services/storage';
-import { CryptoService } from '../services/cryptoService';
 import { User } from '../types';
+import { AuthService } from '../services/authService';
 
 interface ChangePasswordProps {
   user: User;
@@ -33,11 +32,6 @@ export const ChangePassword: React.FC<ChangePasswordProps> = ({ user, onPassword
     setIsLoading(true);
 
     try {
-      const currentHash = await CryptoService.hashPassword(currentPassword);
-      if (currentHash !== user.passwordHash) {
-        throw new Error('Current password is incorrect.');
-      }
-
       if (newPassword !== confirmPassword) {
         throw new Error('New passwords do not match.');
       }
@@ -47,21 +41,8 @@ export const ChangePassword: React.FC<ChangePasswordProps> = ({ user, onPassword
         throw new Error(validationError);
       }
 
-      const newHash = await CryptoService.hashPassword(newPassword);
-      if (newHash === user.passwordHash) {
-        throw new Error('New password cannot be the same as the old password.');
-      }
-
-      // Update user
-      const users = StorageService.getUsers();
-      const targetUser = users.find(u => u.id === user.id);
-      if (targetUser) {
-        targetUser.passwordHash = newHash;
-        targetUser.mustChangePassword = false;
-        targetUser.passwordChangedAt = new Date().toISOString();
-        StorageService.saveUsers(users);
-        onPasswordChanged();
-      }
+      await AuthService.changePassword(currentPassword, newPassword);
+      onPasswordChanged();
     } catch (err: any) {
       setError(err.message || 'An error occurred.');
     } finally {

@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   Search,
   MessageSquare,
+  LogOut,
 } from 'lucide-react';
 import { User } from '../types';
 import { AuthService } from '../services/authService';
@@ -57,10 +58,9 @@ export const Navbar: React.FC<NavbarProps> = ({
     return () => window.removeEventListener('aegis_storage_change', handleStorage);
   }, [currentUser]);
 
-  const handleSelectUser = (user: User) => {
-    AuthService.switchUser(user.id);
-    onUserChange(user);
-    setIsUserDropdownOpen(false);
+  const handleLogout = () => {
+    AuthService.logout();
+    window.location.reload();
   };
 
   const handleResetData = () => {
@@ -71,7 +71,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     }
   };
 
-  const isLead = currentUser.role === 'qa_lead';
+  const isLead = currentUser.role === 'QA Lead';
 
   return (
     <header
@@ -467,7 +467,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   textTransform: 'uppercase',
                 }}
               >
-                {currentUser.role === 'qa_lead' ? 'QA Lead' : 'QA Member'}
+                {currentUser.role === 'QA Lead' ? 'QA Lead' : 'QA Member'}
               </div>
             </div>
             <ChevronDown size={13} color="var(--text-muted)" />
@@ -498,41 +498,23 @@ export const Navbar: React.FC<NavbarProps> = ({
                   marginBottom: '4px',
                 }}
               >
-                Switch Role / Member (Demo)
+                Account Actions
               </div>
-              {allUsers.map((user) => {
-                const active = user.id === currentUser.id;
-                return (
-                  <div
-                    key={user.id}
-                    onClick={() => handleSelectUser(user)}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '7px 8px',
-                      borderRadius: '6px',
-                      cursor: 'pointer',
-                      background: active ? 'var(--bg-card-hover)' : 'transparent',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <img
-                        src={user.avatar}
-                        alt={user.name}
-                        style={{ width: '26px', height: '26px', borderRadius: '50%', objectFit: 'cover' }}
-                      />
-                      <div>
-                        <div style={{ fontSize: '0.8rem', fontWeight: 600 }}>{user.name}</div>
-                        <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
-                          {user.role === 'qa_lead' ? 'QA Lead' : 'QA Member'}
-                        </div>
-                      </div>
-                    </div>
-                    {active && <CheckCircle2 size={15} color="#38bdf8" />}
-                  </div>
-                );
-              })}
+              <div
+                onClick={handleLogout}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '7px 8px',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  color: 'var(--text-error)',
+                }}
+              >
+                <LogOut size={16} />
+                <span style={{ fontSize: '0.85rem', fontWeight: 500 }}>Log Out</span>
+              </div>
             </div>
           )}
         </div>

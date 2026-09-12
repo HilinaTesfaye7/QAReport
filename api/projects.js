@@ -1,7 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
+import { requireAuth, supabase } from './utils/auth.js';
+
+import { getMockProjects } from './utils/db.js';
 
 // Vercel Serverless Function: /api/projects
-export default async function handler(req, res) {
+async function projectsHandler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -10,37 +13,50 @@ export default async function handler(req, res) {
     return res.status(200).end();
   }
 
-  const rawUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || 'https://drnlgmhkzbyrwatuuesh.supabase.co';
-  const supabaseUrl = rawUrl.replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '');
-  const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY ||
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRybmxnbWhremJ5cndhdHV1ZXNoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg1OTQxMDksImV4cCI6MjEwNDE3MDEwOX0.xieZP_ftgnk-V5YqotxCGzdZD6BxqnkvI1MfpLxj-Zw';
-
-  const supabase = createClient(supabaseUrl, supabaseKey);
-
   if (req.method === 'GET') {
     try {
-      const { data, error } = await supabase
+      let data = [];
+      
+      const { data: supabaseData, error } = await supabase
         .from('projects')
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (error) {
-        return res.status(500).json({ error: error.message });
+      if (!error && supabaseData && supabaseData.length > 0) {
+        data = supabaseData;
+      } else {
+        // Fallback to mock data
+        data = getMockProjects();
+        
+        // Map mock data to supabase format for consistent filtering
+        data = data.map(p => ({
+          ...p,
+          qa_lead_id: p.qaLeadId,
+          member_ids: p.memberIds
+        }));
       }
+
+      // Apply strict backend RBAC
+      if (req.user.role === 'QA Lead') {
+        data = data.filter(p => p.qa_lead_id === req.user.id);
+      } else if (req.user.role === 'QA Tester' || req.user.role === 'Automation QA Engineer') {
+        data = data.filter(p => p.member_ids && p.member_ids.includes(req.user.id));
+      }
+      // QA Director sees all, no filter applied
 
       const formatted = (data || []).map((p) => ({
         id: p.id,
         name: p.name,
         description: p.description || '',
         status: p.status,
-        startDate: p.start_date || '',
-        targetReleaseDate: p.target_release_date || '',
-        projectOwner: p.project_owner || '',
-        qaLeadId: p.qa_lead_id || 'usr-sarah',
-        memberIds: Array.isArray(p.member_ids) ? p.member_ids : [],
+        startDate: p.start_date || p.startDate || '',
+        targetReleaseDate: p.target_release_date || p.targetReleaseDate || '',
+        projectOwner: p.project_owner || p.projectOwner || '',
+        qaLeadId: p.qa_lead_id || p.qaLeadId || 'usr-sarah',
+        memberIds: Array.isArray(p.member_ids) ? p.member_ids : (p.memberIds || []),
         resources: p.resources || {},
-        qaProgress: Number(p.qa_progress || 0),
-        regressionProgress: Number(p.regression_progress || 0),
+        qaProgress: Number(p.qa_progress || p.qaProgress || 0),
+        regressionProgress: Number(p.regression_progress || p.regressionProgress || 0),
         createdAt: p.created_at,
         updatedAt: p.updated_at,
       }));
@@ -54,6 +70,10 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'POST') {
+    if (req.user.role !== 'QA Director' && req.user.role !== 'QA Lead') {
+      return res.status(403).json({ error: 'Only QA Director or QA Lead can modify projects' });
+    }
+    
     try {
       const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
       const list = Array.isArray(body) ? body : [body];
@@ -87,3 +107,6 @@ export default async function handler(req, res) {
 
   return res.status(405).json({ error: 'Method Not Allowed' });
 }
+
+export default (req, res) => requireAuth(req, res, projectsHandler);
+

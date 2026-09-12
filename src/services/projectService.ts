@@ -10,7 +10,10 @@ export const ProjectService = {
     return StorageService.getProjects();
   },
 
-  getAuthorizedProjects: (user: User): Project[] => {
+  getAuthorizedProjects: (): Project[] => {
+    const user = AuthService.getCurrentUser();
+    if (!user) return [];
+
     const all = StorageService.getProjects();
     if (user.role === 'QA Director') return all;
     if (user.role === 'QA Lead') return all.filter(p => p.qaLeadId === user.id);
@@ -22,11 +25,13 @@ export const ProjectService = {
   },
 
   createProject: (
-    projectData: Omit<Project, 'id' | 'qaProgress' | 'regressionProgress'>,
-    actorId: string
+    projectData: Omit<Project, 'id' | 'qaProgress' | 'regressionProgress'>
   ): Project => {
-    // RBAC: Only QA Lead can create projects
-    AuthService.requireLeadPermission(actorId);
+    const currentUser = AuthService.getCurrentUser();
+    if (!currentUser) throw new Error('Unauthenticated access');
+
+    // RBAC: Only QA Lead/Director can create projects
+    AuthService.requireLeadPermission(currentUser.id);
 
     const projects = StorageService.getProjects();
     const newProject: Project = {
@@ -41,7 +46,7 @@ export const ProjectService = {
     StorageService.saveProjects(projects);
 
     AuditService.log({
-      actorId,
+      actorId: currentUser.id,
       action: 'Created QA Project',
       entityType: 'project',
       entityId: newProject.id,
@@ -49,7 +54,7 @@ export const ProjectService = {
     });
 
     newProject.memberIds.forEach((memberId) => {
-      NotificationService.notifyProjectAssignment(newProject, memberId, actorId);
+      NotificationService.notifyProjectAssignment(newProject, memberId, currentUser.id);
     });
 
     return newProject;
@@ -57,11 +62,13 @@ export const ProjectService = {
 
   updateProject: (
     projectId: string,
-    updates: Partial<Project>,
-    actorId: string
+    updates: Partial<Project>
   ): Project => {
+    const currentUser = AuthService.getCurrentUser();
+    if (!currentUser) throw new Error('Unauthenticated access');
+
     // RBAC: Only QA Lead can edit project settings
-    AuthService.requireLeadPermission(actorId);
+    AuthService.requireLeadPermission(currentUser.id);
 
     const projects = StorageService.getProjects();
     const idx = projects.findIndex((p) => p.id === projectId);
@@ -73,7 +80,7 @@ export const ProjectService = {
     StorageService.saveProjects(projects);
 
     AuditService.log({
-      actorId,
+      actorId: currentUser.id,
       action: 'Updated Project Settings',
       entityType: 'project',
       entityId: projectId,
@@ -84,17 +91,20 @@ export const ProjectService = {
     return updated;
   },
 
-  archiveProject: (projectId: string, actorId: string): Project => {
-    AuthService.requireLeadPermission(actorId);
-    return ProjectService.updateProject(projectId, { status: 'Archived' }, actorId);
+  archiveProject: (projectId: string): Project => {
+    const currentUser = AuthService.getCurrentUser();
+    if (!currentUser) throw new Error('Unauthenticated access');
+    AuthService.requireLeadPermission(currentUser.id);
+    return ProjectService.updateProject(projectId, { status: 'Archived' });
   },
 
   assignMember: (
     projectId: string,
-    memberId: string,
-    actorId: string
+    memberId: string
   ): Project => {
-    AuthService.requireLeadPermission(actorId);
+    const currentUser = AuthService.getCurrentUser();
+    if (!currentUser) throw new Error('Unauthenticated access');
+    AuthService.requireLeadPermission(currentUser.id);
 
     const projects = StorageService.getProjects();
     const project = projects.find((p) => p.id === projectId);
@@ -117,10 +127,10 @@ export const ProjectService = {
           });
       }
 
-      NotificationService.notifyProjectAssignment(project, memberId, actorId);
+      NotificationService.notifyProjectAssignment(project, memberId, currentUser.id);
 
       AuditService.log({
-        actorId,
+        actorId: currentUser.id,
         action: 'Assigned Member to Project',
         entityType: 'project',
         entityId: projectId,
@@ -133,10 +143,11 @@ export const ProjectService = {
 
   unassignMember: (
     projectId: string,
-    memberId: string,
-    actorId: string
+    memberId: string
   ): Project => {
-    AuthService.requireLeadPermission(actorId);
+    const currentUser = AuthService.getCurrentUser();
+    if (!currentUser) throw new Error('Unauthenticated access');
+    AuthService.requireLeadPermission(currentUser.id);
 
     const projects = StorageService.getProjects();
     const project = projects.find((p) => p.id === projectId);
@@ -159,7 +170,7 @@ export const ProjectService = {
     }
 
     AuditService.log({
-      actorId,
+      actorId: currentUser.id,
       action: 'Unassigned Member from Project',
       entityType: 'project',
       entityId: projectId,
@@ -170,12 +181,14 @@ export const ProjectService = {
   },
 
   deleteProject: async (
-    projectId: string,
-    actorId: string
+    projectId: string
   ): Promise<boolean> => {
+    const currentUser = AuthService.getCurrentUser();
+    if (!currentUser) throw new Error('Unauthenticated access');
+
     // 1. RBAC check
     try {
-      AuthService.requireLeadPermission(actorId);
+      AuthService.requireLeadPermission(currentUser.id);
     } catch {
       // Allow fallback if user has permissions
     }
@@ -222,7 +235,7 @@ export const ProjectService = {
 
     // 6. Audit log
     AuditService.log({
-      actorId,
+      actorId: currentUser.id,
       action: 'Deleted QA Project',
       entityType: 'project',
       entityId: projectId,
@@ -237,13 +250,15 @@ export const ProjectService = {
     return StorageService.getCoreProjects();
   },
 
-  createCoreProject: (name: string, leadId: string): import('../types').CoreProject => {
-    AuthService.requireLeadPermission(leadId);
+  createCoreProject: (name: string): import('../types').CoreProject => {
+    const currentUser = AuthService.getCurrentUser();
+    if (!currentUser) throw new Error('Unauthenticated access');
+    AuthService.requireLeadPermission(currentUser.id);
     const coreProjects = StorageService.getCoreProjects();
     const newCore = {
       id: `core-${Date.now().toString(36)}`,
       name,
-      qaLeadId: leadId,
+      qaLeadId: currentUser.id,
       status: 'Active' as const,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
@@ -280,7 +295,9 @@ export const ProjectService = {
   },
   
   assignTesterToModule: (moduleId: string, projectId: string, testerId: string, leadId: string, allocationPercentage: number, deadline?: string) => {
-    AuthService.requireLeadPermission(leadId);
+    const currentUser = AuthService.getCurrentUser();
+    if (!currentUser) throw new Error('Unauthenticated access');
+    AuthService.requireLeadPermission(currentUser.id);
     const assignments = StorageService.getModuleAssignments();
     
     // Check if assignment exists
@@ -295,7 +312,7 @@ export const ProjectService = {
         moduleId,
         projectId,
         testerId,
-        leadId,
+        leadId: currentUser.id,
         allocationPercentage,
         testCaseDeadline: deadline,
         status: 'Active',
@@ -309,7 +326,7 @@ export const ProjectService = {
     // Also update project.memberIds for backward compatibility
     const project = ProjectService.getProjectById(projectId);
     if (project && !project.memberIds.includes(testerId)) {
-      ProjectService.assignMember(projectId, testerId, leadId);
+      ProjectService.assignMember(projectId, testerId);
     }
   }
 };

@@ -15,6 +15,8 @@ import {
   Info,
   Layers,
   ListChecks,
+  Plus,
+  Trash2,
 } from 'lucide-react';
 import { Project, User, DocumentMetadata } from '../types';
 import { StorageService } from '../services/storage';
@@ -201,8 +203,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
             releaseInfo: 'Sprint candidate validation window closes prior to release deployment.',
             importantNotes: 'Review all Figma auto-layout padding specs before marking UI tickets complete.',
           },
-        },
-        currentUser.id
+        }
       );
 
       // Ensure tombstone does not block newly created project
@@ -840,7 +841,68 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
               </div>
             )}
 
-            {/* TAB 4: MEMBERS & AUTOMATIC NOTIFICATIONS */}
+            {/* TAB 4: MODULES */}
+            {activeTab === 'modules' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div style={{ fontSize: '0.9rem', color: 'var(--text-primary)', fontWeight: 600 }}>
+                  Define Project Modules
+                </div>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0 }}>
+                  Modules help organize testing efforts. You can assign different team members to test different modules.
+                </p>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {modules.map((m, idx) => (
+                    <div key={idx} style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+                      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <input
+                          type="text"
+                          placeholder="Module Name"
+                          value={m.name}
+                          onChange={(e) => {
+                            const newMods = [...modules];
+                            newMods[idx].name = e.target.value;
+                            setModules(newMods);
+                          }}
+                          style={{ width: '100%', padding: '8px 12px', background: 'var(--bg-input)', border: '1px solid var(--border-subtle)', borderRadius: '6px', color: 'var(--text-primary)', fontSize: '0.86rem' }}
+                        />
+                        <input
+                          type="text"
+                          placeholder="Short Description"
+                          value={m.description}
+                          onChange={(e) => {
+                            const newMods = [...modules];
+                            newMods[idx].description = e.target.value;
+                            setModules(newMods);
+                          }}
+                          style={{ width: '100%', padding: '8px 12px', background: 'var(--bg-input)', border: '1px solid var(--border-subtle)', borderRadius: '6px', color: 'var(--text-primary)', fontSize: '0.8rem' }}
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newMods = modules.filter((_, i) => i !== idx);
+                          setModules(newMods);
+                        }}
+                        style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '6px', padding: '8px', cursor: 'pointer', alignSelf: 'center' }}
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                
+                <button
+                  type="button"
+                  onClick={() => setModules([...modules, { name: '', description: '' }])}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', alignSelf: 'flex-start', background: 'rgba(56, 189, 248, 0.1)', color: '#38bdf8', border: '1px solid rgba(56, 189, 248, 0.2)', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600 }}
+                >
+                  <Plus size={16} /> Add Module
+                </button>
+              </div>
+            )}
+
+            {/* TAB 5: MEMBERS & AUTOMATIC NOTIFICATIONS */}
             {activeTab === 'members' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 <div
@@ -984,7 +1046,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                                 )}
                               </div>
                               <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                                {user.role === 'qa_lead' ? 'QA Lead' : 'QA Engineer / Tester'} • {user.experienceYears}y exp
+                                {user.role} • {user.experienceYears}y exp
                               </div>
                             </div>
                           </div>

@@ -36,19 +36,19 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
   currentUser,
   onNavigateToProject,
 }) => {
-  const [users, setUsers] = useState<User[]>(StorageService.getUsers());
+  const [users, setUsers] = useState<User[]>(StorageService.getUsers().filter(u => u.role !== 'QA Director' && u.role !== 'QA Lead'));
   const [projects, setProjects] = useState<Project[]>(StorageService.getProjects());
   const [workloads, setWorkloads] = useState<MemberWorkload[]>(WorkloadService.getAllMembersWorkload());
   const [reports, setReports] = useState<DailyReport[]>(StorageService.getDailyReports());
   const [searchQuery, setSearchQuery] = useState('');
-  const [roleFilter, setRoleFilter] = useState<'ALL' | 'qa_lead' | 'qa_engineer' | 'tester'>('ALL');
+  const [roleFilter, setRoleFilter] = useState<'ALL' | 'QA Lead' | 'QA Tester' | 'tester'>('ALL');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
   // New member form
   const [newName, setNewName] = useState('');
   const [newEmail, setNewEmail] = useState('');
   const [newTelegram, setNewTelegram] = useState('');
-  const [newRole, setNewRole] = useState<'qa_engineer' | 'qa_lead'>('qa_engineer');
+  const [newRole, setNewRole] = useState<'QA Tester' | 'QA Lead'>('QA Tester');
   const [newSkills, setNewSkills] = useState('Manual Testing, API Testing');
   const [newExp, setNewExp] = useState(3);
   const [selectedProjectId, setSelectedProjectId] = useState('prj-banking');
@@ -131,7 +131,7 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
         !deletedIds.has(u.id) &&
         !deletedIds.has(u.name.trim().toLowerCase()) &&
         !(u.telegramChatId && deletedIds.has(u.telegramChatId))
-    );
+    ).filter(u => u.role !== 'QA Director' && u.role !== 'QA Lead');
     setUsers(initialUsers);
     setProjects(StorageService.getProjects());
     setWorkloads(WorkloadService.getAllMembersWorkload());
@@ -188,13 +188,13 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
               (u) =>
                 u.id === `usr-${p.chat_id}` ||
                 (p.chat_id && u.telegramChatId === p.chat_id) ||
-                u.name.toLowerCase() === normalizedName.toLowerCase() ||
-                (p.telegram_username && u.telegramUsername?.toLowerCase().includes(p.telegram_username.toLowerCase()))
+                (u.name || '').toLowerCase() === normalizedName.toLowerCase() ||
+                (p.telegram_username && (u.telegramUsername || '').toLowerCase().includes(p.telegram_username.toLowerCase()))
             );
 
-            const roleVal: 'qa_lead' | 'qa_engineer' = (p.role || '').toLowerCase().includes('lead')
-              ? 'qa_lead'
-              : 'qa_engineer';
+            const roleVal: 'QA Lead' | 'QA Tester' = (p.role || '').toLowerCase().includes('lead')
+              ? 'QA Lead'
+              : 'QA Tester';
 
             if (existingIdx !== -1) {
               const u = currentUsers[existingIdx];
@@ -233,6 +233,9 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
                 onboardingCompleted: true,
                 telegramUsername: p.telegram_username ? `@${p.telegram_username.replace(/^@/, '')}` : undefined,
                 telegramChatId: p.chat_id,
+                username: `user_${p.chat_id || Date.now()}`,
+                passwordHash: '',
+                isActive: true,
               });
               changed = true;
             }
@@ -240,7 +243,12 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
 
           if (changed) {
             StorageService.saveUsers(currentUsers);
-            setUsers(currentUsers);
+          }
+          
+          if (currentUser?.role === 'QA Director') {
+            setUsers(currentUsers.filter(u => u.role !== 'QA Director'));
+          } else {
+            setUsers(currentUsers.filter(u => u.role !== 'QA Director' && u.role !== 'QA Lead'));
           }
 
           // Ensure projects include the active member
@@ -300,7 +308,7 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
                 id: `usr-${chatId}`,
                 name: p.fullName,
                 email: `${p.fullName.toLowerCase().replace(/[^a-z0-9]/g, '.')}@qa-aegis.com`,
-                role: p.role?.toLowerCase().includes('lead') ? 'qa_lead' : 'qa_engineer',
+                role: p.role?.toLowerCase().includes('lead') ? 'QA Lead' : 'QA Tester',
                 avatar: `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80`,
                 experienceYears: 2,
                 skills: ['Manual Testing', 'Telegram Standup', 'Functional QA'],
@@ -308,6 +316,9 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
                 onboardingCompleted: true,
                 telegramUsername: p.telegramUsername ? `@${p.telegramUsername.replace(/^@/, '')}` : undefined,
                 telegramChatId: chatId,
+                username: `user_${chatId}`,
+                passwordHash: '',
+                isActive: true,
               });
               addedAny = true;
             }
@@ -324,13 +335,10 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
 
   useEffect(() => {
     loadData();
-    const handleStorage = () => loadData();
-    window.addEventListener('aegis_storage_change', handleStorage);
     const interval = setInterval(() => {
       loadData();
     }, 4000);
     return () => {
-      window.removeEventListener('aegis_storage_change', handleStorage);
       clearInterval(interval);
     };
   }, []);
@@ -350,6 +358,9 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
       projectAllocations: [{ projectId: selectedProjectId, percentage: 100 }],
       onboardingCompleted: true,
       telegramUsername: cleanTg ? `@${cleanTg}` : undefined,
+      username: newEmail.split('@')[0],
+      passwordHash: '',
+      isActive: true,
     };
 
     const updated = [...users, newMember];
@@ -382,7 +393,7 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
         .upsert({
           chat_id: `pending_${cleanTg.toLowerCase()}`,
           full_name: newName,
-          role: newRole === 'qa_lead' ? 'QA Lead' : 'QA Engineer / Tester',
+          role: newRole,
           project_id: selectedProjectId,
           project_name: selectedProj ? selectedProj.name : 'Banking SuperApp',
           telegram_username: cleanTg,
@@ -398,14 +409,14 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
   // Filter members
   const filteredUsers = users.filter((u) => {
     if (roleFilter !== 'ALL') {
-      if (roleFilter === 'qa_lead' && u.role !== 'qa_lead') return false;
-      if (roleFilter === 'qa_engineer' && u.role !== 'qa_engineer') return false;
+      if (roleFilter === 'QA Lead' && u.role !== 'QA Lead') return false;
+      if (roleFilter === 'QA Tester' && u.role !== 'QA Tester') return false;
     }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-      const matchName = u.name.toLowerCase().includes(q);
-      const matchEmail = u.email.toLowerCase().includes(q);
-      const matchSkills = u.skills.some((s) => s.toLowerCase().includes(q));
+      const matchName = (u.name || '').toLowerCase().includes(q);
+      const matchEmail = (u.email || '').toLowerCase().includes(q);
+      const matchSkills = (u.skills || []).some((s) => (s || '').toLowerCase().includes(q));
       if (!matchName && !matchEmail && !matchSkills) return false;
     }
     return true;
@@ -506,7 +517,7 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
             {users.length} Engineers
           </div>
           <div style={{ fontSize: '0.72rem', color: '#38bdf8', marginTop: '2px' }}>
-            {users.filter((u) => u.role === 'qa_lead').length} Leads • {users.filter((u) => u.role !== 'qa_lead').length} Testers
+            {users.length} Active Testers
           </div>
         </div>
 
@@ -530,15 +541,7 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
           </div>
         </div>
 
-        <div className="card" style={{ padding: '16px', borderRadius: '10px' }}>
-          <div style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Daily Check-Ins Today</div>
-          <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#34d399', marginTop: '4px' }}>
-            {reports.length} Reports
-          </div>
-          <div style={{ fontSize: '0.72rem', color: '#38bdf8', marginTop: '2px' }}>
-            Synced with Telegram Bot
-          </div>
-        </div>
+
       </div>
 
       {/* Filter and Search Bar */}
@@ -556,8 +559,7 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
         <div style={{ display: 'flex', gap: '6px', background: 'var(--bg-app)', padding: '4px', borderRadius: '8px' }}>
           {[
             { id: 'ALL', label: 'All Roles' },
-            { id: 'qa_lead', label: 'QA Leads' },
-            { id: 'qa_engineer', label: 'QA Engineers & Testers' },
+            { id: 'QA Tester', label: 'QA Engineers & Testers' },
           ].map((tab) => {
             const isActive = roleFilter === tab.id;
             return (
@@ -618,15 +620,15 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
       >
         {filteredUsers.map((member) => {
           const workload = workloads.find((w) => w.memberId === member.id) || {
-            score: member.role === 'qa_lead' ? 82 : 65,
-            classification: member.role === 'qa_lead' ? 'High' : 'Balanced',
+            score: member.role === 'QA Lead' ? 82 : 65,
+            classification: member.role === 'QA Lead' ? 'High' : 'Balanced',
           };
 
-          const memberReports = reports.filter((r) => r.memberId === member.id || r.memberName?.toLowerCase() === member.name.toLowerCase());
+          const memberReports = reports.filter((r) => r.memberId === member.id || r.memberName?.toLowerCase() === (member.name || '').toLowerCase());
           const latestStandup = memberReports[0];
 
           // Allocated projects
-          const allocatedProjects = member.projectAllocations.map((alloc) => {
+          const allocatedProjects = (member.projectAllocations || []).map((alloc) => {
             const p = projects.find((proj) => proj.id === alloc.projectId);
             return {
               name: p ? p.name : alloc.projectId,
@@ -695,15 +697,15 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
                       fontSize: '0.7rem',
                       fontWeight: 800,
                       textTransform: 'uppercase',
-                      background: member.role === 'qa_lead' ? 'rgba(56, 189, 248, 0.15)' : 'rgba(99, 102, 241, 0.15)',
-                      color: member.role === 'qa_lead' ? '#38bdf8' : '#a5b4fc',
-                      border: member.role === 'qa_lead' ? '1px solid rgba(56, 189, 248, 0.3)' : '1px solid rgba(99, 102, 241, 0.3)',
+                      background: member.role === 'QA Lead' ? 'rgba(56, 189, 248, 0.15)' : 'rgba(99, 102, 241, 0.15)',
+                      color: member.role === 'QA Lead' ? '#38bdf8' : '#a5b4fc',
+                      border: member.role === 'QA Lead' ? '1px solid rgba(56, 189, 248, 0.3)' : '1px solid rgba(99, 102, 241, 0.3)',
                     }}
                   >
-                    {member.role === 'qa_lead' ? 'QA LEAD' : 'QA ENGINEER'}
+                    {(member.role || '').toUpperCase()}
                   </span>
 
-                  {currentUser.role === 'qa_lead' && member.id !== currentUser.id && (
+                  {currentUser.role === 'QA Lead' && member.id !== currentUser.id && (
                     <button
                       onClick={() => setDeleteConfirmMember(member)}
                       title={`Remove ${member.name}`}
@@ -736,7 +738,7 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
 
               {/* Skills Badges */}
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                {member.skills.map((skill, idx) => (
+                {(member.skills || []).map((skill, idx) => (
                   <span
                     key={idx}
                     style={{
@@ -896,8 +898,8 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
                       onChange={(e) => setNewRole(e.target.value as any)}
                       style={{ width: '100%' }}
                     >
-                      <option value="qa_engineer">QA Engineer</option>
-                      <option value="qa_lead">QA Lead</option>
+                      <option value='QA Tester'>QA Engineer</option>
+                      <option value='QA Lead'>QA Lead</option>
                     </select>
                   </div>
 

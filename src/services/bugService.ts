@@ -2,6 +2,7 @@ import { QABug, BugStatus, BugSeverity } from '../types';
 import { StorageService } from './storage';
 import { AuditService } from './auditService';
 import { NotificationService } from './notificationService';
+import { AuthService } from './authService';
 
 export const BugService = {
   getBugs: (): QABug[] => {
@@ -41,9 +42,10 @@ export const BugService = {
   },
 
   createBug: (
-    bugData: Omit<QABug, 'id' | 'createdAt' | 'updatedAt' | 'lastActivityAt' | 'reopenedCount'>,
-    actorId: string
+    bugData: Omit<QABug, 'id' | 'createdAt' | 'updatedAt' | 'lastActivityAt' | 'reopenedCount'>
   ): QABug => {
+    const currentUser = AuthService.getCurrentUser();
+    if (!currentUser) throw new Error('Unauthenticated access');
     const bugs = StorageService.getBugs();
     const now = new Date().toISOString().split('T')[0];
     const newBug: QABug = {
@@ -59,7 +61,7 @@ export const BugService = {
     StorageService.saveBugs(bugs);
 
     AuditService.log({
-      actorId,
+      actorId: currentUser.id,
       action: 'Reported QA Defect',
       entityType: 'bug',
       entityId: newBug.id,
@@ -80,11 +82,44 @@ export const BugService = {
     return newBug;
   },
 
-  updateBugStatus: (
-    bugId: string,
-    newStatus: BugStatus,
-    actorId: string
-  ): QABug => {
+  assignBug: (bugId: string, newAssigneeId: string): QABug => {
+    const currentUser = AuthService.getCurrentUser();
+    if (!currentUser) throw new Error('Unauthenticated access');
+    AuthService.requireLeadPermission(currentUser.id);
+    const bugs = StorageService.getBugs();
+    const bug = bugs.find((b) => b.id === bugId);
+    if (!bug) throw new Error('Bug not found');
+
+    const previousAssignee = bug.assigneeId;
+    bug.assigneeId = newAssigneeId;
+    bug.updatedAt = new Date().toISOString().split('T')[0];
+    bug.lastActivityAt = new Date().toISOString().split('T')[0];
+
+    StorageService.saveBugs(bugs);
+
+    AuditService.log({
+      actorId: currentUser.id,
+      action: 'Bug Assigned',
+      entityType: 'bug',
+      entityId: bugId,
+      previousValue: previousAssignee,
+      newValue: newAssigneeId,
+    });
+
+    NotificationService.dispatch({
+      recipientId: newAssigneeId,
+      title: `📌 Bug Assigned: ${bug.title}`,
+      message: `You have been assigned to bug ${bug.title}.`,
+      type: 'bug_assigned',
+      actionUrl: 'bugs',
+    });
+
+    return bug;
+  },
+
+  updateBugStatus: (bugId: string, newStatus: BugStatus): QABug => {
+    const currentUser = AuthService.getCurrentUser();
+    if (!currentUser) throw new Error('Unauthenticated access');
     const bugs = StorageService.getBugs();
     const bug = bugs.find((b) => b.id === bugId);
     if (!bug) throw new Error('Bug not found');
@@ -103,7 +138,7 @@ export const BugService = {
     StorageService.saveBugs(bugs);
 
     AuditService.log({
-      actorId,
+      actorId: currentUser.id,
       action: 'Bug Status Changed',
       entityType: 'bug',
       entityId: bugId,

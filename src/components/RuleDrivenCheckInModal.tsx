@@ -67,7 +67,7 @@ export const RuleDrivenCheckInModal: React.FC<RuleDrivenCheckInModalProps> = ({
 
   const handleResolvePreviousBlocker = () => {
     if (activeUserBlocker) {
-      BlockerService.updateBlockerStatus(activeUserBlocker.id, 'Resolved', currentUser.id);
+      BlockerService.updateBlockerStatus(activeUserBlocker.id, 'Resolved');
       setActiveUserBlocker(null);
       setIsBlocked(false);
       setBlockers('');
@@ -79,7 +79,7 @@ export const RuleDrivenCheckInModal: React.FC<RuleDrivenCheckInModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const projectId = currentUser.projectAllocations[0]?.projectId || 'prj-banking';
+    const projectId = currentUser.projectAllocations?.[0]?.projectId || 'prj-banking';
     const hasBlocker = Boolean(isBlocked && blockers.trim().length > 0 && blockers.toLowerCase() !== 'none');
 
     const draft = DailyReportService.saveReportDraft({
@@ -103,7 +103,7 @@ export const RuleDrivenCheckInModal: React.FC<RuleDrivenCheckInModalProps> = ({
       }),
     });
 
-    DailyReportService.submitDailyReport(draft.id, currentUser.id);
+    DailyReportService.submitDailyReport(draft.id);
 
     setIsSuccess(true);
     setTimeout(() => {

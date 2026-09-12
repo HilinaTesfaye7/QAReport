@@ -10,7 +10,7 @@ interface DailyReportsViewProps {
 }
 
 export const DailyReportsView: React.FC<DailyReportsViewProps> = ({ currentUser }) => {
-  const isLead = currentUser.role === 'qa_lead';
+  const isLead = currentUser.role === 'QA Lead';
   const [reports, setReports] = useState<DailyReport[]>(DailyReportService.getDailyReports());
   const [copiedNotification, setCopiedNotification] = useState(false);
 
@@ -64,7 +64,7 @@ export const DailyReportsView: React.FC<DailyReportsViewProps> = ({ currentUser 
 
   const handleSubmitPersonalReport = (e: React.FormEvent) => {
     e.preventDefault();
-    const projectId = currentUser.projectAllocations[0]?.projectId || 'prj-banking';
+    const projectId = currentUser.projectAllocations?.[0]?.projectId || 'prj-banking';
     const draft = DailyReportService.saveReportDraft({
       memberId: currentUser.id,
       projectId,
@@ -76,7 +76,7 @@ export const DailyReportsView: React.FC<DailyReportsViewProps> = ({ currentUser 
       expectedCompletion,
       notes,
     });
-    DailyReportService.submitDailyReport(draft.id, currentUser.id);
+    DailyReportService.submitDailyReport(draft.id);
     setReports(DailyReportService.getDailyReports());
     alert('Daily QA Report successfully submitted to QA Lead!');
   };

@@ -2,6 +2,7 @@ import { RegressionCycle } from '../types';
 import { StorageService } from './storage';
 import { AuditService } from './auditService';
 import { NotificationService } from './notificationService';
+import { AuthService } from './authService';
 
 export const RegressionService = {
   getCycles: (): RegressionCycle[] => {
@@ -17,9 +18,10 @@ export const RegressionService = {
   },
 
   createCycle: (
-    data: Omit<RegressionCycle, 'id' | 'createdAt' | 'passRate'>,
-    actorId: string
+    data: Omit<RegressionCycle, 'id' | 'createdAt' | 'passRate'>
   ): RegressionCycle => {
+    const currentUser = AuthService.getCurrentUser();
+    if (!currentUser) throw new Error('Unauthenticated access');
     const cycles = StorageService.getRegressionCycles();
     const newCycle: RegressionCycle = {
       ...data,
@@ -32,7 +34,7 @@ export const RegressionService = {
     StorageService.saveRegressionCycles(cycles);
 
     AuditService.log({
-      actorId,
+      actorId: currentUser.id,
       action: 'Created Regression Test Cycle',
       entityType: 'regression',
       entityId: newCycle.id,
@@ -55,9 +57,10 @@ export const RegressionService = {
 
   updateCycleStatus: (
     cycleId: string,
-    status: RegressionCycle['status'],
-    actorId: string
+    status: RegressionCycle['status']
   ): RegressionCycle => {
+    const currentUser = AuthService.getCurrentUser();
+    if (!currentUser) throw new Error('Unauthenticated access');
     const cycles = StorageService.getRegressionCycles();
     const cycle = cycles.find((c) => c.id === cycleId);
     if (!cycle) throw new Error('Regression cycle not found');
@@ -67,7 +70,7 @@ export const RegressionService = {
     StorageService.saveRegressionCycles(cycles);
 
     AuditService.log({
-      actorId,
+      actorId: currentUser.id,
       action: 'Updated Regression Cycle Status',
       entityType: 'regression',
       entityId: cycleId,

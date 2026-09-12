@@ -800,9 +800,37 @@ export default async function handler(req, res) {
         .eq('chat_id', String(chatId))
         .maybeSingle();
       profile = data;
+    // 2. Commands Routing
+    if (text === '/reset' || text === 'reset') {
+      if (supabase) {
+        await supabase.from('telegram_profiles').delete().eq('chat_id', String(chatId));
+        await supabase.from('users').delete().eq('telegram_chat_id', String(chatId));
+      }
+      await sendTelegramMessage(chatId, `Your profile has been reset. Type /start to register again.`, BOT_TOKEN, { remove_keyboard: true });
+      return res.status(200).json({ ok: true });
     }
 
-    // 2. Commands Routing
+    const roleChoices = ['qa lead', 'qa tester', 'automation qa engineer'];
+    const isRoleSelection = roleChoices.includes(text);
+
+    // If no profile and user types /start, prompt for role
+    if ((text === '/start' || text.startsWith('/start ') || text === 'start') && !profile && supabase) {
+      const msg = `Welcome to AegisQA Telegram Bot! 🚀\n\nPlease select your role to proceed:`;
+      const options = {
+        reply_markup: {
+          keyboard: [
+            [{ text: "QA Lead" }],
+            [{ text: "QA Tester" }],
+            [{ text: "Automation QA Engineer" }]
+          ],
+          resize_keyboard: true,
+          one_time_keyboard: true
+        }
+      };
+      await sendTelegramMessage(chatId, msg, BOT_TOKEN, options.reply_markup);
+      return res.status(200).json({ ok: true });
+    }
+
     if (
       text === '/start' ||
       text.startsWith('/start ') ||
@@ -811,11 +839,16 @@ export default async function handler(req, res) {
       text.startsWith('/help ') ||
       text === 'help' ||
       text === '/menu' ||
-      text === 'menu'
+      text === 'menu' ||
+      isRoleSelection
     ) {
-      if (!profile && supabase) {
+      if (!profile && supabase && isRoleSelection) {
+        let chosenRole = 'QA Engineer / Tester';
+        if (text === 'qa lead') chosenRole = 'QA Lead';
+        else if (text === 'qa tester') chosenRole = 'QA Tester';
+        else if (text === 'automation qa engineer') chosenRole = 'Automation QA Engineer';
+
         const defaultName = fromUser.first_name || fromUser.username || 'QA Member';
-        const defaultRole = 'QA Engineer / Tester';
         let defaultProject = { id: 'prj-banking', name: 'Banking SuperApp' };
         try {
           const { data: dbProjects } = await supabase.from('projects').select('*').limit(1);
@@ -827,7 +860,7 @@ export default async function handler(req, res) {
         const newProfile = {
           chat_id: String(chatId),
           full_name: defaultName,
-          role: defaultRole,
+          role: chosenRole,
           project_id: defaultProject.id,
           project_name: defaultProject.name,
           assigned_project_ids: [defaultProject.id],
@@ -839,9 +872,45 @@ export default async function handler(req, res) {
         try {
           await supabase.from('telegram_profiles').upsert([newProfile]);
           profile = newProfile;
+          
+          // Generate a temp web login
+          const baseUsername = (fromUser.username || fromUser.first_name || `user_${chatId}`).toLowerCase().replace(/[^a-z0-9]/g, '');
+          const tempUsername = `${baseUsername}_${Math.floor(Math.random() * 1000)}`;
+          const tempPassword = `Temp${Math.floor(Math.random() * 10000)}!`;
+          
+          try {
+            const bcrypt = await import('bcryptjs');
+            const password_hash = await bcrypt.default.hash(tempPassword, 10);
+            
+            const newUserWeb = {
+              id: `usr-${chatId}`,
+              full_name: defaultName,
+              username: tempUsername,
+              password_hash: password_hash,
+              role: chosenRole,
+              is_active: true,
+              must_change_password: true,
+              telegram_chat_id: String(chatId),
+              telegram_username: fromUser.username ? `@${fromUser.username}` : ''
+            };
+            await supabase.from('users').upsert([newUserWeb]);
+            
+            // Send login info to user
+            const loginMsg = `🔐 <b>Your Web Portal Login:</b>\n\nUsername: <code>${tempUsername}</code>\nPassword: <code>${tempPassword}</code>\n\n<i>Please log in to the web dashboard and change your password.</i>`;
+            await sendTelegramMessage(chatId, loginMsg, BOT_TOKEN);
+          } catch (webErr) {
+            console.warn('[Webhook] Failed to create web user:', webErr);
+          }
+          
+          // Hide the keyboard after selection
+          await sendTelegramMessage(chatId, `Role selected: ${chosenRole} ✅`, BOT_TOKEN, { remove_keyboard: true });
         } catch (sbErr) {
-          console.warn('[Webhook] Error creating profile on /start:', sbErr);
+          console.warn('[Webhook] Error creating profile on role selection:', sbErr);
         }
+      } else if (!profile) {
+        const msg = `Please type /start to select your role first.`;
+        await sendTelegramMessage(chatId, msg, BOT_TOKEN, { remove_keyboard: true });
+        return res.status(200).json({ ok: true });
       }
 
       const isLead = isQALead(profile);

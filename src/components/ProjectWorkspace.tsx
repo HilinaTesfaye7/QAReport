@@ -59,7 +59,7 @@ export const ProjectWorkspace: React.FC<ProjectWorkspaceProps> = ({
               setViewMode('workspace');
               if (onSelectProject) onSelectProject(id);
             }}
-            onOpenCreateProject={isLead ? () => setIsCreateModalOpen(true) : undefined}
+            onOpenCreateProject={currentUser.role === 'QA Lead' ? () => setIsCreateModalOpen(true) : undefined}
           />
         </div>
       ) : (
@@ -72,7 +72,7 @@ export const ProjectWorkspace: React.FC<ProjectWorkspaceProps> = ({
             setSelectedId(id);
             if (onSelectProject) onSelectProject(id);
           }}
-          onOpenCreateProject={isLead ? () => setIsCreateModalOpen(true) : undefined}
+          onOpenCreateProject={currentUser.role === 'QA Lead' ? () => setIsCreateModalOpen(true) : undefined}
         />
       )}
 

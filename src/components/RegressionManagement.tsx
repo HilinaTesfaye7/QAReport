@@ -34,7 +34,7 @@ export const RegressionManagement: React.FC<RegressionManagementProps> = ({ curr
   const projects = StorageService.getProjects();
   const users = StorageService.getUsers();
   const testCases = StorageService.getTestCases();
-  const isLead = currentUser.role === 'qa_lead';
+  const isLead = currentUser.role === 'QA Lead';
 
   const reload = () => {
     setCycles(RegressionService.getCycles());
@@ -60,8 +60,7 @@ export const RegressionManagement: React.FC<RegressionManagementProps> = ({ curr
         assignedMemberIds: ['usr-hana', 'usr-ahmed'],
         testCaseIds: selectedTestCaseIds,
         status: 'In Progress',
-      },
-      currentUser.id
+      }
     );
 
     setIsCreateModalOpen(false);

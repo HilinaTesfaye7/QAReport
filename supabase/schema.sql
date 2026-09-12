@@ -6,6 +6,22 @@
 -- Enable UUID extension if needed
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
+-- 0. USERS TABLE
+CREATE TABLE IF NOT EXISTS users (
+  id TEXT PRIMARY KEY,
+  full_name TEXT NOT NULL,
+  username TEXT UNIQUE NOT NULL,
+  password_hash TEXT NOT NULL,
+  role TEXT NOT NULL,
+  is_active BOOLEAN DEFAULT TRUE,
+  must_change_password BOOLEAN DEFAULT FALSE,
+  password_changed_at TIMESTAMP WITH TIME ZONE,
+  last_login_at TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+
 -- 1. PROJECTS TABLE
 CREATE TABLE IF NOT EXISTS projects (
   id TEXT PRIMARY KEY,
@@ -143,8 +159,74 @@ ALTER PUBLICATION supabase_realtime ADD TABLE telegram_profiles;
 
 -- ==============================================================================
 -- INITIAL SEED DATA
--- Pre-populates projects and user profile
+-- Pre-populates users, projects and user profile
 -- ==============================================================================
+
+INSERT INTO users (id, full_name, username, password_hash, role, is_active, must_change_password)
+VALUES
+(
+  'usr-director',
+  'Alex Director',
+  'alex.director',
+  '$2b$10$rL10bdD2hs7KSoDgI/KurOC3YiZRY75KAHhGl/t.4niBh6VY4szS2', -- Temp123!
+  'QA Director',
+  TRUE,
+  TRUE
+),
+(
+  'usr-sarah',
+  'Sarah Jenkins',
+  'sarah.qa',
+  '$2b$10$rL10bdD2hs7KSoDgI/KurOC3YiZRY75KAHhGl/t.4niBh6VY4szS2', -- Temp123!
+  'QA Lead',
+  TRUE,
+  TRUE
+),
+(
+  'usr-hana',
+  'Hana Kim',
+  'hana.qa',
+  '$2b$10$e0YU.iyRtwTYy.XtU9DiEO0OfHkJwQhrVLrD1wDAVEdPjlGprDbUe', -- Valid123!
+  'QA Tester',
+  TRUE,
+  FALSE
+),
+(
+  'usr-ahmed',
+  'Ahmed Al-Mansoor',
+  'ahmed.auto',
+  '$2b$10$e0YU.iyRtwTYy.XtU9DiEO0OfHkJwQhrVLrD1wDAVEdPjlGprDbUe', -- Valid123!
+  'Automation QA Engineer',
+  TRUE,
+  FALSE
+),
+(
+  'usr-sara',
+  'Sara Vance',
+  'sara.qa',
+  '$2b$10$e0YU.iyRtwTYy.XtU9DiEO0OfHkJwQhrVLrD1wDAVEdPjlGprDbUe', -- Valid123!
+  'QA Tester',
+  TRUE,
+  FALSE
+),
+(
+  'usr-daniel',
+  'Daniel Brody',
+  'daniel.qa',
+  '$2b$10$e0YU.iyRtwTYy.XtU9DiEO0OfHkJwQhrVLrD1wDAVEdPjlGprDbUe', -- Valid123!
+  'QA Tester',
+  TRUE,
+  FALSE
+)
+ON CONFLICT (id) DO UPDATE SET
+  full_name = EXCLUDED.full_name,
+  username = EXCLUDED.username,
+  password_hash = EXCLUDED.password_hash,
+  role = EXCLUDED.role,
+  is_active = EXCLUDED.is_active,
+  must_change_password = EXCLUDED.must_change_password,
+  updated_at = NOW();
+
 
 INSERT INTO projects (id, name, description, status, start_date, target_release_date, project_owner, qa_lead_id, member_ids, qa_progress, regression_progress, resources)
 VALUES

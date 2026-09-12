@@ -20,7 +20,7 @@ interface ReleaseReadinessDashboardProps {
 
 export const ReleaseReadinessDashboard: React.FC<ReleaseReadinessDashboardProps> = ({ currentUser }) => {
   const projects = StorageService.getProjects();
-  const isLead = currentUser.role === 'qa_lead';
+  const isLead = currentUser.role === 'QA Lead';
 
   // Configurable rules state
   const [config, setConfig] = useState<ReleaseRulesConfig>({

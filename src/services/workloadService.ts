@@ -26,7 +26,7 @@ export const WorkloadService = {
       allocationSum += ma.allocationPercentage || 0;
     });
 
-    const projectsCount = user?.projectAllocations.length || 0;
+    const projectsCount = user?.projectAllocations?.length || 0;
     
     let criticalTasksCount = activeTasks.filter(t => t.priority === 'Critical').length;
     let blockedTasksCount = activeTasks.filter(t => t.status === 'Blocked').length;
@@ -35,7 +35,7 @@ export const WorkloadService = {
     let finalScore = allocationSum;
     if (finalScore === 0 && (activeTasks.length > 0 || bugs.length > 0)) {
       // 1. Task Effort: Sum of active task estimated hours (base: 30 hours = 50 pts)
-      const estimatedHoursTotal = activeTasks.reduce((sum, t) => sum + t.estimatedEffortHours, 0);
+      const estimatedHoursTotal = activeTasks.reduce((sum, t) => sum + (t.estimatedEffortHours || 0), 0);
       const taskEffortScore = Math.min(50, (estimatedHoursTotal / 30) * 50);
 
       // 2. Priority Weight: Critical = 8 pts each, High = 4 pts each, Medium = 2 pts each
@@ -93,7 +93,7 @@ export const WorkloadService = {
       classification,
       projectsCount,
       taskCount: activeTasks.length,
-      estimatedHoursTotal: activeTasks.reduce((sum, t) => sum + t.estimatedEffortHours, 0),
+      estimatedHoursTotal: activeTasks.reduce((sum, t) => sum + (t.estimatedEffortHours || 0), 0),
       criticalTasksCount,
       openBugsCount: bugs.length,
       testCasesCount: testCases.length,

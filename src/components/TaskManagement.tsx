@@ -74,7 +74,7 @@ export const TaskManagement: React.FC<TaskManagementProps> = ({ currentUser }) =
       blocker = prompt('Enter reason for blocker (e.g. Staging sandbox 500 error):');
       if (!blocker) return;
     }
-    TaskService.updateTaskStatus(taskId, newStatus, currentUser.id, blocker);
+    TaskService.updateTaskStatus(taskId, newStatus, blocker);
     reload();
   };
 
@@ -92,8 +92,7 @@ export const TaskManagement: React.FC<TaskManagementProps> = ({ currentUser }) =
         dueDate,
         status: 'Assigned',
         relatedRequirement,
-      },
-      currentUser.id
+      }
     );
 
     setIsCreateModalOpen(false);
@@ -172,7 +171,7 @@ export const TaskManagement: React.FC<TaskManagementProps> = ({ currentUser }) =
             </button>
           </div>
 
-          {currentUser.role === 'qa_lead' && (
+          {currentUser.role === 'QA Lead' && (
             <button
               onClick={() => {
                 setSelectedTaskForAI(undefined);
@@ -532,7 +531,7 @@ export const TaskManagement: React.FC<TaskManagementProps> = ({ currentUser }) =
                       style={{ width: '100%' }}
                     >
                       {users
-                        .filter((u) => u.role === 'qa_engineer')
+                        .filter((u) => u.role === 'QA Tester')
                         .map((u) => (
                           <option key={u.id} value={u.id}>
                             {u.name}

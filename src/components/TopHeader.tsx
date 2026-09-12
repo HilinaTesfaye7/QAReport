@@ -268,7 +268,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
               {currentUser.name}
             </div>
             <div style={{ fontSize: '0.65rem', color: '#38bdf8', fontWeight: 700 }}>
-              {currentUser.role === 'qa_lead' ? 'QA Lead' : 'QA Engineer'}
+              {currentUser.role}
             </div>
           </div>
         </div>

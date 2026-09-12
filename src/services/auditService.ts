@@ -29,7 +29,7 @@ export const AuditService = {
       timestamp: formattedTimestamp,
       actorId: entry.actorId,
       actorName: actor ? actor.name : (entry.actorId.includes('ai') ? 'AI QA Assistant' : 'System'),
-      actorRole: actor ? actor.role : 'qa_lead',
+      actorRole: actor ? actor.role : 'QA Lead',
       action: entry.action,
       entityType: entry.entityType,
       entityId: entry.entityId,

@@ -33,7 +33,7 @@ export const RuleEngine = {
     title: string;
     module?: string;
   }) => {
-    const engineers = StorageService.getUsers().filter((u) => u.role === 'qa_engineer');
+    const engineers = StorageService.getUsers().filter((u) => u.role === 'QA Tester');
     const workloads = engineers.map((eng) => ({
       user: eng,
       workload: WorkloadService.computeMemberWorkload(eng.id),
@@ -43,7 +43,7 @@ export const RuleEngine = {
     const scoredCandidates = workloads.map(({ user, workload }) => {
       let score = 100 - workload.score; // Base: lower workload is preferred
 
-      const isAssignedToProject = user.projectAllocations.some(
+      const isAssignedToProject = user.projectAllocations?.some(
         (p) => p.projectId === task.projectId
       );
       if (isAssignedToProject) score += 30;
