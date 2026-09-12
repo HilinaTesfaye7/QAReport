@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { TopHeader } from './components/TopHeader';
+import { MainProjectsDirectory } from './components/MainProjectsDirectory';
 import { Dashboard } from './components/Dashboard';
 import { ProjectWorkspace } from './components/ProjectWorkspace';
 import { TaskManagement } from './components/TaskManagement';
@@ -126,7 +127,7 @@ export const App: React.FC = () => {
 
         {/* Content View Switcher */}
         <main style={{ flex: 1, overflowY: 'auto', paddingBottom: '60px' }}>
-          {(activeTab === 'command-center' || activeTab === 'main-projects') && (
+          {activeTab === 'command-center' && (
             <Dashboard
               currentUser={currentUser}
               onNavigateToProject={handleNavigateToProject}
@@ -139,6 +140,10 @@ export const App: React.FC = () => {
               onNavigateToReports={() => setActiveTab('team')}
               onNavigateToProjects={() => setActiveTab('projects')}
             />
+          )}
+
+          {activeTab === 'main-projects' && (
+            <MainProjectsDirectory currentUser={currentUser} />
           )}
 
           {activeTab === 'projects' && (

@@ -181,107 +181,7 @@ export const DirectorDashboard: React.FC<DirectorDashboardProps> = ({
         ))}
       </div>
 
-      {/* Main Projects Section */}
-      <div style={{ ...cardStyle, marginBottom: '32px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-          <div>
-            <h2 style={{ fontSize: '1.25rem', fontWeight: 700, margin: '0 0 4px 0', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <FolderKanban size={20} color="#38bdf8" />
-              Main Projects Directory
-            </h2>
-            <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-              Top-level projects (Core Projects). QA Leads manage the subprojects under them.
-            </p>
-          </div>
-          <button
-            onClick={() => setIsCreateCoreOpen(true)}
-            style={{
-              padding: '8px 16px',
-              borderRadius: '8px',
-              background: 'linear-gradient(135deg, #2563eb, #38bdf8)',
-              color: '#fff',
-              border: 'none',
-              fontWeight: 600,
-              fontSize: '0.85rem',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-            }}
-          >
-            Create Main Project
-          </button>
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px' }}>
-          {coreProjects.map((cp) => {
-            const lead = users.find((u) => u.id === cp.qaLeadId);
-            const subprojectCount = projects.filter(p => p.coreProjectId === cp.id).length;
-            
-            return (
-              <div
-                key={cp.id}
-                style={{
-                  background: 'rgba(0,0,0,0.2)',
-                  border: '1px solid var(--border-subtle)',
-                  borderRadius: '12px',
-                  padding: '16px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '12px',
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)' }}>{cp.name}</h3>
-                  <span style={{ fontSize: '0.75rem', padding: '4px 8px', background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', borderRadius: '6px', fontWeight: 600 }}>
-                    {cp.status}
-                  </span>
-                </div>
-                
-                <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                  {cp.description || 'No description provided.'}
-                </p>
-
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto', paddingTop: '12px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#38bdf8', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 700 }}>
-                      {lead?.name.charAt(0) || '?'}
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column' }}>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>QA Lead</span>
-                      <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>{lead?.name || 'Unassigned'}</span>
-                    </div>
-                  </div>
-                  
-                  <button
-                    onClick={() => setSelectedCoreProjectForLeadChange(cp.id)}
-                    style={{
-                      padding: '6px 12px',
-                      background: 'rgba(255,255,255,0.1)',
-                      color: 'var(--text-primary)',
-                      border: 'none',
-                      borderRadius: '6px',
-                      fontSize: '0.75rem',
-                      cursor: 'pointer',
-                      fontWeight: 600
-                    }}
-                  >
-                    Change Lead
-                  </button>
-                </div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                   <FolderKanban size={12} /> {subprojectCount} Subprojects
-                </div>
-              </div>
-            );
-          })}
-          {coreProjects.length === 0 && (
-             <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem', fontStyle: 'italic', padding: '20px 0' }}>No Main Projects exist yet.</div>
-          )}
-        </div>
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '24px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '24px', marginBottom: '24px' }}>
         {/* QA Team Workload */}
         <div style={cardStyle}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
@@ -420,36 +320,6 @@ export const DirectorDashboard: React.FC<DirectorDashboardProps> = ({
           </div>
         </div>
 
-        {/* F. Critical Risks / Blockers */}
-        <div style={cardStyle}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
-            <h2 style={{ fontSize: '1.1rem', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <ShieldAlert size={18} color="#f43f5e" /> Critical QA Risks
-            </h2>
-            {onNavigateToBlockers && (
-              <button onClick={onNavigateToBlockers} style={{ background: 'none', border: 'none', color: '#38bdf8', cursor: 'pointer', fontSize: '0.85rem' }}>View All</button>
-            )}
-          </div>
-          {criticalIssues.length === 0 ? (
-            <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-secondary)' }}>No critical risks detected.</div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {criticalIssues.map((issue, idx) => (
-                <div key={idx} style={{ background: 'rgba(255,255,255,0.03)', padding: '12px', borderRadius: '8px', borderLeft: `3px solid ${issue.severity === 'Critical' ? '#f43f5e' : '#f59e0b'}` }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                    <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>{issue.item.title}</span>
-                    <span style={{ fontSize: '0.7rem', padding: '2px 6px', borderRadius: '4px', background: issue.severity === 'Critical' ? 'rgba(244,63,94,0.1)' : 'rgba(245,158,11,0.1)', color: issue.severity === 'Critical' ? '#f43f5e' : '#fbbf24' }}>
-                      {issue.type} • {issue.severity}
-                    </span>
-                  </div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                    {projects.find(p => p.id === issue.item.projectId)?.name || 'Unknown Project'} • Owner: {users.find(u => u.id === (issue.type === 'Blocker' ? issue.item.memberId : issue.item.assigneeId))?.name || 'Unassigned'}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
       </div>
 
       {/* C. Project Portfolio */}
