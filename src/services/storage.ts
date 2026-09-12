@@ -98,7 +98,11 @@ export const StorageService = {
         if (res.ok) {
           const users = await res.json();
           if (Array.isArray(users)) {
-            const activeUsers = users.filter((u: any) => !deletedIds.has(u.id));
+            const activeUsers = users.filter((u: any) => {
+              if (u.status === 'Pending Assignment') return true;
+              if (u.is_active === true) return true;
+              return !deletedIds.has(u.id);
+            });
             localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(activeUsers));
             emitChange(STORAGE_KEYS.USERS);
             return activeUsers;
