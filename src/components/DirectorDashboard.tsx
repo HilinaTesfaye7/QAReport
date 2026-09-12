@@ -16,6 +16,8 @@ import { User, Project, QATask, QABug, TestCase, Blocker, DailyReport, MemberWor
 import { CreateCoreProjectModal } from './CreateCoreProjectModal';
 import { AuditService } from '../services/auditService';
 import { AssignPendingLeadModal } from './AssignPendingLeadModal';
+import { DeleteLeadModal } from './DeleteLeadModal';
+import { Trash2 } from 'lucide-react';
 
 interface DirectorDashboardProps {
   currentUser: User;
@@ -53,6 +55,7 @@ export const DirectorDashboard: React.FC<DirectorDashboardProps> = ({
   const [isCreateCoreOpen, setIsCreateCoreOpen] = useState(false);
   const [coreProjects, setCoreProjects] = useState<CoreProject[]>([]);
   const [selectedPendingLead, setSelectedPendingLead] = useState<User | null>(null);
+  const [selectedLeadForDelete, setSelectedLeadForDelete] = useState<User | null>(null);
 
   React.useEffect(() => {
     // We get authorized projects to ensure defaults are initialized, then fetch core projects
@@ -227,10 +230,10 @@ export const DirectorDashboard: React.FC<DirectorDashboardProps> = ({
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
             <div>
               <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
-                QA team workload
+                QA Leads
               </h3>
               <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '2px', margin: 0 }}>
-                Live allocation across {users.length} active members
+                Live allocation and management of {users.filter(u => u.role === 'QA Lead' && u.isActive !== false).length} active leads
               </p>
             </div>
             <button
@@ -253,7 +256,7 @@ export const DirectorDashboard: React.FC<DirectorDashboardProps> = ({
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', maxHeight: '350px', overflowY: 'auto', paddingRight: '4px' }}>
-            {users.filter(u => u.role === 'QA Tester' || u.role === 'Automation QA Engineer' || u.role === 'QA Lead').map((user) => {
+            {users.filter(u => u.role === 'QA Lead' && u.isActive !== false).map((user) => {
               const wl = workloads.find((w) => w.memberId === user.id) || { score: 0, classification: 'Balanced' };
               const badgeColor =
                 wl.classification === 'Overloaded'
@@ -337,22 +340,41 @@ export const DirectorDashboard: React.FC<DirectorDashboardProps> = ({
                   </span>
                   
                   {user.role === 'QA Lead' && (
-                    <button
-                      onClick={() => setSelectedLeadForChange(user)}
-                      style={{
-                        padding: '4px 8px',
-                        borderRadius: '6px',
-                        border: '1px solid var(--border-color)',
-                        background: 'rgba(255,255,255,0.05)',
-                        color: 'var(--text-secondary)',
-                        fontSize: '0.7rem',
-                        cursor: 'pointer',
-                        flexShrink: 0,
-                      }}
-                      title="Change Lead"
-                    >
-                      Change
-                    </button>
+                    <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+                      <button
+                        onClick={() => setSelectedLeadForChange(user)}
+                        style={{
+                          padding: '4px 8px',
+                          borderRadius: '6px',
+                          border: '1px solid var(--border-color)',
+                          background: 'rgba(255,255,255,0.05)',
+                          color: 'var(--text-secondary)',
+                          fontSize: '0.7rem',
+                          cursor: 'pointer',
+                        }}
+                        title="Change Lead"
+                      >
+                        Change
+                      </button>
+                      <button
+                        onClick={() => setSelectedLeadForDelete(user)}
+                        style={{
+                          padding: '4px 8px',
+                          borderRadius: '6px',
+                          border: '1px solid rgba(225, 29, 72, 0.3)',
+                          background: 'rgba(225, 29, 72, 0.1)',
+                          color: '#e11d48',
+                          fontSize: '0.7rem',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}
+                        title="Delete QA Lead"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
                   )}
                 </div>
               );
@@ -532,6 +554,17 @@ export const DirectorDashboard: React.FC<DirectorDashboardProps> = ({
           onClose={() => setSelectedPendingLead(null)}
           onAssigned={() => {
             // Re-fetch users or trigger a refresh in parent
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('aegis_storage_change', { detail: { key: 'ALL' } }));
+            }
+          }}
+        />
+      )}
+      {selectedLeadForDelete && (
+        <DeleteLeadModal
+          leadToDelete={selectedLeadForDelete}
+          onClose={() => setSelectedLeadForDelete(null)}
+          onDeleted={() => {
             if (typeof window !== 'undefined') {
               window.dispatchEvent(new CustomEvent('aegis_storage_change', { detail: { key: 'ALL' } }));
             }
