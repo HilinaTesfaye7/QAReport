@@ -1,1 +1,24 @@
-[]
+{
+  "12345": {
+    "fullName": "Sewi jsjs",
+    "role": "QA Lead",
+    "projectId": "",
+    "projectName": "",
+    "assignedProjectIds": [],
+    "assignedProjects": [],
+    "telegramUsername": "testuser",
+    "chatId": "12345",
+    "updatedAt": "2026-09-12T16:20:38.448Z"
+  },
+  "7527336375": {
+    "fullName": "Alem kukh",
+    "role": "QA Lead",
+    "projectId": "prj-banking",
+    "projectName": "Banking SuperApp",
+    "assignedProjectIds": [],
+    "assignedProjects": [],
+    "telegramUsername": "Tesfyyy",
+    "chatId": "7527336375",
+    "updatedAt": "2026-09-12T16:40:08.34+00:00"
+  }
+}

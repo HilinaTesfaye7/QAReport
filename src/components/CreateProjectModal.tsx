@@ -40,6 +40,8 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
   const [activeTab, setActiveTab] = useState<'info' | 'prd' | 'design' | 'modules' | 'members'>('info');
 
   // Step 1: Project Info
+  const [coreProjectId, setCoreProjectId] = useState('');
+  const [coreProjects, setCoreProjects] = useState<import('../types').CoreProject[]>([]);
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
   const [description, setDescription] = useState('');
@@ -98,12 +100,17 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
       setTestCaseDeadline(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
       setModuleAllocations({});
       setMemberValidationError(null);
-      setFeedbackMsg(null);
+        setFeedbackMsg(null);
       setIsSubmitting(false);
       setActiveTab('info');
       setModules([
         { name: 'Core Feature', description: 'Main functionality' }
       ]);
+      const myCores = StorageService.getCoreProjects().filter(cp => cp.qaLeadId === currentUser.id);
+      setCoreProjects(myCores);
+      if (myCores.length > 0) {
+        setCoreProjectId(myCores[0].id);
+      }
     }
   }, [isOpen]);
 
@@ -167,6 +174,8 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
         },
       ];
 
+      const selectedCore = coreProjects.find(c => c.id === coreProjectId);
+
       const newProject = ProjectService.createProject(
         {
           name,
@@ -176,6 +185,8 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
           targetReleaseDate,
           projectOwner,
           qaLeadId: currentUser.id,
+          coreProjectId: selectedCore?.id,
+          coreProjectName: selectedCore?.name,
           memberIds: selectedMemberIds,
           resources: {
             prdTitle: prdTitle || `${name} Functional Specifications`,
@@ -486,10 +497,36 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
             {/* TAB 1: PROJECT ESSENTIALS */}
             {activeTab === 'info' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '16px' }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '6px', color: 'var(--text-secondary)' }}>
-                      Project Name <span style={{ color: '#f43f5e' }}>*</span>
+                {/* Main Project Selection */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '20px' }}>
+                  <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                    Main Project <span style={{ color: '#f43f5e' }}>*</span>
+                  </label>
+                  <select
+                    value={coreProjectId}
+                    onChange={(e) => setCoreProjectId(e.target.value)}
+                    style={{
+                      padding: '10px 12px',
+                      borderRadius: '8px',
+                      background: 'rgba(0, 0, 0, 0.2)',
+                      border: '1px solid var(--border-subtle)',
+                      color: 'var(--text-primary)',
+                      fontSize: '0.9rem',
+                      outline: 'none',
+                    }}
+                    required
+                  >
+                    <option value="" disabled>Select Main Project...</option>
+                    {coreProjects.map((cp) => (
+                      <option key={cp.id} value={cp.id}>{cp.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '20px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                      Subproject Name <span style={{ color: '#f43f5e' }}>*</span>
                     </label>
                     <input
                       type="text"

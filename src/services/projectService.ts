@@ -16,7 +16,41 @@ export const ProjectService = {
 
     const all = StorageService.getProjects();
     if (user.role === 'QA Director') return all;
-    if (user.role === 'QA Lead') return all.filter(p => p.qaLeadId === user.id);
+
+    if (user.role === 'QA Lead') {
+      const coreProjects = StorageService.getCoreProjects();
+      
+      // Initialize default core projects if none exist
+      if (coreProjects.length === 0) {
+        const defaults = ['Dashen', 'CBE', 'Teletv', 'Connect', 'StarPay'];
+        const newCoreProjects = defaults.map(name => ({
+          id: `core-${Date.now().toString(36)}-${name.toLowerCase()}`,
+          name,
+          description: `Main project for ${name}`,
+          qaLeadId: user.id, // Assign temporarily to the first QA Lead who logs in, Director can reassign
+          status: 'Active' as const,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }));
+        StorageService.saveCoreProjects(newCoreProjects);
+        coreProjects.push(...newCoreProjects);
+      }
+      
+      const myCoreProjectIds = new Set(coreProjects.filter(cp => cp.qaLeadId === user.id).map(cp => cp.id));
+      
+      return all.filter(p => {
+        // If it's linked to a core project, Lead sees it if they lead that core project
+        if (p.coreProjectId && myCoreProjectIds.has(p.coreProjectId)) {
+          return true;
+        }
+        // Fallback for backwards compatibility: if they are directly assigned as lead and no core project
+        if (!p.coreProjectId && p.qaLeadId === user.id) {
+          return true;
+        }
+        return false;
+      });
+    }
+
     return all.filter(p => p.memberIds.includes(user.id));
   },
 
@@ -305,7 +339,7 @@ export const ProjectService = {
     return StorageService.getCoreProjects();
   },
 
-  createCoreProject: (name: string): import('../types').CoreProject => {
+  createCoreProject: (name: string, description: string = '', qaLeadId?: string): import('../types').CoreProject => {
     const currentUser = AuthService.getCurrentUser();
     if (!currentUser) throw new Error('Unauthenticated access');
     AuthService.requireLeadPermission(currentUser.id);
@@ -313,7 +347,8 @@ export const ProjectService = {
     const newCore = {
       id: `core-${Date.now().toString(36)}`,
       name,
-      qaLeadId: currentUser.id,
+      description,
+      qaLeadId: qaLeadId || currentUser.id,
       status: 'Active' as const,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
@@ -321,6 +356,24 @@ export const ProjectService = {
     coreProjects.unshift(newCore);
     StorageService.saveCoreProjects(coreProjects);
     return newCore;
+  },
+
+  updateCoreProject: (coreProjectId: string, updates: Partial<import('../types').CoreProject>): import('../types').CoreProject => {
+    const currentUser = AuthService.getCurrentUser();
+    if (!currentUser) throw new Error('Unauthenticated access');
+    // Director can change leads, Lead can edit their own
+    const coreProjects = StorageService.getCoreProjects();
+    const idx = coreProjects.findIndex(cp => cp.id === coreProjectId);
+    if (idx === -1) throw new Error('Core Project not found');
+    
+    if (currentUser.role !== 'QA Director' && coreProjects[idx].qaLeadId !== currentUser.id) {
+       throw new Error('Unauthorized to update this Main Project');
+    }
+
+    const updated = { ...coreProjects[idx], ...updates, updatedAt: new Date().toISOString() };
+    coreProjects[idx] = updated;
+    StorageService.saveCoreProjects(coreProjects);
+    return updated;
   },
 
   // --- MODULES ---

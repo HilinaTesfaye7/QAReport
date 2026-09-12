@@ -6,13 +6,7 @@
     "status": "Testing",
     "memberIds": [
       "usr-918263567",
-      "usr-347835367",
-      "usr-398745619",
-      "usr-502756256",
-      "usr-367448100",
-      "usr-6009896175",
-      "usr--5044151423",
-      "usr-7651373544"
+      "usr-347835367"
     ],
     "resources": {
       "prdUrl": "https://docs.bank.internal/prd/spec-v1",
@@ -56,33 +50,6 @@
       ],
       "figmaDescription": "Includes all responsive viewports, state machines, and micro-interaction tokens.",
       "figmaPreviewTitle": "Mobile & Web UI Design Specs"
-    }
-  },
-  {
-    "id": "prj-mtqwfzb7",
-    "name": "okkk",
-    "description": "Quality assurance and test automation suite for okkk.",
-    "status": "Testing",
-    "memberIds": [
-      "usr-7651373544",
-      "usr-918263567",
-      "usr-854270712",
-      "usr-347835367"
-    ],
-    "resources": {
-      "prdUrl": "https://docs.bank.internal/prd/spec-v1",
-      "repoUrl": "https://github.com/company/okkk",
-      "figmaUrl": "https://www.figma.com/file/aegis-design-system/prototype",
-      "prdTitle": "okkk Functional Specifications",
-      "figmaName": "okkk UI Prototype",
-      "testEnvUrl": "https://staging-app.internal",
-      "testCaseUrl": "https://bt.eaglelionsystems.com/users/268/edit?tab=memberships",
-      "requirements": [
-        "REQ-01: Authentication & Token Lifecycle",
-        "REQ-02: Core Feature Flow and Business Logic Validation",
-        "REQ-03: Responsive Design Breakpoints Verification"
-      ],
-      "testCaseTitle": "okkk Test Cases"
     }
   },
   {
@@ -203,6 +170,7 @@
     "description": " nbmbm",
     "status": "Testing",
     "memberIds": [
+      "usr-sara",
       "usr-347835367"
     ],
     "resources": {
@@ -255,6 +223,7 @@
     "description": "creat and transfer",
     "status": "Testing",
     "memberIds": [
+      "usr-sara",
       "usr-347835367"
     ],
     "resources": {
@@ -300,6 +269,43 @@
     }
   },
   {
+    "id": "prj-mtqwfzb7",
+    "name": "okkk",
+    "description": "Quality assurance and test automation suite for okkk.",
+    "status": "Testing",
+    "memberIds": [
+      "usr-7651373544",
+      "usr-918263567",
+      "usr-854270712",
+      "usr-347835367"
+    ],
+    "resources": {
+      "prdUrl": "https://docs.bank.internal/prd/spec-v1",
+      "repoUrl": "https://github.com/company/okkk",
+      "figmaUrl": "https://www.figma.com/file/aegis-design-system/prototype",
+      "prdTitle": "okkk Functional Specifications",
+      "figmaName": "okkk UI Prototype",
+      "testEnvUrl": "https://staging-app.internal",
+      "testCaseUrl": "https://bt.eaglelionsystems.com/users/268/edit?tab=memberships",
+      "requirements": [
+        "REQ-01: Authentication & Token Lifecycle",
+        "REQ-02: Core Feature Flow and Business Logic Validation",
+        "REQ-03: Responsive Design Breakpoints Verification"
+      ],
+      "testCaseTitle": "okkk Test Cases"
+    }
+  },
+  {
+    "id": "prj-test-probe",
+    "name": "Probe Test Project",
+    "description": "desc",
+    "status": "Testing",
+    "memberIds": [
+      "usr-347835367"
+    ],
+    "resources": {}
+  },
+  {
     "id": "prj-nextgen",
     "name": "NextGen Mobile Banking",
     "description": "Next-generation mobile retail banking app with biometric authentication and card controls.",
@@ -324,38 +330,119 @@
     }
   },
   {
-    "id": "prj-merchant",
-    "name": "Merchant Portal NextGen",
-    "description": "B2B web dashboard for e-commerce and retail merchants to manage settlements, chargebacks, and API webhook integrations.",
-    "status": "Planning",
-    "memberIds": [],
+    "id": "prj-mobile",
+    "name": "Mobile Banking iOS & Android",
+    "description": "Cross-platform native mobile client focusing on card management, contactless NFC payments, and push security tokens.",
+    "status": "UAT",
+    "memberIds": [
+      "usr-hana",
+      "usr-sara"
+    ],
     "resources": {
-      "prdUrl": "https://docs.bankcorp.internal/prd/merchant-portal-v1",
-      "repoUrl": "https://github.com/bankcorp/merchant-web",
-      "figmaUrl": "https://www.figma.com/file/aegis-merchant-v1/design",
-      "prdTitle": "PRD Merchant Portal v1.0: Real-time Analytics & Dispute Center",
-      "apiDocUrl": "https://api-docs.bankcorp.internal/merchant/v1",
-      "figmaName": "Merchant Portal v1.0 Web App",
-      "prdContent": "# Merchant Portal v1.0 PRD\nUnified settlement report download in CSV/XLSX. Automated webhook delivery with retry backoff.",
-      "testEnvUrl": "https://staging-merchant.bankingsuperapp.internal",
-      "releaseInfo": "Alpha testing phase. Architecture and test plan sign-off.",
-      "buildVersion": "v1.0.0-alpha2",
-      "figmaVersion": "1.0.0",
+      "prdUrl": "https://docs.bankcorp.internal/prd/mobile-v3.1",
+      "repoUrl": "https://github.com/bankcorp/mobile-native",
+      "figmaUrl": "https://www.figma.com/file/aegis-mobile-cards/v3.1",
+      "prdTitle": "PRD Mobile v3.1: Virtual Card Issuance & NFC",
+      "apiDocUrl": "https://api-docs.bankcorp.internal/mobile/v3",
+      "figmaName": "Mobile Cards & Wallet Flow v3.1",
+      "prdContent": "# Mobile Banking v3.1 Specifications\nSupport Apple Pay and Google Wallet instant push provisioning. Card freeze/unfreeze toggle with sub-second feedback.",
+      "testEnvUrl": "https://mobile-stage.bankingsuperapp.internal",
+      "releaseInfo": "TestFlight build #412 / Internal App Distribution #208.",
+      "buildVersion": "build-412",
+      "figmaVersion": "3.1.0",
       "requirements": [
-        "REQ-B01: Dispute evidence upload supporting up to 25MB PDF/PNG",
-        "REQ-B02: Webhook signature verification tool for merchants"
+        "REQ-M01: Virtual card generation within 2 seconds",
+        "REQ-M02: Apple Wallet / Google Wallet provisioning",
+        "REQ-M03: Instant card locking and geo-fencing controls"
       ],
-      "importantNotes": "Backend services still in active deployment.",
+      "importantNotes": "Test specifically on iOS 18.0 and Android 15 developer previews.",
       "testCredentials": [
         {
-          "pass": "CoffeeB2B@99!",
-          "role": "Merchant Admin",
-          "user": "admin@coffeehaven.com",
-          "notes": "Connected to mock Stripe & Adyen test rails"
+          "pass": "Mob@2026Safe",
+          "role": "Mobile Beta User",
+          "user": "qa.mobile.tester@bank.internal",
+          "notes": "Enrolled in NFC pilot sandbox"
         }
       ],
-      "figmaDescription": "Full B2B desktop dashboard and dispute evidence modal.",
-      "figmaPreviewTitle": "Merchant B2B Dashboard Layout & Dispute Flow"
+      "figmaDescription": "Native iOS & Android card views with encrypted CVV reveal.",
+      "figmaPreviewTitle": "Mobile Native Components & Virtual Card Flow"
+    }
+  },
+  {
+    "id": "prj-banking",
+    "name": "Banking SuperApp",
+    "description": "Next-generation retail banking application with instant payments, multi-currency wallets, and biometric authentication.",
+    "status": "Testing",
+    "memberIds": [
+      "usr-hana",
+      "usr-ahmed",
+      "usr-daniel",
+      "usr-854270712"
+    ],
+    "resources": {
+      "prdUrl": "https://docs.bankcorp.internal/prd/superapp-v2.4",
+      "repoUrl": "https://github.com/bankcorp/superapp-client",
+      "figmaUrl": "https://www.figma.com/file/aegis-banking-superapp-hifi/v2.4",
+      "prdTitle": "PRD v2.4: Instant Wire Transfer & Biometric Core",
+      "apiDocUrl": "https://api-docs.bankcorp.internal/v2/swagger",
+      "figmaName": "SuperApp Design System & Transfer Flow v2.4",
+      "prdContent": "# Product Requirements Document (PRD) - Banking SuperApp v2.4\n\n## 1. Overview & Objectives\nBanking SuperApp v2.4 introduces zero-latency peer-to-peer transfers with real-time biometric authorization. Target release date is September 12, 2026.\n\n## 2. Key Modules & Acceptance Criteria\n- **Module 1: Biometric Authorization (REQ-101)**\n  - FaceID / TouchID / Device Passcode fallback.\n  - Failures locked out after 3 attempts with 5-minute cool-off.\n- **Module 2: Instant Wire Transfer (REQ-102)**\n  - Idempotency key required on every POST /api/v2/transfers.\n  - Duplicate requests within 60s must return 409 Conflict with original transfer receipt.\n- **Module 3: Dynamic Fee Calculation (REQ-103)**\n  - Standard Tier: $1.50 per international wire.\n  - VIP Tier: $0.00 fee waiver.\n- **Module 4: Error Handling & Resilience (REQ-104)**\n  - In event of 504 Gateway Timeout from core banking ledger, transfer status remains PENDING_VERIFICATION, not FAILED, preventing double charges.\n\n## 3. QA Sign-Off Criteria\n- Zero Critical or High open defects.\n- 100% execution of P0/P1 regression suites.\n- Latency P99 under 450ms for transfer authorization.",
+      "testEnvUrl": "https://staging-app.bankingsuperapp.internal",
+      "releaseInfo": "Candidate build 2.4.0-rc3. Regression sign-off window closes Sep 10, 18:00 UTC.",
+      "buildVersion": "v2.4.0-rc3",
+      "figmaVersion": "2.4.0",
+      "prdDocuments": [
+        {
+          "id": "doc-01",
+          "name": "SuperApp_PRD_v2.4_Final.pdf",
+          "version": "v2.4",
+          "fileName": "SuperApp_PRD_v2.4_Final.pdf",
+          "fileSize": "2.4 MB",
+          "uploadedAt": "2026-08-10",
+          "uploadedBy": "Sarah Jenkins",
+          "downloadUrl": "#"
+        },
+        {
+          "id": "doc-02",
+          "name": "Transfer_API_Swagger_Spec.docx",
+          "version": "v2.4.1",
+          "fileName": "Transfer_API_Swagger_Spec.docx",
+          "fileSize": "840 KB",
+          "uploadedAt": "2026-08-12",
+          "uploadedBy": "David Chen",
+          "downloadUrl": "#"
+        }
+      ],
+      "requirements": [
+        "REQ-101: Biometric Authentication with Secure Enclave",
+        "REQ-102: Instant Wire Transfer with Idempotency Key",
+        "REQ-103: Dynamic Fee calculation based on KYC Tier",
+        "REQ-104: Timeout resilience & transaction rollback protection",
+        "REQ-105: Real-time push notification and statement export"
+      ],
+      "importantNotes": "Staging API payment gateway sandbox undergoes maintenance between 02:00-04:00 UTC.",
+      "testCredentials": [
+        {
+          "pass": "SecurePass!2026",
+          "role": "Standard Tier Tester",
+          "user": "qa.standard@bank.internal",
+          "notes": "Pre-seeded balance: $12,500 USD"
+        },
+        {
+          "pass": "GoldTier#999",
+          "role": "VIP Tier Tester",
+          "user": "qa.vip@bank.internal",
+          "notes": "Pre-seeded balance: $150,000 USD (0% fees)"
+        },
+        {
+          "pass": "KycHold$444",
+          "role": "Blocked KYC Tester",
+          "user": "qa.restricted@bank.internal",
+          "notes": "Should trigger KYC re-verification banner"
+        }
+      ],
+      "figmaDescription": "Full mobile and responsive web frames with auto-layout padding tokens.",
+      "figmaPreviewTitle": "SuperApp UI Kit & Interactive Transfer Flows (Figma v2.4)"
     }
   },
   {
@@ -427,118 +514,41 @@
     }
   },
   {
-    "id": "prj-banking",
-    "name": "Banking SuperApp",
-    "description": "Next-generation retail banking application with instant payments, multi-currency wallets, and biometric authentication.",
-    "status": "Testing",
+    "id": "prj-merchant",
+    "name": "Merchant Portal NextGen",
+    "description": "B2B web dashboard for e-commerce and retail merchants to manage settlements, chargebacks, and API webhook integrations.",
+    "status": "Planning",
     "memberIds": [
-      "usr-hana",
-      "usr-854270712",
-      "usr-398745619",
-      "usr-408485792"
+      "usr-sara",
+      "usr-ahmed"
     ],
     "resources": {
-      "prdUrl": "https://docs.bankcorp.internal/prd/superapp-v2.4",
-      "repoUrl": "https://github.com/bankcorp/superapp-client",
-      "figmaUrl": "https://www.figma.com/file/aegis-banking-superapp-hifi/v2.4",
-      "prdTitle": "PRD v2.4: Instant Wire Transfer & Biometric Core",
-      "apiDocUrl": "https://api-docs.bankcorp.internal/v2/swagger",
-      "figmaName": "SuperApp Design System & Transfer Flow v2.4",
-      "prdContent": "# Product Requirements Document (PRD) - Banking SuperApp v2.4\n\n## 1. Overview & Objectives\nBanking SuperApp v2.4 introduces zero-latency peer-to-peer transfers with real-time biometric authorization. Target release date is September 12, 2026.\n\n## 2. Key Modules & Acceptance Criteria\n- **Module 1: Biometric Authorization (REQ-101)**\n  - FaceID / TouchID / Device Passcode fallback.\n  - Failures locked out after 3 attempts with 5-minute cool-off.\n- **Module 2: Instant Wire Transfer (REQ-102)**\n  - Idempotency key required on every POST /api/v2/transfers.\n  - Duplicate requests within 60s must return 409 Conflict with original transfer receipt.\n- **Module 3: Dynamic Fee Calculation (REQ-103)**\n  - Standard Tier: $1.50 per international wire.\n  - VIP Tier: $0.00 fee waiver.\n- **Module 4: Error Handling & Resilience (REQ-104)**\n  - In event of 504 Gateway Timeout from core banking ledger, transfer status remains PENDING_VERIFICATION, not FAILED, preventing double charges.\n\n## 3. QA Sign-Off Criteria\n- Zero Critical or High open defects.\n- 100% execution of P0/P1 regression suites.\n- Latency P99 under 450ms for transfer authorization.",
-      "testEnvUrl": "https://staging-app.bankingsuperapp.internal",
-      "releaseInfo": "Candidate build 2.4.0-rc3. Regression sign-off window closes Sep 10, 18:00 UTC.",
-      "buildVersion": "v2.4.0-rc3",
-      "figmaVersion": "2.4.0",
-      "prdDocuments": [
-        {
-          "id": "doc-01",
-          "name": "SuperApp_PRD_v2.4_Final.pdf",
-          "version": "v2.4",
-          "fileName": "SuperApp_PRD_v2.4_Final.pdf",
-          "fileSize": "2.4 MB",
-          "uploadedAt": "2026-08-10",
-          "uploadedBy": "Sarah Jenkins",
-          "downloadUrl": "#"
-        },
-        {
-          "id": "doc-02",
-          "name": "Transfer_API_Swagger_Spec.docx",
-          "version": "v2.4.1",
-          "fileName": "Transfer_API_Swagger_Spec.docx",
-          "fileSize": "840 KB",
-          "uploadedAt": "2026-08-12",
-          "uploadedBy": "David Chen",
-          "downloadUrl": "#"
-        }
-      ],
+      "prdUrl": "https://docs.bankcorp.internal/prd/merchant-portal-v1",
+      "repoUrl": "https://github.com/bankcorp/merchant-web",
+      "figmaUrl": "https://www.figma.com/file/aegis-merchant-v1/design",
+      "prdTitle": "PRD Merchant Portal v1.0: Real-time Analytics & Dispute Center",
+      "apiDocUrl": "https://api-docs.bankcorp.internal/merchant/v1",
+      "figmaName": "Merchant Portal v1.0 Web App",
+      "prdContent": "# Merchant Portal v1.0 PRD\nUnified settlement report download in CSV/XLSX. Automated webhook delivery with retry backoff.",
+      "testEnvUrl": "https://staging-merchant.bankingsuperapp.internal",
+      "releaseInfo": "Alpha testing phase. Architecture and test plan sign-off.",
+      "buildVersion": "v1.0.0-alpha2",
+      "figmaVersion": "1.0.0",
       "requirements": [
-        "REQ-101: Biometric Authentication with Secure Enclave",
-        "REQ-102: Instant Wire Transfer with Idempotency Key",
-        "REQ-103: Dynamic Fee calculation based on KYC Tier",
-        "REQ-104: Timeout resilience & transaction rollback protection",
-        "REQ-105: Real-time push notification and statement export"
+        "REQ-B01: Dispute evidence upload supporting up to 25MB PDF/PNG",
+        "REQ-B02: Webhook signature verification tool for merchants"
       ],
-      "importantNotes": "Staging API payment gateway sandbox undergoes maintenance between 02:00-04:00 UTC.",
+      "importantNotes": "Backend services still in active deployment.",
       "testCredentials": [
         {
-          "pass": "SecurePass!2026",
-          "role": "Standard Tier Tester",
-          "user": "qa.standard@bank.internal",
-          "notes": "Pre-seeded balance: $12,500 USD"
-        },
-        {
-          "pass": "GoldTier#999",
-          "role": "VIP Tier Tester",
-          "user": "qa.vip@bank.internal",
-          "notes": "Pre-seeded balance: $150,000 USD (0% fees)"
-        },
-        {
-          "pass": "KycHold$444",
-          "role": "Blocked KYC Tester",
-          "user": "qa.restricted@bank.internal",
-          "notes": "Should trigger KYC re-verification banner"
+          "pass": "CoffeeB2B@99!",
+          "role": "Merchant Admin",
+          "user": "admin@coffeehaven.com",
+          "notes": "Connected to mock Stripe & Adyen test rails"
         }
       ],
-      "figmaDescription": "Full mobile and responsive web frames with auto-layout padding tokens.",
-      "figmaPreviewTitle": "SuperApp UI Kit & Interactive Transfer Flows (Figma v2.4)"
-    }
-  },
-  {
-    "id": "prj-mobile",
-    "name": "Mobile Banking iOS & Android",
-    "description": "Cross-platform native mobile client focusing on card management, contactless NFC payments, and push security tokens.",
-    "status": "UAT",
-    "memberIds": [
-      "usr-hana"
-    ],
-    "resources": {
-      "prdUrl": "https://docs.bankcorp.internal/prd/mobile-v3.1",
-      "repoUrl": "https://github.com/bankcorp/mobile-native",
-      "figmaUrl": "https://www.figma.com/file/aegis-mobile-cards/v3.1",
-      "prdTitle": "PRD Mobile v3.1: Virtual Card Issuance & NFC",
-      "apiDocUrl": "https://api-docs.bankcorp.internal/mobile/v3",
-      "figmaName": "Mobile Cards & Wallet Flow v3.1",
-      "prdContent": "# Mobile Banking v3.1 Specifications\nSupport Apple Pay and Google Wallet instant push provisioning. Card freeze/unfreeze toggle with sub-second feedback.",
-      "testEnvUrl": "https://mobile-stage.bankingsuperapp.internal",
-      "releaseInfo": "TestFlight build #412 / Internal App Distribution #208.",
-      "buildVersion": "build-412",
-      "figmaVersion": "3.1.0",
-      "requirements": [
-        "REQ-M01: Virtual card generation within 2 seconds",
-        "REQ-M02: Apple Wallet / Google Wallet provisioning",
-        "REQ-M03: Instant card locking and geo-fencing controls"
-      ],
-      "importantNotes": "Test specifically on iOS 18.0 and Android 15 developer previews.",
-      "testCredentials": [
-        {
-          "pass": "Mob@2026Safe",
-          "role": "Mobile Beta User",
-          "user": "qa.mobile.tester@bank.internal",
-          "notes": "Enrolled in NFC pilot sandbox"
-        }
-      ],
-      "figmaDescription": "Native iOS & Android card views with encrypted CVV reveal.",
-      "figmaPreviewTitle": "Mobile Native Components & Virtual Card Flow"
+      "figmaDescription": "Full B2B desktop dashboard and dispute evidence modal.",
+      "figmaPreviewTitle": "Merchant B2B Dashboard Layout & Dispute Flow"
     }
   }
 ]

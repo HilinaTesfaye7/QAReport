@@ -122,6 +122,7 @@ export interface ProjectResources {
 export interface CoreProject {
   id: string;
   name: string;
+  description?: string;
   qaLeadId: string;
   status: ProjectStatus;
   createdAt: string;
