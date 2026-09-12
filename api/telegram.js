@@ -800,6 +800,7 @@ export default async function handler(req, res) {
         .eq('chat_id', String(chatId))
         .maybeSingle();
       profile = data;
+    }
     // 2. Commands Routing
     if (text === '/reset' || text === 'reset') {
       if (supabase) {
@@ -913,8 +914,10 @@ export default async function handler(req, res) {
           
           // Hide the keyboard after selection
           await sendTelegramMessage(chatId, `Role selected: ${chosenRole} ✅`, BOT_TOKEN, { remove_keyboard: true });
+          return res.status(200).json({ ok: true });
         } catch (sbErr) {
           console.warn('[Webhook] Error creating profile on role selection:', sbErr);
+          return res.status(500).json({ ok: false, error: sbErr.message });
         }
       } else if (!profile) {
         const msg = `Please type /start to select your role first.`;
