@@ -27,6 +27,7 @@ export const AssignPendingLeadModal: React.FC<AssignPendingLeadModalProps> = ({ 
   const handleAssign = async () => {
     setErrorMsg('');
     let finalProjectName = '';
+    let finalProjectId = selectedCoreProjectId;
 
     if (isCreatingNew) {
       if (!newProjectName.trim()) {
@@ -53,6 +54,13 @@ export const AssignPendingLeadModal: React.FC<AssignPendingLeadModalProps> = ({ 
 
     setIsLoading(true);
     try {
+      // Create project locally first if new, so we have an ID to pass to backend
+      if (isCreatingNew) {
+        // We pass 'unassigned' for now, it will be updated right after
+        const newCp = ProjectService.createCoreProject(newProjectName.trim(), newProjectDesc.trim(), 'unassigned');
+        finalProjectId = newCp.id;
+      }
+
       // Extract telegram Chat ID from user ID (e.g. usr-123456 -> 123456)
       const telegramChatId = pendingLead.id.replace('usr-', '');
       
@@ -64,7 +72,7 @@ export const AssignPendingLeadModal: React.FC<AssignPendingLeadModalProps> = ({ 
         body: JSON.stringify({
           telegramChatId,
           mainProjectName: finalProjectName,
-          mainProjectId: selectedProjectId
+          mainProjectId: finalProjectId
         }),
         credentials: 'include'
       });
@@ -76,14 +84,8 @@ export const AssignPendingLeadModal: React.FC<AssignPendingLeadModalProps> = ({ 
 
       const data = await res.json();
       
-      // Update local storage
-      let targetCoreProjectId = selectedCoreProjectId;
-      if (isCreatingNew) {
-        const newCp = ProjectService.createCoreProject(newProjectName.trim(), newProjectDesc.trim(), data.user.id);
-        targetCoreProjectId = newCp.id;
-      } else {
-        ProjectService.updateCoreProject(targetCoreProjectId, { qaLeadId: data.user.id });
-      }
+      // Update local storage with the new user ID
+      ProjectService.updateCoreProject(finalProjectId, { qaLeadId: data.user.id });
 
       // We need to sync users locally so the new user appears Active immediately
       await StorageService.syncUsersWithCloud();
