@@ -63,8 +63,10 @@ export const AssignPendingLeadModal: React.FC<AssignPendingLeadModalProps> = ({ 
         },
         body: JSON.stringify({
           telegramChatId,
-          mainProjectName: finalProjectName
-        })
+          mainProjectName: finalProjectName,
+          mainProjectId: selectedProjectId
+        }),
+        credentials: 'include'
       });
 
       if (!res.ok) {

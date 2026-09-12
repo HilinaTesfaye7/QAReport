@@ -67,12 +67,8 @@ async function usersHandler(req, res) {
               existing.name = pu.name;
               existing.full_name = pu.full_name;
             }
-            if (pu.status === 'Pending Assignment') {
-              existing.status = 'Pending Assignment';
-              existing.role = pu.role;
-              // Make sure they show up in pending leads despite being in users table
-              existing.is_active = true; 
-            }
+            // If they just registered, they are 'Pending Assignment' in Telegram.
+            // But if they are ALREADY in users table, they have been assigned. Do not overwrite.
           } else {
             data.push(pu);
           }
@@ -103,9 +99,9 @@ async function usersHandler(req, res) {
     }
 
     if (req.query.action === 'assign-lead') {
-      const { telegramChatId, mainProjectName } = req.body;
-      if (!telegramChatId || !mainProjectName) {
-        return res.status(400).json({ error: 'telegramChatId and mainProjectName are required' });
+      const { telegramChatId, mainProjectName, mainProjectId } = req.body;
+      if (!telegramChatId || !mainProjectName || !mainProjectId) {
+        return res.status(400).json({ error: 'telegramChatId, mainProjectName, and mainProjectId are required' });
       }
 
       try {
@@ -145,6 +141,8 @@ async function usersHandler(req, res) {
 
         await supabase.from('telegram_profiles').update({
           status: 'Active',
+          project_id: mainProjectId,
+          project_name: mainProjectName,
           updated_at: new Date().toISOString()
         }).eq('chat_id', String(telegramChatId));
 
