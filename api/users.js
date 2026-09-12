@@ -57,10 +57,18 @@ async function usersHandler(req, res) {
           };
         });
         
-        // Merge avoiding duplicates by ID
-        const existingIds = new Set(data.map(u => u.id));
+        // Merge avoiding duplicates by ID, but update status if pending
+        const existingMap = new Map(data.map(u => [u.id, u]));
         for (const pu of profileUsers) {
-          if (!existingIds.has(pu.id)) {
+          if (existingMap.has(pu.id)) {
+            const existing = existingMap.get(pu.id);
+            if (pu.status === 'Pending Assignment') {
+              existing.status = 'Pending Assignment';
+              existing.role = pu.role;
+              // Make sure they show up in pending leads despite being in users table
+              existing.is_active = true; 
+            }
+          } else {
             data.push(pu);
           }
         }
