@@ -94,13 +94,19 @@ export const StorageService = {
         const deletedIds = new Set<string>(
           JSON.parse(localStorage.getItem('aegis_deleted_member_ids') || '[]')
         );
-        const res = await fetch('/api/users', { cache: 'no-cache' });
+        const res = await fetch('/api/users', { cache: 'no-cache', credentials: 'include' });
         if (res.ok) {
           const users = await res.json();
           if (Array.isArray(users)) {
             const activeUsers = users.filter((u: any) => {
+              if (u.status === 'Pending Assignment') {
+                if (deletedIds.has(u.id)) {
+                  deletedIds.delete(u.id);
+                  localStorage.setItem('aegis_deleted_member_ids', JSON.stringify(Array.from(deletedIds)));
+                }
+                return true;
+              }
               if (deletedIds.has(u.id)) return false;
-              if (u.status === 'Pending Assignment') return true;
               return u.is_active === true || u.isActive === true;
             }).map((u: any) => ({
               ...u,
@@ -160,7 +166,7 @@ export const StorageService = {
         const deletedProjectIds = new Set<string>(
           JSON.parse(localStorage.getItem('aegis_deleted_project_ids') || '[]')
         );
-        const res = await fetch('/api/projects', { cache: 'no-cache' });
+        const res = await fetch('/api/projects', { cache: 'no-cache', credentials: 'include' });
         if (res.ok) {
           const apiProjects = await res.json();
           if (Array.isArray(apiProjects)) {
@@ -228,7 +234,8 @@ export const StorageService = {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(projects),
-      }).catch(() => {});
+        credentials: 'include'
+      }).catch(err => {});
     }
   },
 
@@ -239,7 +246,7 @@ export const StorageService = {
   },
   syncTasksWithCloud: async (): Promise<QATask[]> => {
     try {
-      const res = await fetch('/api/tasks', { cache: 'no-cache' });
+      const res = await fetch('/api/tasks', { cache: 'no-cache', credentials: 'include' });
       if (res.ok) {
         const tasks = await res.json();
         if (Array.isArray(tasks)) {
@@ -265,7 +272,7 @@ export const StorageService = {
   },
   syncBugsWithCloud: async (): Promise<QABug[]> => {
     try {
-      const res = await fetch('/api/bugs', { cache: 'no-cache' });
+      const res = await fetch('/api/bugs', { cache: 'no-cache', credentials: 'include' });
       if (res.ok) {
         const items = await res.json();
         if (Array.isArray(items)) {
@@ -295,7 +302,7 @@ export const StorageService = {
   },
   syncTestCasesWithCloud: async (): Promise<TestCase[]> => {
     try {
-      const res = await fetch('/api/test-cases', { cache: 'no-cache' });
+      const res = await fetch('/api/test-cases', { cache: 'no-cache', credentials: 'include' });
       if (res.ok) {
         const items = await res.json();
         if (Array.isArray(items)) {
@@ -335,7 +342,7 @@ export const StorageService = {
   },
   syncBlockersWithCloud: async (): Promise<Blocker[]> => {
     try {
-      const res = await fetch('/api/blockers', { cache: 'no-cache' });
+      const res = await fetch('/api/blockers', { cache: 'no-cache', credentials: 'include' });
       if (res.ok) {
         const items = await res.json();
         if (Array.isArray(items)) {
@@ -382,7 +389,7 @@ export const StorageService = {
   },
   syncDailyReportsWithCloud: async (): Promise<DailyReport[]> => {
     try {
-      const res = await fetch('/api/daily-reports', { cache: 'no-cache' });
+      const res = await fetch('/api/daily-reports', { cache: 'no-cache', credentials: 'include' });
       if (res.ok) {
         const items = await res.json();
         if (Array.isArray(items)) {

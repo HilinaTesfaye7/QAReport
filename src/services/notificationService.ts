@@ -222,8 +222,6 @@ class NotificationServiceManager {
       title: 'Main Project Assignment',
       message,
       recipientId: newLeadId,
-      createdAt: new Date().toISOString(),
-      read: false,
       skipTelegram: true,
     });
   }
