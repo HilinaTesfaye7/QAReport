@@ -126,7 +126,7 @@ export const App: React.FC = () => {
 
         {/* Content View Switcher */}
         <main style={{ flex: 1, overflowY: 'auto', paddingBottom: '60px' }}>
-          {activeTab === 'command-center' && (
+          {(activeTab === 'command-center' || activeTab === 'main-projects') && (
             <Dashboard
               currentUser={currentUser}
               onNavigateToProject={handleNavigateToProject}

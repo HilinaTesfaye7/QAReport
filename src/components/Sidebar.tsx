@@ -41,8 +41,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'command-center', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'projects', label: 'Projects', icon: FolderKanban },
     { id: 'team', label: 'Team', icon: Users },
-    { id: 'performance', label: 'Performance', icon: TrendingUp },
   ];
+
+  if (currentUser.role === 'QA Director') {
+    navItems.push({ id: 'main-projects', label: 'Main Projects Directory', icon: FolderKanban });
+  }
 
   return (
     <aside
