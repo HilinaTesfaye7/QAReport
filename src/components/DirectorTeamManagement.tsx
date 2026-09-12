@@ -13,6 +13,7 @@ interface DirectorTeamManagementProps {
 export const DirectorTeamManagement: React.FC<DirectorTeamManagementProps> = ({ currentUser }) => {
   const [users, setUsers] = useState<User[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [coreProjects, setCoreProjects] = useState<CoreProject[]>([]);
   const [workloads, setWorkloads] = useState<MemberWorkload[]>([]);
   const [blockers, setBlockers] = useState<Blocker[]>([]);
   
@@ -34,6 +35,7 @@ export const DirectorTeamManagement: React.FC<DirectorTeamManagementProps> = ({ 
   const loadData = () => {
     setUsers(StorageService.getUsers());
     setProjects(StorageService.getProjects());
+    setCoreProjects(ProjectService.getCoreProjects());
     setWorkloads(WorkloadService.getAllMembersWorkload());
     setBlockers(StorageService.getBlockers());
   };
@@ -115,7 +117,7 @@ export const DirectorTeamManagement: React.FC<DirectorTeamManagementProps> = ({ 
 
   const handleOpenAssign = (lead: User) => {
     setSelectedLeadForAssign(lead);
-    const currentlyAssigned = projects.filter(p => p.qaLeadId === lead.id || (p as any).qa_lead_id === lead.id).map(p => p.id);
+    const currentlyAssigned = coreProjects.filter(cp => cp.qaLeadId === lead.id).map(cp => cp.id);
     setAssignedProjectIds(currentlyAssigned);
     setIsAssignProjectsOpen(true);
   };
@@ -130,36 +132,21 @@ export const DirectorTeamManagement: React.FC<DirectorTeamManagementProps> = ({ 
     if (!selectedLeadForAssign) return;
 
     try {
-      // 1. Find projects to update
-      const projectsToUpdate = [];
-      const updatedProjects = [...projects];
-
-      updatedProjects.forEach(p => {
+      let coreProjectsUpdated = false;
+      
+      coreProjects.forEach(cp => {
         // Was assigned, now unassigned
-        if ((p.qaLeadId === selectedLeadForAssign.id || (p as any).qa_lead_id === selectedLeadForAssign.id) && !assignedProjectIds.includes(p.id)) {
-           p.qaLeadId = 'unassigned';
-           projectsToUpdate.push(p);
+        if (cp.qaLeadId === selectedLeadForAssign.id && !assignedProjectIds.includes(cp.id)) {
+           ProjectService.updateCoreProject(cp.id, { qaLeadId: 'unassigned' });
+           coreProjectsUpdated = true;
         }
         // Newly assigned
-        else if (assignedProjectIds.includes(p.id) && p.qaLeadId !== selectedLeadForAssign.id && (p as any).qa_lead_id !== selectedLeadForAssign.id) {
-          p.qaLeadId = selectedLeadForAssign.id;
-          projectsToUpdate.push(p);
+        else if (assignedProjectIds.includes(cp.id) && cp.qaLeadId !== selectedLeadForAssign.id) {
+           ProjectService.updateCoreProject(cp.id, { qaLeadId: selectedLeadForAssign.id });
+           coreProjectsUpdated = true;
         }
       });
 
-      if (projectsToUpdate.length > 0) {
-        const response = await fetch('/api/projects', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(projectsToUpdate)
-        });
-
-        if (!response.ok) {
-          throw new Error('Failed to assign projects on backend');
-        }
-      }
-
-      StorageService.saveProjects(updatedProjects);
       loadData();
       setIsAssignProjectsOpen(false);
       setSelectedLeadForAssign(null);
@@ -215,11 +202,13 @@ export const DirectorTeamManagement: React.FC<DirectorTeamManagementProps> = ({ 
           </thead>
           <tbody>
             {qaLeads.map(lead => {
-              const leadProjects = projects.filter(p => p.qaLeadId === lead.id || (p as any).qa_lead_id === lead.id);
+              const leadProjects = coreProjects.filter(cp => cp.qaLeadId === lead.id);
               const totalProjects = leadProjects.length;
               
               const teamMembers = new Set<string>();
-              leadProjects.forEach(p => {
+              // Wait, subprojects belong to core projects
+              const subprojects = projects.filter(p => leadProjects.some(cp => cp.id === p.coreProjectId));
+              subprojects.forEach(p => {
                 const pMembers = Array.isArray(p.memberIds) ? p.memberIds : (p as any).member_ids || [];
                 pMembers.forEach((m: string) => teamMembers.add(m));
               });
@@ -401,14 +390,14 @@ export const DirectorTeamManagement: React.FC<DirectorTeamManagementProps> = ({ 
             </p>
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '300px', overflowY: 'auto', marginBottom: '20px' }}>
-               {projects.map(p => (
-                 <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px', background: 'rgba(255,255,255,0.03)', borderRadius: '6px', border: '1px solid var(--border-subtle)', cursor: 'pointer' }}>
+               {coreProjects.map(cp => (
+                 <label key={cp.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px', background: 'rgba(255,255,255,0.03)', borderRadius: '6px', border: '1px solid var(--border-subtle)', cursor: 'pointer' }}>
                    <input 
                      type="checkbox" 
-                     checked={assignedProjectIds.includes(p.id)}
-                     onChange={() => handleToggleAssignProject(p.id)}
+                     checked={assignedProjectIds.includes(cp.id)}
+                     onChange={() => handleToggleAssignProject(cp.id)}
                    />
-                   <span style={{ fontSize: '0.85rem' }}>{p.name}</span>
+                   <span style={{ fontSize: '0.85rem' }}>{cp.name}</span>
                  </label>
                ))}
             </div>

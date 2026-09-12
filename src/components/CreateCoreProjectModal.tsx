@@ -20,6 +20,7 @@ export const CreateCoreProjectModal: React.FC<CreateCoreProjectModalProps> = ({
   const [description, setDescription] = useState('');
   const [qaLeadId, setQaLeadId] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
 
   if (!isOpen) return null;
 
@@ -28,6 +29,15 @@ export const CreateCoreProjectModal: React.FC<CreateCoreProjectModalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !qaLeadId) return;
+
+    setErrorMsg('');
+    const existing = ProjectService.getCoreProjects().find(
+      (cp) => cp.name.toLowerCase() === name.trim().toLowerCase()
+    );
+    if (existing) {
+      setErrorMsg('Duplicated name: A Main Project with this name already exists.');
+      return;
+    }
 
     setIsSubmitting(true);
     try {
@@ -191,6 +201,12 @@ export const CreateCoreProjectModal: React.FC<CreateCoreProjectModalProps> = ({
                 ))}
               </select>
             </div>
+
+            {errorMsg && (
+              <div style={{ color: '#f43f5e', fontSize: '0.85rem', marginTop: '10px', padding: '10px', background: 'rgba(244,63,94,0.1)', borderRadius: '6px' }}>
+                {errorMsg}
+              </div>
+            )}
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '10px' }}>
               <button

@@ -57,11 +57,16 @@ async function usersHandler(req, res) {
           };
         });
         
-        // Merge avoiding duplicates by ID, but update status if pending
+        // Merge avoiding duplicates by ID, but update status and name if pending
         const existingMap = new Map(data.map(u => [u.id, u]));
         for (const pu of profileUsers) {
           if (existingMap.has(pu.id)) {
             const existing = existingMap.get(pu.id);
+            // Always take the most recent name from telegram
+            if (pu.name) {
+              existing.name = pu.name;
+              existing.full_name = pu.full_name;
+            }
             if (pu.status === 'Pending Assignment') {
               existing.status = 'Pending Assignment';
               existing.role = pu.role;

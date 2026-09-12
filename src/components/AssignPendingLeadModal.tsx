@@ -33,6 +33,13 @@ export const AssignPendingLeadModal: React.FC<AssignPendingLeadModalProps> = ({ 
         setErrorMsg('Please provide a name for the new Main Project.');
         return;
       }
+      const existing = coreProjects.find(
+        (cp) => cp.name.toLowerCase() === newProjectName.trim().toLowerCase()
+      );
+      if (existing) {
+        setErrorMsg('Duplicated name: A Main Project with this name already exists.');
+        return;
+      }
       finalProjectName = newProjectName.trim();
     } else {
       if (!selectedCoreProjectId) {
