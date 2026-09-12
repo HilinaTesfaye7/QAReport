@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
-import { requireAuth, supabase } from './utils/auth.js';
+import { requireAuth, supabase } from './_utils/auth.js';
 
-import { getMockProjects } from './utils/db.js';
+import { getMockProjects } from './_utils/db.js';
 
 // Vercel Serverless Function: /api/projects
 async function projectsHandler(req, res) {

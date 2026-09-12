@@ -1,5 +1,5 @@
-import { requireAuth, supabase } from './utils/auth.js';
-import { getMockTestCases, getMockProjects } from './utils/db.js';
+import { requireAuth, supabase } from './_utils/auth.js';
+import { getMockTestCases, getMockProjects } from './_utils/db.js';
 
 async function testCasesHandler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');

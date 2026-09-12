@@ -1,5 +1,5 @@
-import { requireAuth, supabase } from './utils/auth.js';
-import { getMockProjects } from './utils/db.js';
+import { requireAuth, supabase } from './_utils/auth.js';
+import { getMockProjects } from './_utils/db.js';
 
 // Minimal mock for daily reports if needed
 const INITIAL_DAILY_REPORTS = [];

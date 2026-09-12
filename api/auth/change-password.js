@@ -1,6 +1,6 @@
 import bcrypt from 'bcryptjs';
-import { requireAuth, supabase, generateToken, serialize } from '../utils/auth.js';
-import { mockUsers } from '../utils/mockUsers.js';
+import { requireAuth, supabase, generateToken, serialize } from '../_utils/auth.js';
+import { mockUsers } from '../_utils/mockUsers.js';
 
 async function changePasswordHandler(req, res) {
   if (req.method !== 'POST') {

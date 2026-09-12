@@ -1,5 +1,5 @@
-import { requireAuth, supabase } from '../utils/auth.js';
-import { mockUsers } from '../utils/mockUsers.js';
+import { requireAuth, supabase } from '../_utils/auth.js';
+import { mockUsers } from '../_utils/mockUsers.js';
 
 async function meHandler(req, res) {
   if (req.method !== 'GET') {

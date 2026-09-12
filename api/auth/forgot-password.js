@@ -1,6 +1,6 @@
 import crypto from 'crypto';
-import { supabase } from '../utils/auth.js';
-import { getMockUsers } from '../utils/db.js';
+import { supabase } from '../_utils/auth.js';
+import { getMockUsers } from '../_utils/db.js';
 
 // In-memory token store for mock environment (would be in DB for production)
 // Structure: { [username]: { tokenHash, expiresAt } }

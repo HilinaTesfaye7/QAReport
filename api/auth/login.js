@@ -1,6 +1,6 @@
 import bcrypt from 'bcryptjs';
-import { supabase, generateToken, serialize } from '../utils/auth.js';
-import { mockUsers } from '../utils/mockUsers.js';
+import { supabase, generateToken, serialize } from '../_utils/auth.js';
+import { mockUsers } from '../_utils/mockUsers.js';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
