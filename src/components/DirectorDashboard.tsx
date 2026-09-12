@@ -598,11 +598,11 @@ export const DirectorDashboard: React.FC<DirectorDashboardProps> = ({
 
       {selectedCoreProjectForLeadChange && (
         <ChangeLeadModal
-          isOpen={true}
           onClose={() => setSelectedCoreProjectForLeadChange(null)}
           currentLead={users.find(u => u.id === coreProjects.find(cp => cp.id === selectedCoreProjectForLeadChange)?.qaLeadId) || users[0]}
-          users={users}
-          onReassign={(newLeadId) => {
+          allLeads={users}
+          projects={projects.filter(p => p.coreProjectId === selectedCoreProjectForLeadChange)}
+          onConfirm={(newLeadId) => {
             ProjectService.updateCoreProject(selectedCoreProjectForLeadChange, { qaLeadId: newLeadId });
             refreshCoreProjects();
             setSelectedCoreProjectForLeadChange(null);
