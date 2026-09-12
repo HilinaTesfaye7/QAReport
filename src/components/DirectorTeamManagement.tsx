@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { User, Project, MemberWorkload, Blocker } from '../types';
+import { User, Project, MemberWorkload, Blocker, CoreProject } from '../types';
 import { StorageService } from '../services/storage';
+import { ProjectService } from '../services/projectService';
 import { WorkloadService } from '../services/workloadService';
 import { Users, Plus, Edit, Shield, FolderKanban, Trash2 } from 'lucide-react';
 import { NotificationService } from '../services/notificationService';
