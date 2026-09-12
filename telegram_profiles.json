@@ -1,1 +1,13 @@
-[]
+{
+  "12345": {
+    "fullName": "Sewi jsjs",
+    "role": "QA Lead",
+    "projectId": "",
+    "projectName": "",
+    "assignedProjectIds": [],
+    "assignedProjects": [],
+    "telegramUsername": "testuser",
+    "chatId": "12345",
+    "updatedAt": "2026-09-12T16:20:38.448Z"
+  }
+}
