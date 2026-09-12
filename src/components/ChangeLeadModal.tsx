@@ -14,7 +14,7 @@ export const ChangeLeadModal: React.FC<ChangeLeadModalProps> = ({ currentLead, a
   const [selectedLead, setSelectedLead] = useState<string>('');
   const [confirmStep, setConfirmStep] = useState(false);
 
-  const availableLeads = allLeads.filter(l => l.id !== currentLead.id && l.role === 'QA Lead' && l.isActive);
+  const availableLeads = allLeads.filter(l => l.id !== currentLead.id && l.role === 'QA Lead' && l.isActive !== false);
   const leadProjects = projects.filter(p => p.qaLeadId === currentLead.id);
 
   const handleNext = () => {

@@ -29,7 +29,7 @@ export const DeleteLeadModal: React.FC<DeleteLeadModalProps> = ({ leadToDelete, 
 
     // 2. Fetch all other Active QA Leads to allow reassignment
     const allUsers = StorageService.getUsers();
-    const leads = allUsers.filter(u => u.role === 'QA Lead' && u.isActive && u.id !== leadToDelete.id);
+    const leads = allUsers.filter(u => u.role === 'QA Lead' && u.isActive !== false && u.id !== leadToDelete.id);
     setActiveLeads(leads);
   }, [leadToDelete]);
 
