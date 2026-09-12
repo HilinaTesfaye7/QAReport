@@ -99,10 +99,14 @@ export const StorageService = {
           const users = await res.json();
           if (Array.isArray(users)) {
             const activeUsers = users.filter((u: any) => {
+              if (deletedIds.has(u.id)) return false;
               if (u.status === 'Pending Assignment') return true;
-              if (u.is_active === true) return true;
-              return !deletedIds.has(u.id);
-            });
+              return u.is_active === true || u.isActive === true;
+            }).map((u: any) => ({
+              ...u,
+              isActive: u.is_active !== undefined ? u.is_active : u.isActive,
+              name: u.name || u.full_name || u.username
+            }));
             localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(activeUsers));
             emitChange(STORAGE_KEYS.USERS);
             return activeUsers;
