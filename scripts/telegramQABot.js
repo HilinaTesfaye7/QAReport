@@ -1173,23 +1173,76 @@ async function handleOnboardingStep(chatId, user, text) {
       userSessions.delete(chatId);
 
       const isLead = isQALead(profile);
-      const leadNote = isLead
-        ? `\n\n👑 <b>QA Lead Privileges:</b> You have access to team rollups, blocker alerts, <code>/status</code>, <code>/team</code>, and <code>/risks</code>.`
-        : ``;
+      const isAutomation = profile.role === 'Automation QA Engineer';
 
-      await sendMessage(
-        chatId,
-        `🎉 <b>QA Profile Configured Successfully!</b>\n\n` +
-        `👤 <b>Name:</b> <b>${escapeHtml(profile.fullName)}</b>\n` +
-        `🏷 <b>Role:</b> <b>${escapeHtml(profile.role)}</b>${leadNote}\n\n` +
-        `✨ You are all set! Whenever you check in, submit test cases, or log blockers, you will simply select the project you are working on.\n\n` +
-        `💡 <b>Quick Commands:</b>\n` +
-        `• <code>/checkin</code> — Choose project & submit daily standup check-in\n` +
-        `• <code>/testcase</code> — Choose project & submit test cases link\n` +
-        `• <code>/blocker</code> — Choose project & report an urgent blocker\n` +
-        `• <code>/project</code> — View or switch your active project\n` +
-        `• <code>/profile</code> — View your QA profile details`
-      );
+      if (isLead || isAutomation) {
+        // Generate Username + Temporary Password + Portal Link
+        const nameParts = profile.fullName.trim().split(' ');
+        const firstName = nameParts[0].toLowerCase();
+        const rolePrefix = isLead ? 'lead' : 'auto';
+        let username = `${firstName}.${rolePrefix}`;
+        
+        // Check uniqueness locally
+        let counter = 1;
+        while (DB.users.some(u => u.username === username)) {
+          username = `${firstName}.${rolePrefix}${counter}`;
+          counter++;
+        }
+
+        const tempPassword = 'Temp123!';
+        let passwordHash = tempPassword;
+        try {
+          const bcrypt = (await import('bcryptjs')).default;
+          passwordHash = await bcrypt.hash(tempPassword, 10);
+        } catch (e) {
+          console.warn('Could not hash password, using plain text as fallback (not recommended)');
+        }
+
+        const newUser = {
+          id: `usr-${chatId}`,
+          full_name: profile.fullName,
+          username: username,
+          password_hash: passwordHash,
+          role: profile.role,
+          is_active: true,
+          must_change_password: true,
+          telegram_chat_id: String(chatId),
+          created_at: new Date().toISOString()
+        };
+
+        DB.users.push(newUser);
+        saveDB();
+
+        if (supabase) {
+          await supabase.from('users').upsert(newUser, { onConflict: 'id' }).catch(() => {});
+        }
+
+        await sendMessage(
+          chatId,
+          `🎉 <b>Profile Configured Successfully!</b>\n\n` +
+          `You have been registered as a <b>${escapeHtml(profile.role)}</b>.\n\n` +
+          `Here are your AegisQA Portal credentials:\n` +
+          `👤 <b>Username:</b> <code>${username}</code>\n` +
+          `🔑 <b>Password:</b> <code>${tempPassword}</code>\n\n` +
+          `🌐 <b>Login here:</b> https://qa-report-nu.vercel.app/\n\n` +
+          `<i>Note: You will be forced to change this temporary password on your first login for security reasons.</i>`
+        );
+      } else {
+        // QA Tester
+        await sendMessage(
+          chatId,
+          `🎉 <b>QA Profile Configured Successfully!</b>\n\n` +
+          `👤 <b>Name:</b> <b>${escapeHtml(profile.fullName)}</b>\n` +
+          `🏷 <b>Role:</b> <b>${escapeHtml(profile.role)}</b>\n\n` +
+          `You are currently a QA Tester. Please wait for your QA Lead to assign you to a project and module from the Portal.\n\n` +
+          `Once assigned, you will receive a notification here with your project details and PRD/Figma links.\n\n` +
+          `💡 <b>Quick Commands (After Assignment):</b>\n` +
+          `• <code>/checkin</code> — Submit daily standup check-in\n` +
+          `• <code>/testcase</code> — Submit test cases link\n` +
+          `• <code>/blocker</code> — Report an urgent blocker\n` +
+          `• <code>/profile</code> — View your QA profile details`
+        );
+      }
 
       if (shouldCheckin && !isLead) {
         await startCheckin(chatId, user);
