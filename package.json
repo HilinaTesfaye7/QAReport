@@ -9,7 +9,6 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "lint": "oxlint",
     "test": "vite-node tests/qaEngine.test.js",
     "preview": "vite preview",
     "start": "node scripts/telegramQABot.js",
@@ -31,7 +30,6 @@
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "@vitejs/plugin-react": "^4.3.4",
-    "oxlint": "^1.79.0",
     "typescript": "~5.7.2",
     "vite": "^6.2.0",
     "vite-node": "^6.0.0"
