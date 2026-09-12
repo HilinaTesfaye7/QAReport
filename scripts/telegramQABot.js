@@ -1182,12 +1182,8 @@ async function handleOnboardingStep(chatId, user, text) {
         const rolePrefix = isLead ? 'lead' : 'auto';
         let username = `${firstName}.${rolePrefix}`;
         
-        // Check uniqueness locally
-        let counter = 1;
-        while (DB.users.some(u => u.username === username)) {
-          username = `${firstName}.${rolePrefix}${counter}`;
-          counter++;
-        }
+        // Ensure uniqueness using a timestamp if supabase is not available
+        username = `${firstName}.${rolePrefix}${Math.floor(Date.now() / 1000).toString().slice(-4)}`;
 
         const tempPassword = 'Temp123!';
         let passwordHash = tempPassword;
@@ -1209,9 +1205,6 @@ async function handleOnboardingStep(chatId, user, text) {
           telegram_chat_id: String(chatId),
           created_at: new Date().toISOString()
         };
-
-        DB.users.push(newUser);
-        saveDB();
 
         if (supabase) {
           await supabase.from('users').upsert(newUser, { onConflict: 'id' }).catch(() => {});
@@ -3438,15 +3431,11 @@ async function handleMessage(message) {
     }
     
     // Also remove from local in-memory DB if applicable
-    const profileIdx = DB.telegram_profiles.findIndex(p => p.chat_id === String(chatId));
-    if (profileIdx !== -1) {
-      DB.telegram_profiles.splice(profileIdx, 1);
-      saveDB();
-    }
-    const userIdx = DB.users.findIndex(u => u.telegram_chat_id === String(chatId));
-    if (userIdx !== -1) {
-      DB.users.splice(userIdx, 1);
-      saveDB();
+    const profiles = loadProfiles();
+    if (profiles[String(chatId)]) {
+      delete profiles[String(chatId)];
+      fs.writeFileSync(PROFILES_FILE, JSON.stringify(profiles, null, 2), 'utf8');
+      fs.writeFileSync(PUBLIC_PROFILES_FILE, JSON.stringify(profiles, null, 2), 'utf8');
     }
 
     await sendMessage(
