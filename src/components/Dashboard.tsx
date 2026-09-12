@@ -113,21 +113,30 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const activeProjects = projects.filter((p) => p.status === 'Testing' || p.status === 'Active' || p.status === 'UAT');
   const activeProjectsCount = activeProjects.length;
 
-  const filteredTasks = tasks.filter((t) => selectedProjectFilter === 'all' || t.projectId === selectedProjectFilter);
+  const authorizedProjectIds = new Set(projects.map((p) => p.id));
+
+  // Base filtering by authorized projects
+  const authTasks = tasks.filter((t) => authorizedProjectIds.has(t.projectId));
+  const authBugs = bugs.filter((b) => authorizedProjectIds.has(b.projectId));
+  const authBlockers = blockers.filter((b) => b.projectId && authorizedProjectIds.has(b.projectId));
+  const authReports = reports.filter((r) => r.projectId && authorizedProjectIds.has(r.projectId));
+  const authTestCases = testCases.filter((tc) => authorizedProjectIds.has(tc.projectId));
+
+  const filteredTasks = authTasks.filter((t) => selectedProjectFilter === 'all' || t.projectId === selectedProjectFilter);
   const inProgressTasksCount = filteredTasks.filter((t) => t.status === 'In Progress').length;
   const blockedTasksCount = filteredTasks.filter((t) => t.status === 'Blocked').length;
 
-  const filteredBugs = bugs.filter((b) => selectedProjectFilter === 'all' || b.projectId === selectedProjectFilter);
+  const filteredBugs = authBugs.filter((b) => selectedProjectFilter === 'all' || b.projectId === selectedProjectFilter);
   const openBugsCount = filteredBugs.filter((b) => b.status !== 'Closed').length;
   const highCriticalBugsCount = filteredBugs.filter(
     (b) => (b.severity === 'Critical' || b.severity === 'High') && b.status !== 'Closed'
   ).length;
 
-  const filteredBlockers = blockers.filter((b) => selectedProjectFilter === 'all' || b.projectId === selectedProjectFilter);
+  const filteredBlockers = authBlockers.filter((b) => selectedProjectFilter === 'all' || b.projectId === selectedProjectFilter);
   const openBlockers = filteredBlockers.filter((b) => b.status !== 'Resolved');
   const totalBlockedCount = blockedTasksCount + openBlockers.length;
 
-  const filteredTestCases = testCases.filter((tc) => selectedProjectFilter === 'all' || tc.projectId === selectedProjectFilter);
+  const filteredTestCases = authTestCases.filter((tc) => selectedProjectFilter === 'all' || tc.projectId === selectedProjectFilter);
   const passedTestsCount = filteredTestCases.filter((tc) => tc.executionStatus === 'Passed').length;
   const metrics = TestCaseService.getMetrics();
   const passRate = filteredTestCases.length > 0
@@ -140,12 +149,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
     : (projects.length > 0 ? projects[0] : null);
 
   const projProgress = primaryProject?.qaProgress || 0;
-  const projCritBugs = primaryProject ? bugs.filter(
+  const projCritBugs = primaryProject ? authBugs.filter(
     (b) => b.projectId === primaryProject.id &&
       (b.severity === 'Critical' || b.severity === 'High') &&
       b.status !== 'Closed'
   ).length : 0;
-  const projBlockers = primaryProject ? blockers.filter(
+  const projBlockers = primaryProject ? authBlockers.filter(
     (b) => b.projectId === primaryProject.id && b.status !== 'Resolved'
   ).length : 0;
 
@@ -191,7 +200,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
   // Team Activity Feed combining live standups and reported blockers
   const recentActivities = [
-    ...reports.map((r) => ({
+    ...authReports.map((r) => ({
       id: `rep-${r.id}`,
       name: r.memberName || 'Unassigned',
       action: 'submitted daily standup',
@@ -201,7 +210,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
       timestamp: r.submittedAt,
       avatarBg: '#0284c7',
     })),
-    ...blockers.map((b) => ({
+    ...authBlockers.map((b) => ({
       id: `blk-${b.id}`,
       name: b.reportedBy || 'QA Member',
       action: 'reported blocker',
@@ -243,7 +252,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
         isTask: true,
         onClick: onNavigateToTasks,
       })),
-    ...bugs
+    ...authBugs
       .filter((b) => (b.severity === 'Critical' || b.severity === 'High') && b.status !== 'Closed')
       .map((b) => ({
         id: b.id,
