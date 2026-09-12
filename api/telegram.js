@@ -861,10 +861,11 @@ export default async function handler(req, res) {
           chat_id: String(chatId),
           full_name: defaultName,
           role: chosenRole,
-          project_id: defaultProject.id,
-          project_name: defaultProject.name,
-          assigned_project_ids: [defaultProject.id],
-          assigned_projects: [defaultProject.name],
+          project_id: '',
+          project_name: '',
+          assigned_project_ids: [],
+          assigned_projects: [],
+          status: 'Pending Assignment', // Added status for QA Leads
           telegram_username: fromUser.username ? fromUser.username.replace(/^@/, '') : '',
           updated_at: new Date().toISOString(),
         };
@@ -876,8 +877,11 @@ export default async function handler(req, res) {
           if (chosenRole === 'QA Tester') {
             const waitMsg = `⏳ <b>Registration Pending</b>\n\nYour registration as a QA Tester has been received. Please wait for a QA Lead to assign you to a project. You will receive your login credentials at that time.`;
             await sendTelegramMessage(chatId, waitMsg, BOT_TOKEN);
+          } else if (chosenRole === 'QA Lead') {
+            const waitMsg = `✅ <b>Registration successful!</b>\n\nYour QA Lead account has been created.\n\nPlease wait for the QA Director to assign you to a Main Project. You will receive your AegisQA Portal credentials here once your assignment is completed.`;
+            await sendTelegramMessage(chatId, waitMsg, BOT_TOKEN);
           } else {
-            // Generate a temp web login for Leads and Automation QA Engineers
+            // Generate a temp web login for Automation QA Engineers
             const baseUsername = (fromUser.username || fromUser.first_name || `user_${chatId}`).toLowerCase().replace(/[^a-z0-9]/g, '');
             const tempUsername = `${baseUsername}_${Math.floor(Math.random() * 1000)}`;
             const tempPassword = `Temp${Math.floor(Math.random() * 10000)}!`;

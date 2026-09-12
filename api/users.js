@@ -28,7 +28,8 @@ async function usersHandler(req, res) {
               name: p.full_name,
               username: fn,
               role: p.role || 'QA Tester',
-              is_active: true,
+              is_active: p.status === 'Active',
+              status: p.status || 'Pending Assignment',
               must_change_password: true
             };
           });

@@ -59,6 +59,7 @@ export interface User {
   username: string;
   passwordHash: string;
   isActive: boolean;
+  status?: 'Pending Assignment' | 'Active' | 'Inactive';
   mustChangePassword?: boolean;
   passwordChangedAt?: string;
   lastLoginAt?: string;

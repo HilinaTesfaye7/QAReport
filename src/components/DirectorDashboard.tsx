@@ -14,6 +14,8 @@ import {
 } from 'lucide-react';
 import { User, Project, QATask, QABug, TestCase, Blocker, DailyReport, MemberWorkload, CoreProject } from '../types';
 import { CreateCoreProjectModal } from './CreateCoreProjectModal';
+import { AuditService } from '../services/auditService';
+import { AssignPendingLeadModal } from './AssignPendingLeadModal';
 
 interface DirectorDashboardProps {
   currentUser: User;
@@ -50,6 +52,7 @@ export const DirectorDashboard: React.FC<DirectorDashboardProps> = ({
   const [selectedCoreProjectForLeadChange, setSelectedCoreProjectForLeadChange] = useState<string | null>(null);
   const [isCreateCoreOpen, setIsCreateCoreOpen] = useState(false);
   const [coreProjects, setCoreProjects] = useState<CoreProject[]>([]);
+  const [selectedPendingLead, setSelectedPendingLead] = useState<User | null>(null);
 
   React.useEffect(() => {
     // We get authorized projects to ensure defaults are initialized, then fetch core projects
@@ -66,6 +69,7 @@ export const DirectorDashboard: React.FC<DirectorDashboardProps> = ({
   const qaLeads = users.filter((u) => u.role === 'QA Lead').length;
   const qaTesters = users.filter((u) => u.role === 'QA Tester').length;
   const autoEngineers = users.filter((u) => u.role === 'Automation QA Engineer').length;
+  const pendingLeads = users.filter((u) => u.role === 'QA Lead' && u.status === 'Pending Assignment');
 
   const activeProjects = projects.filter((p) => p.status === 'Testing' || p.status === 'Active' || p.status === 'UAT');
   const blockedProjects = projects.filter((p) => blockers.some((b) => b.projectId === p.id && b.status !== 'Resolved')).length;
@@ -180,6 +184,42 @@ export const DirectorDashboard: React.FC<DirectorDashboardProps> = ({
           </div>
         ))}
       </div>
+
+      {pendingLeads.length > 0 && (
+        <div style={{ ...cardStyle, marginBottom: '24px', border: '1px solid rgba(245, 158, 11, 0.3)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <div>
+              <h2 style={{ fontSize: '1.25rem', fontWeight: 700, margin: '0 0 4px 0', color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                Pending QA Leads
+              </h2>
+              <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                These leads registered via Telegram and are waiting to be assigned to a Main Project.
+              </p>
+            </div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px' }}>
+            {pendingLeads.map(lead => (
+              <div key={lead.id} style={{ background: 'rgba(255,255,255,0.03)', padding: '16px', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'rgba(245, 158, 11, 0.2)', color: '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
+                    {lead.name.charAt(0)}
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{lead.name}</div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>@{lead.telegramUsername || 'unknown'}</div>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setSelectedPendingLead(lead)}
+                  style={{ padding: '6px 12px', background: '#f59e0b', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}
+                >
+                  Assign Project
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '24px', marginBottom: '24px' }}>
         {/* QA Team Workload */}
@@ -486,6 +526,18 @@ export const DirectorDashboard: React.FC<DirectorDashboardProps> = ({
         users={users}
         onProjectCreated={refreshCoreProjects}
       />
+      {selectedPendingLead && (
+        <AssignPendingLeadModal
+          pendingLead={selectedPendingLead}
+          onClose={() => setSelectedPendingLead(null)}
+          onAssigned={() => {
+            // Re-fetch users or trigger a refresh in parent
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('aegis_storage_change', { detail: { key: 'ALL' } }));
+            }
+          }}
+        />
+      )}
     </div>
   );
 };
