@@ -479,4 +479,5 @@ export interface AppNotification {
   createdAt: string;
   actionUrl?: string;
   payload?: Record<string, any>;
+  skipTelegram?: boolean;
 }

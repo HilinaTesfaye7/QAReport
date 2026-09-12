@@ -28,6 +28,7 @@ export class TelegramProvider implements NotificationProvider {
   async send(notification: AppNotification): Promise<boolean> {
     const config = StorageService.getChannelsConfig();
     if (!config.telegram?.enabled) return false;
+    if (notification.skipTelegram) return false;
 
     // 1. Robust Target Chat ID Resolution
     let targetChatId: string | undefined;
@@ -219,8 +220,11 @@ class NotificationServiceManager {
     this.dispatch({
       type: 'assignment',
       title: 'Main Project Assignment',
-      message: message,
+      message,
       recipientId: newLeadId,
+      createdAt: new Date().toISOString(),
+      read: false,
+      skipTelegram: true,
     });
   }
 
