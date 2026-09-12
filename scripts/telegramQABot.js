@@ -1207,7 +1207,11 @@ async function handleOnboardingStep(chatId, user, text) {
         };
 
         if (supabase) {
-          await supabase.from('users').upsert(newUser, { onConflict: 'id' }).catch(() => {});
+          try {
+            await supabase.from('users').upsert(newUser, { onConflict: 'id' });
+          } catch (e) {
+            console.error('Failed to upsert user to Supabase:', e.message);
+          }
         }
 
         await sendMessage(
@@ -4888,6 +4892,9 @@ if (isDirectRun) {
 }
 
 export {
+  handleMessage,
+  userSessions,
+
   isQALead,
   parseBugCounts,
   fetchDailyReports,

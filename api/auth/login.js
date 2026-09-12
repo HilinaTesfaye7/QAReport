@@ -32,7 +32,32 @@ export default async function handler(req, res) {
       users = mockUsers.filter(u => u.username === username);
     }
 
-    const user = users && users.length > 0 ? users[0] : null;
+    let user = users && users.length > 0 ? users[0] : null;
+
+    if (!user) {
+      // Check telegram profiles as a fallback since the users table might not exist
+      const { data: profiles, error: profError } = await supabase.from('telegram_profiles').select('*');
+      if (!profError && profiles && profiles.length > 0) {
+        // Try to match the username (e.g., 'sewi') to the first name of a profile
+        const matchingProfile = profiles.find(p => {
+          const fn = p.full_name ? p.full_name.trim().split(' ')[0].toLowerCase() : '';
+          return fn === username.toLowerCase();
+        });
+
+        if (matchingProfile) {
+          // Virtual user for telegram profile
+          user = {
+            id: `usr-${matchingProfile.chat_id}`,
+            full_name: matchingProfile.full_name,
+            username: username,
+            password_hash: await bcrypt.hash('Temp123!', 10), // Treat Temp123! as their password always
+            role: matchingProfile.role || 'QA Tester',
+            is_active: true,
+            must_change_password: true
+          };
+        }
+      }
+    }
 
     if (!user) {
       return res.status(401).json({ error: 'Invalid username or password' });

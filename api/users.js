@@ -17,6 +17,30 @@ async function usersHandler(req, res) {
         data = supabaseData;
       } else {
         data = getMockUsers();
+        // Fallback: load telegram profiles and merge them in
+        const { data: profiles, error: profError } = await supabase.from('telegram_profiles').select('*');
+        if (!profError && profiles && profiles.length > 0) {
+          const profileUsers = profiles.map(p => {
+            const fn = p.full_name ? p.full_name.trim().split(' ')[0].toLowerCase() : '';
+            return {
+              id: `usr-${p.chat_id}`,
+              full_name: p.full_name,
+              name: p.full_name,
+              username: fn,
+              role: p.role || 'QA Tester',
+              is_active: true,
+              must_change_password: true
+            };
+          });
+          
+          // Merge avoiding duplicates by ID
+          const existingIds = new Set(data.map(u => u.id));
+          for (const pu of profileUsers) {
+            if (!existingIds.has(pu.id)) {
+              data.push(pu);
+            }
+          }
+        }
       }
 
       // Remove sensitive fields (password_hash) and map full_name to name
