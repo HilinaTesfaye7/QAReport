@@ -60,6 +60,8 @@ export const App: React.FC = () => {
         StorageService.syncTestCasesWithCloud();
         StorageService.syncDailyReportsWithCloud();
         StorageService.syncBlockersWithCloud();
+      } else {
+        setCurrentUser(null);
       }
       setIsInitializing(false);
     };

@@ -17,6 +17,11 @@ export const ChangePassword: React.FC<ChangePasswordProps> = ({ user, onPassword
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
+  const handleLogout = async () => {
+    await AuthService.logout();
+    window.location.reload();
+  };
+
   const validatePassword = (pwd: string) => {
     if (pwd.length < 8) return 'Password must be at least 8 characters.';
     if (!/[A-Z]/.test(pwd)) return 'Password must contain at least one uppercase letter.';
@@ -147,14 +152,28 @@ export const ChangePassword: React.FC<ChangePasswordProps> = ({ user, onPassword
 
           <button
             type="submit"
-            disabled={isLoading}
+            disabled={isLoading || !currentPassword || !newPassword || !confirmPassword}
             style={{
-              width: '100%', padding: '14px', background: 'linear-gradient(135deg, #f59e0b, #d97706)',
-              color: '#fff', border: 'none', borderRadius: '8px', fontSize: '0.95rem', fontWeight: 600,
-              cursor: isLoading ? 'not-allowed' : 'pointer', transition: 'opacity 0.2s',
+              width: '100%', padding: '14px', background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
+              color: '#fff', border: 'none', borderRadius: '8px', fontSize: '1rem',
+              fontWeight: 600, cursor: (isLoading || !currentPassword || !newPassword || !confirmPassword) ? 'not-allowed' : 'pointer',
+              opacity: (isLoading || !currentPassword || !newPassword || !confirmPassword) ? 0.7 : 1, transition: 'all 0.2s',
+              marginBottom: '16px'
             }}
           >
-            {isLoading ? 'Updating...' : 'Change Password'}
+            {isLoading ? 'Updating...' : 'Change Password & Login'}
+          </button>
+          
+          <button
+            type="button"
+            onClick={handleLogout}
+            style={{
+              width: '100%', padding: '14px', background: 'transparent',
+              color: 'var(--text-secondary)', border: '1px solid var(--border-color)', borderRadius: '8px', fontSize: '0.9rem',
+              fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s'
+            }}
+          >
+            Switch Account / Logout
           </button>
         </form>
       </div>
