@@ -3374,6 +3374,35 @@ async function handleMessage(message) {
     }
   }
 
+  // Handle /reset
+  if (text === '/reset' || text === 'reset') {
+    userSessions.delete(chatId);
+    
+    // Wipe profile from DBs
+    if (supabase) {
+      await supabase.from('telegram_profiles').delete().eq('chat_id', String(chatId));
+      await supabase.from('users').delete().eq('telegram_chat_id', String(chatId));
+    }
+    
+    // Also remove from local in-memory DB if applicable
+    const profileIdx = DB.telegram_profiles.findIndex(p => p.chat_id === String(chatId));
+    if (profileIdx !== -1) {
+      DB.telegram_profiles.splice(profileIdx, 1);
+      saveDB();
+    }
+    const userIdx = DB.users.findIndex(u => u.telegram_chat_id === String(chatId));
+    if (userIdx !== -1) {
+      DB.users.splice(userIdx, 1);
+      saveDB();
+    }
+
+    await sendMessage(
+      chatId,
+      `🔄 <b>Profile Reset Successful</b>\n\nYour profile has been wiped. Type /start to register again.`
+    );
+    return;
+  }
+
   // Handle /start, start, /help, help, /menu, menu
   if (
     text === '/start' ||
