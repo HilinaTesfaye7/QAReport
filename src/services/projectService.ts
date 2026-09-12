@@ -355,6 +355,12 @@ export const ProjectService = {
     };
     coreProjects.unshift(newCore);
     StorageService.saveCoreProjects(coreProjects);
+
+    // Notify the newly assigned lead
+    if (newCore.qaLeadId) {
+      NotificationService.notifyCoreProjectLeadAssignment(newCore.name, newCore.qaLeadId);
+    }
+
     return newCore;
   },
 
@@ -370,9 +376,16 @@ export const ProjectService = {
        throw new Error('Unauthorized to update this Main Project');
     }
 
+    const oldLeadId = coreProjects[idx].qaLeadId;
     const updated = { ...coreProjects[idx], ...updates, updatedAt: new Date().toISOString() };
     coreProjects[idx] = updated;
     StorageService.saveCoreProjects(coreProjects);
+
+    // If QA Lead was changed, notify the new lead
+    if (updates.qaLeadId && updates.qaLeadId !== oldLeadId) {
+       NotificationService.notifyCoreProjectLeadAssignment(updated.name, updates.qaLeadId);
+    }
+
     return updated;
   },
 

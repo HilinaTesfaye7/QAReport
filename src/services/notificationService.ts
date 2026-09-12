@@ -211,6 +211,19 @@ class NotificationServiceManager {
   }
 
   // Specialized triggers required by prompt
+  notifyCoreProjectLeadAssignment(coreProjectName: string, newLeadId: string) {
+    const message = `🎉 You have been assigned as the QA Lead for the Main Project: **${coreProjectName}**!\n\n` +
+      `As the QA Lead, you are responsible for managing all subprojects, modules, and testing activities within this Main Project.\n` +
+      `Please review the project details in the command center.`;
+
+    this.dispatch({
+      type: 'assignment',
+      title: 'Main Project Assignment',
+      message: message,
+      recipientId: newLeadId,
+    });
+  }
+
   notifyProjectAssignment(
     project: Project,
     memberId: string,
