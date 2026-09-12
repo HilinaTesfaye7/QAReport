@@ -205,10 +205,10 @@ async function usersHandler(req, res) {
       // 1. Deactivate in users table
       await supabase.from('users').update({ is_active: false }).eq('id', String(id));
 
-      // 2. If it is a telegram-linked user (usr-<chatId>), deactivate in telegram_profiles
+      // 2. If it is a telegram-linked user (usr-<chatId>), remove from telegram_profiles
       if (String(id).startsWith('usr-')) {
         const chatId = String(id).replace('usr-', '');
-        await supabase.from('telegram_profiles').update({ status: 'Inactive' }).eq('chat_id', chatId);
+        await supabase.from('telegram_profiles').delete().eq('chat_id', chatId);
       }
 
       return res.status(200).json({ success: true, message: 'User deactivated successfully' });
