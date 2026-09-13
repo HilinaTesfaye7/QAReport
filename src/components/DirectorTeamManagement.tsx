@@ -47,7 +47,7 @@ export const DirectorTeamManagement: React.FC<DirectorTeamManagementProps> = ({ 
     return () => window.removeEventListener('aegis_storage_change', loadData);
   }, []);
 
-  const qaLeads = users.filter(u => u.role === 'QA Lead' && u.isActive !== false);
+  const qaLeads = users.filter(u => u.role === 'QA Lead');
 
   const handleAddLead = async (e: React.FormEvent) => {
     e.preventDefault();

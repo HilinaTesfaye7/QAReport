@@ -454,66 +454,7 @@ export const DirectorDashboard: React.FC<DirectorDashboardProps> = ({
         )}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
-        {/* G. Team Activity */}
-        <div style={cardStyle}>
-          <h2 style={{ fontSize: '1.1rem', margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <CheckCircle2 size={18} color="#38bdf8" /> Daily Reporting Compliance
-          </h2>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
-            <div style={{ flex: 1, textAlign: 'center' }}>
-              <div style={{ fontSize: '2rem', fontWeight: 800, color: '#10b981' }}>{reporters.size}</div>
-              <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Submitted Today</div>
-            </div>
-            <div style={{ flex: 1, textAlign: 'center', borderLeft: '1px solid var(--border-color)' }}>
-              <div style={{ fontSize: '2rem', fontWeight: 800, color: missingReports.length > 0 ? '#f43f5e' : '#10b981' }}>{missingReports.length}</div>
-              <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Missing</div>
-            </div>
-          </div>
-          {missingReports.length > 0 && (
-            <div style={{ background: 'rgba(244,63,94,0.05)', padding: '12px', borderRadius: '8px' }}>
-              <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#f43f5e', marginBottom: '8px', textTransform: 'uppercase' }}>Teams Missing Updates</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                {missingReports.map(u => (
-                  <span key={u.id} style={{ fontSize: '0.75rem', padding: '2px 8px', borderRadius: '12px', background: 'rgba(255,255,255,0.1)' }}>
-                    {u.name} ({u.role})
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
 
-        {/* H. Automation Overview */}
-        <div style={cardStyle}>
-          <h2 style={{ fontSize: '1.1rem', margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Zap size={18} color="#a855f7" /> Automation Overview
-          </h2>
-          {testCases.length === 0 ? (
-            <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-secondary)' }}>No automation data available.</div>
-          ) : (
-            <>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '24px' }}>
-                <div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Coverage</div>
-                  <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#a855f7' }}>{autoCoverage}%</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Pass Rate</div>
-                  <div style={{ fontSize: '1.5rem', fontWeight: 800, color: autoPassRate >= 95 ? '#10b981' : '#f59e0b' }}>{autoPassRate}%</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Failed</div>
-                  <div style={{ fontSize: '1.5rem', fontWeight: 800, color: autoFailed > 0 ? '#f43f5e' : '#10b981' }}>{autoFailed}</div>
-                </div>
-              </div>
-              <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                {autoTestCases.length} automated tests out of {testCases.length} total test cases.
-              </div>
-            </>
-          )}
-        </div>
-      </div>
 
       {selectedLeadForChange && (
         <ChangeLeadModal
