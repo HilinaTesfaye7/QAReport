@@ -117,10 +117,9 @@ async function usersHandler(req, res) {
 
         const profile = profiles[0];
 
-        const baseUsername = (profile.telegram_username || profile.full_name || `lead_${telegramChatId}`)
-          .toLowerCase().replace(/[^a-z0-9]/g, '');
-        const tempUsername = `${baseUsername}.lead${Math.floor(Math.random() * 1000)}`;
-        const tempPassword = `Aegis${Math.floor(Math.random() * 10000)}!`;
+        const fn = profile.full_name ? profile.full_name.trim().split(' ')[0].toLowerCase() : `lead_${telegramChatId}`;
+        const tempUsername = fn;
+        const tempPassword = 'Temp123!';
 
         const bcrypt = await import('bcryptjs');
         const password_hash = await bcrypt.default.hash(tempPassword, 10);

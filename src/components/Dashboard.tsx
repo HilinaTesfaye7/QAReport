@@ -93,8 +93,13 @@ export const Dashboard: React.FC<DashboardProps> = ({
     const pollInterval = setInterval(() => {
       reloadData();
     }, 5000);
+
+    const handleStorage = () => reloadData();
+    window.addEventListener('aegis_storage_change', handleStorage);
+
     return () => {
       clearInterval(pollInterval);
+      window.removeEventListener('aegis_storage_change', handleStorage);
     };
   }, []);
 
