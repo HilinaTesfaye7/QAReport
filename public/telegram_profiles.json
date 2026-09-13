@@ -9,5 +9,16 @@
     "telegramUsername": "testuser",
     "chatId": "12345",
     "updatedAt": "2026-09-12T16:20:38.448Z"
+  },
+  "7527336375": {
+    "fullName": "Gul hsk",
+    "role": "QA Lead",
+    "projectId": "core-teletv",
+    "projectName": "teletv",
+    "assignedProjectIds": [],
+    "assignedProjects": [],
+    "telegramUsername": "Tesfyyy",
+    "chatId": "7527336375",
+    "updatedAt": "2026-09-13T11:38:59.235+00:00"
   }
 }

@@ -118,21 +118,56 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
 
   const toggleMember = (memberId: string) => {
     setSelectedMemberIds((prev) => {
-      const updated = prev.includes(memberId) ? prev.filter((id) => id !== memberId) : [...prev, memberId];
+      const isCurrentlySelected = prev.includes(memberId);
+      const updated = isCurrentlySelected ? prev.filter((id) => id !== memberId) : [...prev, memberId];
       if (updated.length > 0) {
         setMemberValidationError(null);
       }
+      
+      // If newly selected, assign to all modules by default
+      if (!isCurrentlySelected) {
+        setModuleAllocations(prevAlloc => ({
+          ...prevAlloc,
+          [memberId]: modules.filter(m => m.name.trim()).map(m => m.name.trim())
+        }));
+      } else {
+        // Clear allocations if deselected
+        setModuleAllocations(prevAlloc => {
+          const nextAlloc = { ...prevAlloc };
+          delete nextAlloc[memberId];
+          return nextAlloc;
+        });
+      }
+      
       return updated;
     });
   };
 
+  const toggleMemberModule = (memberId: string, moduleName: string) => {
+    setModuleAllocations(prev => {
+      const current = prev[memberId] || [];
+      const updated = current.includes(moduleName) 
+        ? current.filter(m => m !== moduleName) 
+        : [...current, moduleName];
+      return { ...prev, [memberId]: updated };
+    });
+  };
+
   const selectAllMembers = () => {
-    setSelectedMemberIds(allUsers.map((u) => u.id));
+    const allIds = allUsers.map((u) => u.id);
+    setSelectedMemberIds(allIds);
     setMemberValidationError(null);
+    
+    // Assign all to all modules
+    const allModuleNames = modules.filter(m => m.name.trim()).map(m => m.name.trim());
+    const newAllocs: Record<string, string[]> = {};
+    allIds.forEach(id => newAllocs[id] = allModuleNames);
+    setModuleAllocations(newAllocs);
   };
 
   const clearAllMembers = () => {
     setSelectedMemberIds([]);
+    setModuleAllocations({});
   };
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -259,7 +294,8 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(allProjs),
-        }).catch(() => {});
+          credentials: 'include',
+        }).catch((err) => {});
       }
 
       // Create modules FIRST so they exist for assignment
@@ -270,26 +306,30 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
       // Explicitly trigger instant assignment notifications for all selected members
       if (selectedMemberIds.length > 0) {
         for (const mId of selectedMemberIds) {
+          // Get specific module assignments for this member
+          const memberModules = moduleAllocations[mId] || [];
+          
           NotificationService.notifyProjectAssignment(
             newProject,
             mId,
             currentUser.id,
             notificationNote,
-            modules.filter(m => m.name.trim() !== '').map(m => m.name),
+            memberModules,
             testCaseDeadline
           );
 
-          // Create module assignments for this member
+          // Create module assignments for this member based on moduleAllocations
           createdModules.forEach(mod => {
-            // Allocate tester equally across all project modules if no specific allocation
-            ProjectService.assignTesterToModule(
-              mod.id,
-              newProject.id,
-              mId,
-              currentUser.id,
-              100, // 100% allocation or custom based on your requirement
-              testCaseDeadline
-            );
+            if (memberModules.includes(mod.name)) {
+              ProjectService.assignTesterToModule(
+                mod.id,
+                newProject.id,
+                mId,
+                currentUser.id,
+                100, // 100% allocation
+                testCaseDeadline
+              );
+            }
           });
 
           // Update assigned project in Supabase telegram_profiles
@@ -1092,47 +1132,70 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                             border: isSelected ? '1.5px solid #38bdf8' : '1px solid var(--border-subtle)',
                             cursor: 'pointer',
                             display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
+                            flexDirection: 'column',
+                            alignItems: 'flex-start',
+                            justifyContent: 'center',
                             transition: 'all 0.15s ease',
                           }}
                         >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                            <img
-                              src={user.avatar}
-                              alt={user.name}
-                              style={{ width: '36px', height: '36px', borderRadius: '50%', border: isSelected ? '2px solid #38bdf8' : '1px solid var(--border-subtle)' }}
-                            />
-                            <div>
-                              <div style={{ fontWeight: 800, fontSize: '0.84rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                <span>{user.name}</span>
-                                {isTelegramUser && (
-                                  <span
-                                    style={{
-                                      padding: '1px 6px',
-                                      borderRadius: '4px',
-                                      background: 'rgba(56, 189, 248, 0.2)',
-                                      color: '#38bdf8',
-                                      fontSize: '0.62rem',
-                                      fontWeight: 800,
-                                    }}
-                                  >
-                                    ✈️ Telegram
-                                  </span>
-                                )}
-                              </div>
-                              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                                {user.role} • {user.experienceYears}y exp
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%', justifyContent: 'space-between' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                              <img
+                                src={user.avatar}
+                                alt={user.name}
+                                style={{ width: '36px', height: '36px', borderRadius: '50%', border: isSelected ? '2px solid #38bdf8' : '1px solid var(--border-subtle)' }}
+                              />
+                              <div>
+                                <div style={{ fontWeight: 800, fontSize: '0.84rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  <span>{user.name}</span>
+                                  {isTelegramUser && (
+                                    <span
+                                      style={{
+                                        padding: '1px 6px',
+                                        borderRadius: '4px',
+                                        background: 'rgba(56, 189, 248, 0.2)',
+                                        color: '#38bdf8',
+                                        fontSize: '0.62rem',
+                                        fontWeight: 800,
+                                      }}
+                                    >
+                                      ✈️ Telegram
+                                    </span>
+                                  )}
+                                </div>
+                                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                                  {user.role} • {user.experienceYears}y exp
+                                </div>
                               </div>
                             </div>
-                          </div>
 
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={() => {}} // Handled by card click
-                            style={{ cursor: 'pointer', width: '16px', height: '16px' }}
-                          />
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => {}} // Handled by card click
+                              style={{ cursor: 'pointer', width: '16px', height: '16px' }}
+                            />
+                          </div>
+                          
+                          {/* Specific Module Allocation UI */}
+                          {isSelected && modules.filter(m => m.name.trim()).length > 0 && (
+                            <div style={{ width: '100%', marginTop: '12px', paddingTop: '10px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '6px', fontWeight: 600 }}>Assign to Modules:</div>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                {modules.filter(m => m.name.trim()).map(mod => (
+                                  <label key={mod.name} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', color: 'var(--text-secondary)', cursor: 'pointer' }} onClick={(e) => e.stopPropagation()}>
+                                    <input 
+                                      type="checkbox" 
+                                      checked={(moduleAllocations[user.id] || []).includes(mod.name.trim())}
+                                      onChange={() => toggleMemberModule(user.id, mod.name.trim())}
+                                      style={{ width: '12px', height: '12px', cursor: 'pointer' }}
+                                    />
+                                    {mod.name.trim()}
+                                  </label>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       );
                     })}

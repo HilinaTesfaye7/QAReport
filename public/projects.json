@@ -1,97 +1,11 @@
 [
   {
-    "id": "prj-mtqz6yar",
-    "name": "St George",
-    "description": "full Test",
+    "id": "core-teletv",
+    "name": "teletv",
+    "description": "Core project umbrella",
     "status": "Testing",
-    "memberIds": [
-      "usr-918263567",
-      "usr-347835367"
-    ],
-    "resources": {
-      "prdUrl": "https://docs.bank.internal/prd/spec-v1",
-      "repoUrl": "https://github.com/company/st george",
-      "figmaUrl": "https://www.figma.com/design/MZNo0qGHG50tWqJlZkPhi9/Saint-George-FC--Portal?t=RXMU2HgT6APEW1zb-0",
-      "prdTitle": "no",
-      "apiDocUrl": "https://staging-app.internal/swagger-ui",
-      "figmaName": "St George UI Prototype",
-      "prdContent": "# Functional Requirements & Acceptance Criteria\n\n## 1. Overview\nComprehensive QA validation of all feature modules and API services.\n\n## 2. Acceptance Criteria\n- Pass 100% of P0 smoke test cases before release.\n- 0 critical or blocker severity defects open in regression cycle.\n- API response time < 250ms for 95th percentile.\n- Figma layout tokens and responsive breakpoints verified.",
-      "testEnvUrl": "https://staging-app.internal",
-      "releaseInfo": "Sprint candidate validation window closes prior to release deployment.",
-      "testCaseUrl": "https://docs.google.com/spreadsheets/d/1JWvrqjeHLzl9ZUBWKy8AGrEC0GWX0RFkourFFJ58WCA/edit?usp=sharing",
-      "buildVersion": "v1.0.0-rc1",
-      "figmaVersion": "v2.4",
-      "prdDocuments": [
-        {
-          "id": "doc-1788769529378",
-          "name": "no",
-          "version": "v1.0-RC",
-          "fileName": "st george-prd.pdf",
-          "fileSize": "2.4 MB",
-          "uploadedAt": "2026-09-07",
-          "uploadedBy": "Sarah Jenkins",
-          "downloadUrl": "https://docs.bank.internal/prd/spec-v1"
-        }
-      ],
-      "requirements": [
-        "REQ-01: Authentication & Token Lifecycle",
-        "REQ-02: Core Feature Flow and Business Logic Validation",
-        "REQ-03: Responsive Design Breakpoints Verification"
-      ],
-      "testCaseTitle": "St George Test Cases",
-      "importantNotes": "Review all Figma auto-layout padding specs before marking UI tickets complete.",
-      "testCredentials": [
-        {
-          "pass": "AegisPass#2026",
-          "role": "QA Automation Engineer",
-          "user": "qa.test@company.internal",
-          "notes": "Staging environment pre-loaded test data profile"
-        }
-      ],
-      "figmaDescription": "Includes all responsive viewports, state machines, and micro-interaction tokens.",
-      "figmaPreviewTitle": "Mobile & Web UI Design Specs"
-    }
-  },
-  {
-    "id": "prj-mtq2sy1r",
-    "name": "test",
-    "description": "QA Test Project",
-    "status": "Testing",
-    "memberIds": [
-      "usr-432754405"
-    ],
-    "resources": {
-      "prdUrl": "https://docs.bank.internal/prd/spec-v1",
-      "prdTitle": "test Functional Specifications",
-      "testEnvUrl": "https://staging-app.internal"
-    }
-  },
-  {
-    "id": "prj-mtq1iovd",
-    "name": "Crypto Vault Wallet",
-    "description": "QA security audit and regression for multi-sig wallet",
-    "status": "Testing",
-    "memberIds": [
-      "usr-347835367",
-      "usr-hana"
-    ],
-    "resources": {
-      "prdUrl": "https://docs.crypto.internal/prd",
-      "repoUrl": "https://github.com/crypto/vault",
-      "figmaUrl": "https://www.figma.com/file/crypto-vault/spec",
-      "prdTitle": "Crypto Vault Wallet PRD v1.2",
-      "apiDocUrl": "https://api.crypto.internal/docs",
-      "prdContent": "# Crypto Vault Acceptance Criteria\n- 100% test pass rate on signature verifications",
-      "testEnvUrl": "https://staging-wallet.internal",
-      "releaseInfo": "Audited release candidate",
-      "requirements": [
-        "REQ-01: Multi-sig auth",
-        "REQ-02: Biometric unlock"
-      ],
-      "importantNotes": "Verify secure enclave simulation",
-      "testCredentials": [],
-      "figmaPreviewTitle": "Crypto Vault UI Specs"
-    }
+    "memberIds": [],
+    "resources": {}
   },
   {
     "id": "prj-mtq28f4p",
@@ -296,14 +210,98 @@
     }
   },
   {
-    "id": "prj-test-probe",
-    "name": "Probe Test Project",
-    "description": "desc",
+    "id": "prj-mtq2sy1r",
+    "name": "test",
+    "description": "QA Test Project",
     "status": "Testing",
     "memberIds": [
+      "usr-432754405"
+    ],
+    "resources": {
+      "prdUrl": "https://docs.bank.internal/prd/spec-v1",
+      "prdTitle": "test Functional Specifications",
+      "testEnvUrl": "https://staging-app.internal"
+    }
+  },
+  {
+    "id": "prj-mtq1iovd",
+    "name": "Crypto Vault Wallet",
+    "description": "QA security audit and regression for multi-sig wallet",
+    "status": "Testing",
+    "memberIds": [
+      "usr-347835367",
+      "usr-hana"
+    ],
+    "resources": {
+      "prdUrl": "https://docs.crypto.internal/prd",
+      "repoUrl": "https://github.com/crypto/vault",
+      "figmaUrl": "https://www.figma.com/file/crypto-vault/spec",
+      "prdTitle": "Crypto Vault Wallet PRD v1.2",
+      "apiDocUrl": "https://api.crypto.internal/docs",
+      "prdContent": "# Crypto Vault Acceptance Criteria\n- 100% test pass rate on signature verifications",
+      "testEnvUrl": "https://staging-wallet.internal",
+      "releaseInfo": "Audited release candidate",
+      "requirements": [
+        "REQ-01: Multi-sig auth",
+        "REQ-02: Biometric unlock"
+      ],
+      "importantNotes": "Verify secure enclave simulation",
+      "testCredentials": [],
+      "figmaPreviewTitle": "Crypto Vault UI Specs"
+    }
+  },
+  {
+    "id": "prj-mtqz6yar",
+    "name": "St George",
+    "description": "full Test",
+    "status": "Testing",
+    "memberIds": [
+      "usr-918263567",
       "usr-347835367"
     ],
-    "resources": {}
+    "resources": {
+      "prdUrl": "https://docs.bank.internal/prd/spec-v1",
+      "repoUrl": "https://github.com/company/st george",
+      "figmaUrl": "https://www.figma.com/design/MZNo0qGHG50tWqJlZkPhi9/Saint-George-FC--Portal?t=RXMU2HgT6APEW1zb-0",
+      "prdTitle": "no",
+      "apiDocUrl": "https://staging-app.internal/swagger-ui",
+      "figmaName": "St George UI Prototype",
+      "prdContent": "# Functional Requirements & Acceptance Criteria\n\n## 1. Overview\nComprehensive QA validation of all feature modules and API services.\n\n## 2. Acceptance Criteria\n- Pass 100% of P0 smoke test cases before release.\n- 0 critical or blocker severity defects open in regression cycle.\n- API response time < 250ms for 95th percentile.\n- Figma layout tokens and responsive breakpoints verified.",
+      "testEnvUrl": "https://staging-app.internal",
+      "releaseInfo": "Sprint candidate validation window closes prior to release deployment.",
+      "testCaseUrl": "https://docs.google.com/spreadsheets/d/1JWvrqjeHLzl9ZUBWKy8AGrEC0GWX0RFkourFFJ58WCA/edit?usp=sharing",
+      "buildVersion": "v1.0.0-rc1",
+      "figmaVersion": "v2.4",
+      "prdDocuments": [
+        {
+          "id": "doc-1788769529378",
+          "name": "no",
+          "version": "v1.0-RC",
+          "fileName": "st george-prd.pdf",
+          "fileSize": "2.4 MB",
+          "uploadedAt": "2026-09-07",
+          "uploadedBy": "Sarah Jenkins",
+          "downloadUrl": "https://docs.bank.internal/prd/spec-v1"
+        }
+      ],
+      "requirements": [
+        "REQ-01: Authentication & Token Lifecycle",
+        "REQ-02: Core Feature Flow and Business Logic Validation",
+        "REQ-03: Responsive Design Breakpoints Verification"
+      ],
+      "testCaseTitle": "St George Test Cases",
+      "importantNotes": "Review all Figma auto-layout padding specs before marking UI tickets complete.",
+      "testCredentials": [
+        {
+          "pass": "AegisPass#2026",
+          "role": "QA Automation Engineer",
+          "user": "qa.test@company.internal",
+          "notes": "Staging environment pre-loaded test data profile"
+        }
+      ],
+      "figmaDescription": "Includes all responsive viewports, state machines, and micro-interaction tokens.",
+      "figmaPreviewTitle": "Mobile & Web UI Design Specs"
+    }
   },
   {
     "id": "prj-nextgen",
@@ -446,24 +444,6 @@
     }
   },
   {
-    "id": "prj-mto97e35",
-    "name": "ko",
-    "description": "cxcx",
-    "status": "In Progress",
-    "memberIds": [
-      "usr-347835367",
-      "usr-7527336375"
-    ],
-    "resources": {
-      "prdUrl": "https://docs.bank.internal/prd/spec-v1",
-      "repoUrl": "https://github.com/company/ko",
-      "figmaUrl": "https://www.figma.com/file/aegis-design-system/prototype",
-      "prdTitle": "ko Functional Specifications",
-      "figmaName": "ko UI Prototype",
-      "testEnvUrl": "https://staging-app.internal"
-    }
-  },
-  {
     "id": "prj-mto9eukb",
     "name": "sor",
     "description": "nmdsn",
@@ -514,6 +494,24 @@
     }
   },
   {
+    "id": "prj-mto97e35",
+    "name": "ko",
+    "description": "cxcx",
+    "status": "In Progress",
+    "memberIds": [
+      "usr-347835367",
+      "usr-7527336375"
+    ],
+    "resources": {
+      "prdUrl": "https://docs.bank.internal/prd/spec-v1",
+      "repoUrl": "https://github.com/company/ko",
+      "figmaUrl": "https://www.figma.com/file/aegis-design-system/prototype",
+      "prdTitle": "ko Functional Specifications",
+      "figmaName": "ko UI Prototype",
+      "testEnvUrl": "https://staging-app.internal"
+    }
+  },
+  {
     "id": "prj-merchant",
     "name": "Merchant Portal NextGen",
     "description": "B2B web dashboard for e-commerce and retail merchants to manage settlements, chargebacks, and API webhook integrations.",
@@ -550,5 +548,15 @@
       "figmaDescription": "Full B2B desktop dashboard and dispute evidence modal.",
       "figmaPreviewTitle": "Merchant B2B Dashboard Layout & Dispute Flow"
     }
+  },
+  {
+    "id": "prj-test-probe",
+    "name": "Probe Test Project",
+    "description": "desc",
+    "status": "Testing",
+    "memberIds": [
+      "usr-347835367"
+    ],
+    "resources": {}
   }
 ]

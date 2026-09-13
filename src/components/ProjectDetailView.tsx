@@ -1149,6 +1149,53 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
               </p>
             </div>
 
+            {(() => {
+              const allProjectModules = (StorageService.getModules ? StorageService.getModules() : []).filter(m => m.projectId === currentProject.id);
+              const allProjectAssignments = (StorageService.getModuleAssignments ? StorageService.getModuleAssignments() : []).filter(a => a.projectId === currentProject.id);
+              
+              const myAssignments = isLead ? allProjectAssignments : allProjectAssignments.filter(a => a.testerId === currentUser.id);
+              const visibleModules = isLead 
+                ? allProjectModules 
+                : allProjectModules.filter(m => myAssignments.some(a => a.moduleId === m.id));
+
+              if (visibleModules.length > 0) {
+                return (
+                  <div style={{ width: '100%', marginBottom: '24px', background: 'rgba(15, 23, 42, 0.4)', borderRadius: '12px', padding: '16px', border: '1px solid var(--border-subtle)' }}>
+                    <h4 style={{ fontSize: '0.9rem', color: 'var(--text-primary)', margin: '0 0 12px 0', fontWeight: 800 }}>
+                      {isLead ? 'Module Deadlines & Progress' : 'My Assigned Modules'}
+                    </h4>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '12px' }}>
+                      {visibleModules.map(mod => {
+                        const modAssignments = myAssignments.filter(a => a.moduleId === mod.id);
+                        // For Lead, we could show multiple testers. For tester, it's just them.
+                        return (
+                          <div key={mod.id} style={{ background: 'var(--bg-card)', padding: '14px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                              <strong style={{ fontSize: '0.85rem', color: '#38bdf8' }}>{mod.name}</strong>
+                              <span style={{ fontSize: '0.7rem', padding: '2px 8px', borderRadius: '12px', background: 'rgba(239, 68, 68, 0.1)', color: '#f87171' }}>
+                                Due: {modAssignments[0]?.testCaseDeadline || 'Not set'}
+                              </span>
+                            </div>
+                            {isLead && (
+                              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                Assigned Testers: {modAssignments.length}
+                              </div>
+                            )}
+                            <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                                  Test Case Submission: {modAssignments.some(a => a.status === 'Completed') ? '✅ Done' : '⏳ Pending'}
+                                </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              }
+              return null;
+            })()}
+
             {currentProject.resources?.testCaseUrl && (
               <a
                 href={currentProject.resources.testCaseUrl}

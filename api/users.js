@@ -50,8 +50,8 @@ async function usersHandler(req, res) {
             name: p.full_name,
             username: fn,
             role: p.role || 'QA Tester',
-            is_active: p.status === 'Active',
-            status: p.status || 'Pending Assignment',
+            is_active: p.project_id && p.project_id !== 'prj-banking',
+            status: (p.project_id && p.project_id !== 'prj-banking') ? 'Active' : 'Pending Assignment',
             must_change_password: true,
             telegramUsername: p.telegram_username || ''
           };
@@ -140,7 +140,6 @@ async function usersHandler(req, res) {
         await supabase.from('users').upsert([newUserWeb]);
 
         await supabase.from('telegram_profiles').update({
-          status: 'Active',
           project_id: mainProjectId,
           project_name: mainProjectName,
           updated_at: new Date().toISOString()

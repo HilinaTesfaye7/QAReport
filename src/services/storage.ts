@@ -94,7 +94,7 @@ export const StorageService = {
         const deletedIds = new Set<string>(
           JSON.parse(localStorage.getItem('aegis_deleted_member_ids') || '[]')
         );
-        const res = await fetch('/api/users', { cache: 'no-cache', credentials: 'include' });
+        const res = await fetch(`/api/users?_t=${Date.now()}`, { cache: 'no-cache', credentials: 'include' });
         if (res.ok) {
           const users = await res.json();
           if (Array.isArray(users)) {
@@ -263,6 +263,12 @@ export const StorageService = {
   saveTasks: (tasks: QATask[]) => {
     localStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(tasks));
     emitChange(STORAGE_KEYS.TASKS);
+    fetch('/api/tasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(tasks),
+      credentials: 'include'
+    }).catch(e => console.warn('Failed to POST tasks to API', e));
   },
 
   // BUGS
@@ -289,6 +295,12 @@ export const StorageService = {
   saveBugs: (bugs: QABug[]) => {
     localStorage.setItem(STORAGE_KEYS.BUGS, JSON.stringify(bugs));
     emitChange(STORAGE_KEYS.BUGS);
+    fetch('/api/bugs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(bugs),
+      credentials: 'include'
+    }).catch(e => console.warn('Failed to POST bugs to API', e));
   },
 
   // TEST SUITES & CASES
@@ -319,6 +331,12 @@ export const StorageService = {
   saveTestCases: (cases: TestCase[]) => {
     localStorage.setItem(STORAGE_KEYS.TEST_CASES, JSON.stringify(cases));
     emitChange(STORAGE_KEYS.TEST_CASES);
+    fetch('/api/test-cases', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(cases),
+      credentials: 'include'
+    }).catch(e => console.warn('Failed to POST test-cases to API', e));
   },
 
   // REGRESSION CYCLES
@@ -373,12 +391,12 @@ export const StorageService = {
         created_at: b.createdAt,
       }));
 
-      supabase
-        .from('blockers')
-        .upsert(rows)
-        .then(({ error }) => {
-          if (error) console.error('Supabase saveBlockers error:', error);
-        });
+      fetch('/api/blockers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(blockers),
+        credentials: 'include'
+      }).catch(e => console.warn('Failed to POST blockers to API', e));
     }
   },
 
@@ -426,12 +444,12 @@ export const StorageService = {
         submitted_at: r.submittedAt,
       }));
 
-      supabase
-        .from('daily_reports')
-        .upsert(rows)
-        .then(({ error }) => {
-          if (error) console.error('Supabase saveDailyReports error:', error);
-        });
+      fetch('/api/daily-reports', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(reports),
+        credentials: 'include'
+      }).catch(e => console.warn('Failed to POST daily reports to API', e));
     }
   },
 

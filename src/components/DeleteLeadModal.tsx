@@ -62,7 +62,8 @@ export const DeleteLeadModal: React.FC<DeleteLeadModalProps> = ({ leadToDelete, 
     setErrorMsg('');
     try {
       const res = await fetch(`/api/users?id=${leadToDelete.id}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        credentials: 'include'
       });
       
       if (!res.ok) {

@@ -35,6 +35,68 @@ async function bugsHandler(req, res) {
     }
   }
 
+  if (req.method === 'POST') {
+    try {
+      const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+      const list = Array.isArray(body) ? body : [body];
+
+      // Enforce strict project ownership
+      const { data: projectsData, error: projError } = await supabase.from('projects').select('id, qa_lead_id, member_ids');
+      if (projError) {
+        return res.status(500).json({ error: 'Failed to validate project ownership.' });
+      }
+
+      for (const item of list) {
+        const projectId = item.projectId || item.project_id;
+        const project = projectsData.find(p => p.id === projectId);
+        
+        if (!project) {
+          return res.status(404).json({ error: `Project not found: ${projectId}` });
+        }
+
+        if (req.user.role === 'QA Lead') {
+          if (project.qa_lead_id !== req.user.id) {
+            return res.status(403).json({ error: 'Forbidden: You cannot modify bugs for a project you do not own.' });
+          }
+        } else if (req.user.role === 'QA Tester' || req.user.role === 'Automation QA Engineer') {
+          const members = project.member_ids || [];
+          if (!members.includes(req.user.id)) {
+            return res.status(403).json({ error: 'Forbidden: You are not assigned to this project.' });
+          }
+        }
+      }
+
+      const rows = list.map((b) => ({
+        id: b.id,
+        title: b.title,
+        description: b.description,
+        project_id: b.projectId || b.project_id,
+        module: b.module,
+        environment: b.environment,
+        build_version: b.buildVersion || b.build_version,
+        severity: b.severity,
+        priority: b.priority,
+        status: b.status,
+        reporter_id: b.reporterId || b.reporter_id || (req.user.role !== 'QA Lead' ? req.user.id : ''),
+        assignee_id: b.assigneeId || b.assignee_id,
+        steps_to_reproduce: b.stepsToReproduce || b.steps_to_reproduce || [],
+        expected_result: b.expectedResult || b.expected_result,
+        actual_result: b.actualResult || b.actual_result,
+        created_at: b.createdAt || b.created_at || new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }));
+
+      const { data, error } = await supabase.from('bugs').upsert(rows);
+      if (error) {
+        return res.status(500).json({ error: error.message });
+      }
+
+      return res.status(200).json({ success: true, count: rows.length });
+    } catch (e) {
+      return res.status(500).json({ error: e.message });
+    }
+  }
+
   return res.status(405).json({ error: 'Method Not Allowed' });
 }
 

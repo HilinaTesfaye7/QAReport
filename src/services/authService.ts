@@ -30,7 +30,7 @@ export const AuthService = {
 
   fetchMe: async (): Promise<User | null> => {
     try {
-      const res = await fetch('/api/auth/me');
+      const res = await fetch('/api/auth/me', { credentials: 'include' });
       if (res.ok) {
         const data = await res.json();
         const user: User = {
@@ -59,7 +59,8 @@ export const AuthService = {
     const res = await fetch('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password: passwordPlain })
+      body: JSON.stringify({ username, password: passwordPlain }),
+      credentials: 'include'
     });
     
     if (!res.ok) {
@@ -85,7 +86,7 @@ export const AuthService = {
 
   logout: async () => {
     try {
-      await fetch('/api/auth/logout', { method: 'POST' });
+      await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
     } catch (e) {
       // Ignore
     }
@@ -96,7 +97,8 @@ export const AuthService = {
     const res = await fetch('/api/auth/change-password', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ currentPassword: currentPass, newPassword: newPass })
+      body: JSON.stringify({ currentPassword: currentPass, newPassword: newPass }),
+      credentials: 'include'
     });
     
     if (!res.ok) {

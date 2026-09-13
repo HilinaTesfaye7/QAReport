@@ -78,6 +78,36 @@ async function projectsHandler(req, res) {
       const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
       const list = Array.isArray(body) ? body : [body];
 
+      // Enforce strict ownership for QA Leads
+      if (req.user.role === 'QA Lead') {
+        for (const p of list) {
+          const incomingLeadId = p.qaLeadId || p.qa_lead_id;
+          
+          // Rule 1: A QA Lead can only create/update projects where they are the owner
+          if (incomingLeadId && incomingLeadId !== req.user.id) {
+            return res.status(403).json({ error: 'Forbidden: You cannot create or modify projects assigned to another QA Lead.' });
+          }
+
+          // Force the qa_lead_id to be the current user
+          p.qaLeadId = req.user.id;
+          p.qa_lead_id = req.user.id;
+
+          // Rule 2: Verify existing project in DB belongs to this lead
+          if (p.id) {
+            const { data: existingData } = await supabase
+              .from('projects')
+              .select('qa_lead_id')
+              .eq('id', p.id)
+              .limit(1)
+              .single();
+
+            if (existingData && existingData.qa_lead_id !== req.user.id) {
+              return res.status(403).json({ error: 'Forbidden: You do not own this project.' });
+            }
+          }
+        }
+      }
+
       const rows = list.map((p) => ({
         id: p.id,
         name: p.name,
@@ -86,7 +116,7 @@ async function projectsHandler(req, res) {
         start_date: p.startDate || p.start_date,
         target_release_date: p.targetReleaseDate || p.target_release_date,
         project_owner: p.projectOwner || p.project_owner,
-        qa_lead_id: p.qaLeadId || p.qa_lead_id || 'usr-sarah',
+        qa_lead_id: p.qaLeadId || p.qa_lead_id || (req.user.role === 'QA Lead' ? req.user.id : 'usr-sarah'),
         member_ids: p.memberIds || p.member_ids || [],
         resources: p.resources || {},
         qa_progress: p.qaProgress ?? p.qa_progress ?? 0,

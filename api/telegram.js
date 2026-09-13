@@ -337,8 +337,8 @@ function formatQALeadStatusText(project, memberReports, openBlockers = [], bugs 
     readiness = '🟡 AT RISK / MONITOR CLOSELY';
   }
 
-  const qaProgress = project.qa_progress ?? project.qaProgress ?? 74;
-  const regressionProgress = project.regression_progress ?? project.regressionProgress ?? 62;
+  const qaProgress = project.qa_progress ?? project.qaProgress ?? 0;
+  const regressionProgress = project.regression_progress ?? project.regressionProgress ?? 0;
   const progressBar = makeProgressBar(qaProgress, 10);
 
   let out = `📊 <b>QA LEAD - PROJECT STATUS OVERVIEW</b>\n\n`;
@@ -401,8 +401,8 @@ function formatQALeadStatusText(project, memberReports, openBlockers = [], bugs 
 // Format QA Member /status text
 function formatQAMemberStatusText(project, memberReport) {
   const todayStr = new Date().toISOString().split('T')[0];
-  const qaProgress = project.qa_progress ?? project.qaProgress ?? 74;
-  const regressionProgress = project.regression_progress ?? project.regressionProgress ?? 62;
+  const qaProgress = project.qa_progress ?? project.qaProgress ?? 0;
+  const regressionProgress = project.regression_progress ?? project.regressionProgress ?? 0;
   const progressBar = makeProgressBar(qaProgress, 10);
 
   let out = `📊 <b>QA STATUS - ${escapeHtml(project.name)}</b>\n\n`;
@@ -432,8 +432,8 @@ function formatQAMemberStatusText(project, memberReport) {
 function formatTeamProgressText(project, memberReports, openBlockers = [], options = {}) {
   const todayStr = new Date().toISOString().split('T')[0];
   const isAllView = Boolean(options.isAllView);
-  const qaProgress = project.qa_progress ?? project.qaProgress ?? 74;
-  const regressionProgress = project.regression_progress ?? project.regressionProgress ?? 62;
+  const qaProgress = project.qa_progress ?? project.qaProgress ?? 0;
+  const regressionProgress = project.regression_progress ?? project.regressionProgress ?? 0;
   const progressBar = makeProgressBar(qaProgress, 10);
   const totalSubmissions = memberReports.length;
 
@@ -503,7 +503,7 @@ function formatQARisksText(project, openBlockers = [], memberReports = [], bugs 
   const blockedMembers = memberReports.filter((r) => (r.is_blocked || r.isBlocked) && r.blockers);
   const criticalBugs = bugs.filter((b) => b.severity === 'Critical' && b.status !== 'Closed');
   const highBugs = bugs.filter((b) => b.severity === 'High' && b.status !== 'Closed');
-  const qaProgress = project.qa_progress ?? project.qaProgress ?? 74;
+  const qaProgress = project.qa_progress ?? project.qaProgress ?? 0;
 
   let riskLevel = '🟢 LOW RISK / ON TRACK';
   let riskSummary = 'Testing is proceeding smoothly with zero critical impediments.';
@@ -1581,8 +1581,8 @@ export default async function handler(req, res) {
         selectedProject = projects.find((p) => p.id === activeProjId || p.name.toLowerCase() === activeProjName.toLowerCase()) || {
           id: activeProjId,
           name: activeProjName,
-          qa_progress: 74,
-          regression_progress: 62,
+          qa_progress: 0,
+          regression_progress: 0,
         };
       }
 
@@ -1757,7 +1757,7 @@ export default async function handler(req, res) {
         selectedProject = projects.find((p) => p.id === activeProjId || p.name.toLowerCase() === activeProjName.toLowerCase()) || {
           id: activeProjId,
           name: activeProjName,
-          qa_progress: 74,
+          qa_progress: 0,
         };
       }
 
@@ -1810,8 +1810,8 @@ export default async function handler(req, res) {
       const selectedProject = projects.find((p) => p.id === activeProjId || p.name.toLowerCase() === activeProjName.toLowerCase()) || {
         id: activeProjId,
         name: activeProjName,
-        qa_progress: 74,
-        regression_progress: 62,
+        qa_progress: 0,
+        regression_progress: 0,
       };
 
       const projReports = allReports.filter(
