@@ -27,7 +27,7 @@ export const ProjectService = {
           id: `core-${Date.now().toString(36)}-${name.toLowerCase()}`,
           name,
           description: `Main project for ${name}`,
-          qaLeadId: user.id, // Assign temporarily to the first QA Lead who logs in, Director can reassign
+          qaLeadId: undefined, // Leave unassigned initially, Director must assign them
           status: 'Active' as const,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
